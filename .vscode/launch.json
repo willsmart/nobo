@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible Node.js debug attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Layout to schema",
+            "program": "${workspaceRoot}/layout-to-schema/main.js",
+            "args": [
+                "layoutfile=demo/model-layout.yaml"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Model server",
+            "program": "${workspaceFolder}/model-server/main.js",
+            "args": [
+                "model=user__1__default",
+                "listen",
+                "wss"
+            ]
+        }
+    ]
+}

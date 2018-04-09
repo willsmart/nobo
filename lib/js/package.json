@@ -1,0 +1,17 @@
+{
+  "name": "trigger-happy-js",
+  "version": "0.0.1",
+  "main": "main.js",
+  "author": "Will Smart <will.r.smart@gmail.com>",
+  "dependencies": {
+    "bufferutil": "^3.0.3",
+    "change-case": "^3.0.2",
+    "pg": "^7.4.1",
+    "request": "^2.83.0",
+    "sleep": "^5.1.1",
+    "socket.io": "^2.0.4",
+    "utf-8-validate": "^4.0.0",
+    "ws": "^3.3.3",
+    "yamljs": "0.3.0"
+  }
+}

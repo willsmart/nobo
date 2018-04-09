@@ -1,0 +1,30 @@
+== README
+
+* Ruby version
+
+2.1.5
+
+* System dependencies
+
+Was developed on a Mac
+
+* Configuration
+
+* Database creation
+
+No DB required
+
+* Database initialization
+
+n/a
+
+* How to run the test suite
+
+none as yet
+
+* Services (job queues, cache servers, search engines, etc.)
+
+* Deployment instructions
+
+Run bin/makeAssets, this will put html/js/css/image files in tmp/productionAssets, upload these to s3 as your static site
+Run bin/deployAssets <s3://mydomain.com/mybucket/> to additionally upload these to s3 as your static site

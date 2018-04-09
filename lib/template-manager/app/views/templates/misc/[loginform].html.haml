@@ -1,0 +1,11 @@
+.textWithField.d-flex.flex-column.align-content-right.toggle-group.toggle-modal{toggle:'login'}
+  %a.using-this-model.toggle-button{toggle:'login'}
+    ${title|Sign in}
+  .login-form.toggle-focus.toggle-fader{toggle:'login', style:"display:none;"}
+    %form{action:"none", onsubmit:"document.aautil.killTopModal();$('#${__id} input').blur();return document.modelDOM.submitWSMessage(event,'${message|signIn}', 'User','#${__id} form');"}
+      .field.d-flex.flex-column.align-content-center
+        %input{id:"${__id}_email", name:"email", size:"20", type:"email", placeholder:"email", onblur:"setTimeout(function(){if (!$('#${__id}_password').is(':focus')) {$('#${__id}').removeClass('showForm');}},10);", onfocus:"", onclick:'event.stopPropagation();'}
+        %input{autocomplete:"off", id:"${__id}_password", name:"password", size:"20", type:"password", placeholder:"password", onblur:"setTimeout(function(){if (!$('#${__id}_email').is(':focus')) {$('#${__id}').removeClass('showForm');}},10);", onfocus:"this.setSelectionRange(0, this.value.length);", onclick:'event.stopPropagation();'}
+        %br
+        %input{type:'submit', name:"commit", value:"Go!"}
+        %input.hidden{type:'hidden', name:"user[remember_me]", value:"1"}

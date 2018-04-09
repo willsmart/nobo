@@ -1,0 +1,4 @@
+%span.joblink
+  %a.message-link{style:"${${{jobname|job}}?display:none;|}", title:'${alt|Start this job}', onclick:"return  document.modelDOM.submitWSMessage(event,'${message|start${{jobname|job}}}','${modelid|${__model}}');"}<
+    ${title|Start job}
+  .model-child{fieldasmodelchild:"${{jobname|job}}"}

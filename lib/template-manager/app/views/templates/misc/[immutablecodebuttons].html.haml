@@ -1,0 +1,11 @@
+.code-buttons
+  .btn-group
+    %button.highlight-off-button.btn.btn-xs.btn-default.disabled{type:'button', onclick:"$(this).closest('.codeBox').trigger('syntaxhighlightoff');"}
+      Plain text
+    %button.highlight-on-button.btn.btn-xs.btn-default{type:'button', onclick:"$(this).closest('.codeBox').trigger('syntaxhighlighton');"}
+      Highlight syntax
+  .btn-group.highlight-style.pull-right
+    %button.highlight-blocky-button.btn.btn-xs.btn-default.disabled{type:'button', onclick:"$(this).closest('.codeBox').trigger('syntaxhighlightblocky');"}
+      Block-outline highlighting
+    %button.highlight-basic-button.btn.btn-xs.btn-default{type:'button', onclick:"$(this).closest('.codeBox').trigger('syntaxhighlightbasic');"}
+      Simple highlighting

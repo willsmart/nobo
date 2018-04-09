@@ -1,0 +1,27 @@
+development:
+  adapter: postgresql
+  pool: 5
+  host: 127.0.0.1
+  timeout: 5000
+  encoding: unicode
+  database: test2
+  username: postgres
+  password: " 8rw4rhfw84y3fubweuf27..."
+
+test:
+  adapter: postgresql
+  host: 127.0.0.1
+  pool: 5
+  timeout: 5000
+  database: poscadrails_test
+  username: postgres
+  password: " 8rw4rhfw84y3fubweuf27..."
+
+production:
+  adapter: postgresql
+  pool: 5
+  timeout: 5000
+  database: <%= ENV['RDS_DB_NAME'] %>
+  username: <%= ENV['RDS_USERNAME'] %>
+  password: <%= ENV['RDS_PASSWORD'] %>
+  host: <%= ENV['RDS_HOSTNAME'] %>

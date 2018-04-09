@@ -1,0 +1,1871 @@
+// "bootstrap-sprockets" must be imported before "bootstrap" and "bootstrap/variables"
+@import "bootstrap"
+@import mixins
+@import bootstrap/variables
+//@import compass/css3/transition
+//6
+ 
+$dark: #607848
+$dark-text: #FEFEFE
+$dark-subtext: #ddd
+$dark-link: #FEFEEB
+
+$med: #f8f8f8
+$med-text: #FEFEFE
+$med-subtext: #ddd
+$med-link: #FEFEEB
+
+$light: #C0D860
+$light-text: #FEFEFE
+$light-subtext: #eee
+$light-link: #FEFEEB
+
+$white: #fff
+$white-text: #555
+$white-subtext: #aaa
+$white-link: #0080ff
+
+$whitish: #fcfcfc
+$whitish-text: #444
+$whitish-subtext: #999
+$whitish-link: #0080ff
+
+$brown: #555
+$brown-text: #FEFEFE
+$brown-subtext: #ddd
+$brown-link: #FEFEEB
+
+$vlight-border: #f4f4f4
+$light-border: #eee
+$med-border: #ccc
+$dark-border: #888
+
+$error-code: red
+$number-code: #ff7260
+$bool-code: #4385f5
+$equate-bg: rgba(203,196,187,0.15)
+$dot-code: #2b6e95
+$var-code: #4bae95
+$var-child-code: #4B8EB5
+$fn-code: #3bbe85
+$ternary-2-code: green
+$ternary-3-code: orange
+$indent-code: #ddd
+$indent-code-4: #bbb
+
+$render-bg-filter: contrast(0.05) brightness(2)
+$render-locked-bg-filter: contrast(0.07) brightness(1.8)
+
+=light-bg
+  background-color: $light
+  color: $light-text
+  a.grey-link:not(:hover)
+    color: $light-subtext
+  a:not([href]):not([tabindex])
+    color: $light-link
+    &.grey-link
+      color: $light-subtext
+    &:hover
+      color: $light-link
+  grey-text
+    color: $light-subtext
+
+=med-bg
+  background-color: $med
+  color: $med-text
+  a.grey-link:not(:hover)
+    color: $med-subtext
+  a:not([href]):not([tabindex])
+    color: $med-link
+    &.grey-link
+      color: $med-subtext
+    &:hover
+      color: $med-link
+  grey-text
+    color: $med-subtext
+
+=dark-bg
+  background-color: $dark
+  color: $dark-text
+  a.grey-link:not(:hover)
+    color: $dark-subtext
+  a:not([href]):not([tabindex])
+    color: $dark-link
+    &.grey-link
+      color: $dark-subtext
+    &:hover
+      color: $dark-link
+  grey-text
+    color: $dark-subtext
+
+=white-bg
+  background-color: $white
+  color: $white-text
+  a.grey-link:not(:hover)
+    color: $white-subtext
+  a:not([href]):not([tabindex])
+    color: $white-link
+    &.grey-link
+      color: $white-subtext
+    &:hover
+      color: $white-link
+  grey-text
+    color: $white-subtext
+
+=whitish-bg
+  background-color: $whitish
+  color: $whitish-text
+  a.grey-link:not(:hover)
+    color: $whitish-subtext
+  a:not([href]):not([tabindex])
+    color: $whitish-link
+    &.grey-link
+      color: $whitish-subtext
+    &:hover
+      color: $whitish-link
+  grey-text
+    color: $whitish-subtext
+
+=brown-bg
+  background-color: $brown
+  color: $brown-text
+  a.grey-link:not(:hover)
+    color: $brown-subtext
+  a:not([href]):not([tabindex])
+    color: $brown-link
+    &.grey-link
+      color: $brown-subtext
+    &:hover
+      color: $brown-link
+  grey-text
+    color: $brown-subtext
+
+
+.light-bg
+  +light-bg
+.med-bg
+  +med-bg
+.dark-bg
+  +dark-bg
+.white-bg
+  +white-bg
+.whitish-bg
+  +whitish-bg
+.brown-bg
+  +brown-bg
+
+
+
+@keyframes blinker { to { opacity: 0; } }
+
+footer .link
+  padding: 5px 10px
+  &
+
+.render-progress
+  &[voxelling="1"]
+    .progress-bar
+      background-color: #A20411
+
+  &[lerping="1"]
+    .progress-bar
+      background-color: #3292A7
+
+  &[uploading="1"]
+    .progress-bar
+      background-color: #FA5C15
+
+  &[loading="1"]
+    .progress-bar
+      background-color: #C35230
+
+
+.btn-tiny
+  padding: 0.1rem 0.4rem
+  font-size: 0.8rem
+  line-height: 1.2
+  border-radius: 0.2rem
+
+.btn[state="disabled"]
+  opacity: 0.65
+
+.job-progress
+  +brown-bg
+
+  font-size: 1rem
+  &>.progress-bar
+    height: initial
+    padding: 5px 0px
+
+.width-10-responsive
+  width: 95%
+  @media (min-width: 960px)
+    width: 90%
+  @media (min-width: 1100px)
+    width: 83.33%
+
+.width-6-responsive
+  width: 90%
+  @media (min-width: 960px)
+    width: 75%
+  @media (min-width: 1100px)
+    width: 50%
+
+.width-6-responsive-card
+  width: 100%
+  @media (min-width: 960px)
+    width: 50%
+
+.width-4-responsive-card
+  width: 100%
+  @media (min-width: 960px)
+    width: 50%
+  @media (min-width: 1100px)
+    width: 33%
+
+.max-width-4-responsive-card
+  max-width: 100%
+  @media (min-width: 960px)
+    max-width: 50%
+  @media (min-width: 1100px)
+    width: 33.33%
+
+.toggle-fader
+  opacity: 0
+  &.toggle-on
+    opacity: 1
+
+  -webkit-transition: 0.1s ease-out
+  -moz-transition: 0.1s ease-out
+  -o-transition: 0.1s ease-out
+  transition: 0.1s ease-out
+
+.toggle-height
+  &:not(.toggle-on)
+    height: 0
+
+  -webkit-transition: 0.2s ease-out
+  -moz-transition: 0.2s ease-out
+  -o-transition: 0.2s ease-out
+  transition: 0.2s ease-out
+
+.animate-size
+  max-width: 1000%
+  max-height: 1000%
+  transition: left 0.3s ease-in, top 0.3s ease-in, max-width 0.2s ease-in, max-height 0.2s ease-in
+
+.anchor-link-bubble
+  font-size: 0.9rem
+  padding: 0.1rem 0.4rem
+  margin: 2px
+  border: 1px solid $vlight-border
+  border-radius: 0.5rem
+  font-weight: lighter
+  &[draggable]
+    cursor: ew-resize
+    margin: 2px 0px
+    *
+      cursor: inherit
+
+.models-container
+  //perspective: 1px
+  //perspective-origin: top
+  overflow-x: hidden
+  overflow-y: auto
+  height: 100vh
+  
+.model-drag-space
+  position: relative
+  display: inline-block
+  width: 10px
+  &[hasdrag]
+    width: 60px
+    background: rgba(0,0,0,0.1)
+    border-radius: 2px
+
+  transition: width 0.1s ease-out
+
+.heart-beat,.__remake_model__
+  animation: sml-heart-beat 2s infinite
+  position: relative
+  opacity: 0.9
+  &:after
+    content: "loading..."
+    display: inline-block
+    top: 3px
+    left: 10%
+    position: absolute
+    color: #ddd
+    background-color: #ffff
+    border-radius: 15px
+    padding: 0.2rem 0.7rem
+    font-size: 0.8rem
+    pointer-events: none
+
+
+body.loading-page>.models-container>.models
+  position: relative
+  opacity: 0.5
+  &:after
+    content: "loading..."
+    display: inline-block
+    top: 3px
+    left: 10%
+    position: absolute
+    color: #ddd
+    background-color: #ffff
+    border-radius: 15px
+    padding: 0.2rem 0.7rem
+    font-size: 0.8rem
+
+
+.flash-heart-beat
+  animation: sml-heart-beat 2s
+
+#change-page-loading
+  z-index: 1100
+  position: fixed
+  background-color: rgba(255,255,255,0.1)
+  width: 100vw
+  height: 100vh
+  top: 0
+  left: 0
+  color: $white-text
+  animation: bg-heart-beat 2s infinite
+  &>*
+    margin-left: auto
+    margin-right: auto
+    margin-top: auto
+    margin-bottom: auto
+    color: white
+    background-color: #aaa
+    border: 5px solid #eee
+    border-radius: 40px
+    padding: 15px
+    animation: heart-beat 2s infinite
+
+
+
+@keyframes sml-heart-beat
+  0%
+    transform: scale(1)
+  50%
+    transform: scale(0.98)
+    filter: brightness(1.1)
+  53%
+    filter: brightness(0.9)
+  55%
+    transform: scale(1.02)
+  58%
+    filter: brightness(0.95)
+  60%
+    transform: scale(0.99)
+  53%
+    filter: brightness(0.85)
+  65%
+    transform: scale(1.03)
+  68%
+    filter: brightness(0.98)
+  90%
+    transform: scale(1)
+    filter: brightness(1)
+  100%
+    transform: scale(1)
+
+@keyframes heart-beat
+  0%
+    transform: scale(1)
+  50%
+    transform: scale(0.95)
+    filter: brightness(1.2)
+  53%
+    filter: brightness(0.8)
+  55%
+    transform: scale(1.04)
+  58%
+    filter: brightness(0.9)
+  60%
+    transform: scale(0.98)
+  53%
+    filter: brightness(0.7)
+  65%
+    transform: scale(1.06)
+  68%
+    filter: brightness(0.95)
+  90%
+    transform: scale(1)
+    filter: brightness(1)
+  100%
+    transform: scale(1)
+
+@keyframes bg-heart-beat
+  0%
+    background-color: rgba(255,255,255,0.4)
+  53%
+    background-color: rgba(255,255,255,0.5)
+  100%
+    background-color: rgba(255,255,255,0.4)
+
+.my-modal-focus
+  z-index: 1011
+  pointer-events: all
+  &:not(.my-top-modal-focus)
+    pointer-events: none
+    &>:not(.my-top-modal-focus)
+      &:not(.no-modal-dim)
+        opacity: 0.3
+      &.no-modal-dim>:not(.my-top-modal-focus)
+        &:not(.no-modal-dim)
+          opacity: 0.3
+        &.no-modal-dim>:not(.my-top-modal-focus)
+          &:not(.no-modal-dim)
+            opacity: 0.3
+  &.big-if-modal,&>.big-if-modal
+    transform-origin: left 50%
+    transform: scale(1.6)
+
+.my-modal
+  z-index: 1010
+  opacity: 0
+  &.displayed
+    opacity: 1
+  position: fixed
+  background-color: rgba(50,50,50,0.3)
+  top: 0%
+  width: 100%
+  height: 100%
+
+  -webkit-transition: 0.1s ease-in-out
+  -moz-transition: 0.1s ease-in-out
+  -o-transition: 0.1s ease-in-out
+  transition: 0.1s ease-in-out
+
+.padding-top-5
+  padding-top: 5px
+
+.padding-left-10
+  padding-left: 10px
+
+.relative
+  position: relative
+  
+.absolute
+  position: absolute
+
+.fixed
+  position: fixed
+
+.overflow-scroll
+  overflow: scroll
+
+.overflow-auto
+  overflow: auto
+
+.overflow-hidden
+  overflow: hidden
+
+.overflow-visible
+  overflow: visible
+
+.grow-0
+  flex-grow: 0
+
+.grow-1
+  flex-grow: 1
+
+.grow-2
+  flex-grow: 2
+
+.grow-3
+  flex-grow: 3
+
+.grow-4
+  flex-grow: 4
+
+.grow-5
+  flex-grow: 5
+
+.grow-10
+  flex-grow: 10
+
+.grow-20
+  flex-grow: 20
+
+.inline-block
+  display: inline-block
+  
+.wsnowrap
+  white-space: nowrap
+
+.wspre
+  white-space: pre
+
+.wsprewrap
+  white-space: pre-wrap
+
+.zero-size,.zero-width
+  width: 0px !important
+
+.zero-size,.zero-height
+  height: 0px !important
+
+.text-right
+  text-align: right
+.text-center
+  text-align: center
+.right-aligned
+  right: 0px
+.left-aligned
+  left: 0px
+.top-aligned
+  top: 0px
+.bottom-aligned
+  bottom: 0px
+
+.right5
+  right: 5px
+.top5
+  top: 5px
+.left5
+  left: 5px
+.bottom5
+  bottom: 5px
+
+.right10
+  right: 10px
+.top10
+  top: 10px
+.left10
+  left: 10px
+.bottom10
+  bottom: 10px
+
+.right15
+  right: 15px
+.top15
+  top: 15px
+.left15
+  left: 15px
+.bottom15
+  bottom: 15px
+
+.right-neg-15
+  right: -15px
+.top-neg-15
+  top: -15px
+.left-neg-15
+  left: -15px
+.bottom-neg-15
+  bottom: -15px
+
+.on-top
+  z-index: 10
+
+.thick-border
+  border: 2px solid $med-border
+  border-radius: 5px
+  padding: 2px
+.thin-border
+  border: 1px solid $med-border
+  border-radius: 2px
+  padding: 1px
+.border-radius10
+  border-radius: 10px
+
+.no-border
+  border-style: none !important
+.no-left-border
+  border-top-left-radius: 0px !important
+  border-bottom-left-radius: 0px !important
+  border-left-style: none !important
+.no-top-border
+  border-top-left-radius: 0px !important
+  border-top-right-radius: 0px !important
+  border-top-style: none !important
+.no-bottom-border
+  border-bottom-left-radius: 0px !important
+  border-bottom-right-radius: 0px !important
+  border-bottom-style: none !important
+.no-right-border
+  border-top-right-radius: 0px !important
+  border-bottom-right-radius: 0px !important
+  border-right-style: none !important
+
+
+.no-padding
+  padding: 0 !important
+.no-left-padding
+  padding-left: 0 !important
+.no-top-padding
+  padding-top: 0 !important
+.no-bottom-padding
+  padding-bottom: 0 !important
+.no-right-padding
+  padding-right: 0 !important
+
+.no-margin
+  margin: 0 !important
+.no-left-margin
+  margin-left: 0 !important
+.no-top-margin
+  margin-top: 0 !important
+.no-bottom-margin
+  margin-bottom: 0 !important
+.no-right-margin
+  padding-right: 0 !important
+
+.margin-1rem
+  margin: 1rem !important
+.left-margin-1rem
+  margin-left: 1rem !important
+.top-margin-1rem
+  margin-top: 1rem !important
+.bottom-margin-1rem
+  margin-bottom: 1rem !important
+.right-margin-1rem
+  padding-right: 1rem !important
+
+.sharp-bottom
+  border-bottom-left-radius: 0px !important
+  border-bottom-right-radius: 0px !important
+
+.sharp-top
+  border-top-left-radius: 0px !important
+  border-top-right-radius: 0px !important
+
+.no-bottom
+  border-bottom-width: 0px !important
+
+
+.at-top
+  top: 0
+
+.no-mouse
+  pointer-events: none
+
+
+.console-sizer
+  position: absolute
+  left: 50%
+  top: -16px
+
+.render-progress
+  &[loading="1"]
+
+
+.stat-blobs
+  &.loading-image
+    display: initial !important
+
+  overflow: hidden
+
+  &:not(.loading-image)[hasrender="true"]
+    opacity: 0
+  -webkit-transition: 1s ease-in-out
+  -moz-transition: 1s ease-in-out
+  -o-transition: 1s ease-in-out
+  transition: 1s ease-in-out
+    
+  position: absolute
+
+  .stat-blob
+    left: -15px
+
+    top: 0
+    position: absolute
+
+    &[hasvalue="false"]
+      opacity: 0.2      
+
+    -webkit-transition: 0.5s ease-in-out
+    -moz-transition: 0.5s ease-in-out
+    -o-transition: 0.5s ease-in-out
+    transition: 0.5s ease-in-out
+
+    .mid-stat-blob
+      position: absolute
+      top: 50%
+      left: 50%
+      width: 0
+      height: 0
+
+      &.console
+        width: 100%
+        left: 0
+
+
+        .progress-text
+          &.upload.loading-image
+            display: none
+          &.load:not(.loading-image)
+            display: none
+          &.loaded:not(.loaded-image)
+            display: none
+
+      .render-stat-blob,.init-stat-blob,.lerp-stat-blob,.upload-stat-blob,.image-load-stat-blob
+        position: absolute
+        left: -10px
+        width: 20px
+        height: 20px
+        border-radius: 10px
+        border-bottom-right-radius: 5px
+        transform: rotate(45deg)
+        border: 2px solid $dark-border
+
+        &.render-stat-blob
+          top: -50px
+          background-color: yellow
+
+        &.lerp-stat-blob
+          top: -65px
+          background-color: green
+
+        &.upload-stat-blob
+          top: -80px
+          background-color: orange
+
+        &.image-load-stat-blob
+          top: -95px
+          background-color: white
+
+      .console-button
+        position: absolute
+        left: 0%
+        width: 100%
+        top: -110px
+
+.fade-in-model
+  display: none
+  
+.full-width,.full-size
+  width: 100%
+  
+.full-height,.full-size
+  height: 100%
+  
+.full-min-height
+  min-height: 100%
+  
+.half-width
+  width: 50%
+  
+.half-height
+  height: 50%
+  
+.width-0
+  width: 0%
+  
+.width-1
+  width: 8.33%
+  
+.width-2
+  width: 16.66%
+  
+.width-3
+  width: 25%
+  
+.width-4
+  width: 33.33%
+
+.width-5
+  width: 41.66%
+  
+.width-6
+  width: 50%
+  
+.width-7
+  width: 58.33%
+  
+.width-8
+  width: 66.66%
+  
+.width-9
+  width: 75%
+  
+.width-10
+  width: 83.33%
+  
+.width-11
+  width: 91.66%
+  
+.width-12
+  width: 100%
+  
+.max-width-0
+  max-width: 0%
+  
+.max-width-1
+  max-width: 8.33%
+  
+.max-width-2
+  max-width: 16.66%
+  
+.max-width-3
+  max-width: 25%
+  
+.max-width-4
+  max-width: 33.33%
+
+.max-width-5
+  max-width: 41.66%
+  
+.max-width-6
+  max-width: 50%
+  
+.max-width-7
+  max-width: 58.33%
+  
+.max-width-8
+  max-width: 66.66%
+  
+.max-width-9
+  max-width: 75%
+  
+.max-width-10
+  max-width: 83.33%
+  
+.max-width-11
+  max-width: 91.66%
+  
+.max-width-12
+  max-width: 100%
+  
+.min-width-0
+  min-width: 0%
+  
+.min-width-1
+  min-width: 8.33%
+  
+.min-width-2
+  min-width: 16.66%
+  
+.min-width-3
+  min-width: 25%
+  
+.min-width-4
+  min-width: 33.33%
+
+.min-width-5
+  min-width: 41.66%
+  
+.min-width-6
+  min-width: 50%
+  
+.min-width-7
+  min-width: 58.33%
+  
+.min-width-8
+  min-width: 66.66%
+  
+.min-width-9
+  min-width: 75%
+  
+.min-width-10
+  min-width: 83.33%
+  
+.min-width-11
+  min-width: 91.66%
+  
+.min-width-12
+  min-width: 100%
+  
+
+.left-0
+  left: 0%
+  
+.left-1
+  left: 8.33%
+  
+.left-2
+  left: 16.66%
+  
+.left-3
+  left: 25%
+  
+.left-4
+  left: 33.33%
+
+.left-5
+  left: 41.66%
+  
+.left-6
+  left: 50%
+  
+.left-7
+  left: 58.33%
+  
+.left-8
+  left: 66.66%
+  
+.left-9
+  left: 75%
+  
+.left-10
+  left: 83.33%
+  
+.left-11
+  left: 91.66%
+  
+.left-12
+  left: 100%
+  
+.right-0
+  right: 0%
+  
+.right-1
+  right: 8.33%
+  
+.right-2
+  right: 16.66%
+  
+.right-3
+  right: 25%
+  
+.right-4
+  right: 33.33%
+
+.right-5
+  right: 41.66%
+  
+.right-6
+  right: 50%
+  
+.right-7
+  right: 58.33%
+  
+.right-8
+  right: 66.66%
+  
+.right-9
+  right: 75%
+  
+.right-10
+  right: 83.33%
+  
+.right-11
+  right: 91.66%
+  
+.right-12
+  right: 100%
+  
+  
+  
+.half-height
+  height: 50%
+  
+.pushModel,.mobile-click
+  cursor: pointer
+
+.PNGRender
+  position: relative
+  .scroller
+    display: none
+    opacity: 0
+    height: 100%
+    width: 100%
+    position: absolute
+    top: 0px
+    left: 0px
+    overflow: scroll
+    div
+      height: 5000px
+      position: relative
+      top: 100%
+      left: 0px
+      width: 99%
+
+  &::before
+    content: '&nbsp;'
+    position: absolute
+    left: 0
+    top: 0
+    width: 100%
+    height: 100%
+    background-blend-mode: difference
+    background-size: 20px 20px
+    background-color: #111
+    background-image: repeating-linear-gradient(to left, white, white 50%, black 50%, black 100%), repeating-linear-gradient(to bottom, white, white 50%, black 50%, black 100%)
+    filter: $render-bg-filter
+    transition: filter .2s ease
+  &.locked-for-zoom::before
+    filter: $render-locked-bg-filter
+
+  canvas
+    position: absolute
+    background-color: transparent
+  
+  background-position: 0 0, 50px 0, 50px -50px, 0px 50px
+
+  &.locked-for-zoom
+    border-width: 4px
+    .scroller
+      display: initial
+
+body
+  &.no-scroll
+    .models-container
+      overflow: hidden
+      padding-right: 15px
+
+  &.disconnectedFromServer
+    &:not(.errorConnectingToServer):before
+      animation: blinker 1s cubic-bezier(.5, 0, 1, 1) infinite alternate
+      z-index: 1
+      display: flex
+      justify-content: center
+      align-items: center
+      position: relative
+      width: 100%
+      height: 40px
+      text-align: center
+      background-color: rgba(255,255,255,0.8)
+      content: 'Trying to regain connection ...'
+    &.errorConnectingToServer:before
+      z-index: 1
+      display: flex
+      justify-content: center
+      align-items: center
+      position: relative
+      width: 100%
+      height: 50px
+      text-align: center
+      white-space: pre
+      background-color: rgba(255,200,200,0.8)
+      content: "Lost connection, I'll keep trying but maybe the server is busy or down. Please try reloading the page"
+
+html, body
+  +whitish-bg
+
+  a
+    cursor: pointer
+    
+  font-family:Monospace
+
+  .posting-text
+    padding-left: 1
+    padding-right: 1
+    outline-offset: 2px
+    white-space: pre-wrap
+    &:focus
+      outline-style: solid
+      outline-width: 1px
+      &.editable
+        border-bottom-width: 0px
+
+  .posting-text-parent.child-has-focus[lines="multi"]
+    &:after
+      display: block
+      font-size: 0.4em
+      content: "Press shift-enter to add a line"
+      width: 100%
+      margin-top: 1.3em
+      opacity: 0.5
+      position: absolute
+
+  #info
+    position: absolute
+    top: 0px
+    width: 100%
+    padding: 5px
+
+  #centerer
+    display: table
+    width: 100%
+    height: 100%
+
+  #centerer-cell
+    display: table-cell
+    vertical-align: middle
+
+  #container
+    margin-left: auto
+    margin-right: auto
+    width: 904px  // 300*2 + border
+
+
+  .bigContainer
+    width: 600px
+    height: 600px
+    position: relative
+    float: left
+  .smallContainer
+    width: 200px
+    height: 200px
+    position: relative
+    float: left
+
+  .textWithField
+    position: relative
+    .form
+      position: absolute
+      display: inline
+      font-size: 0.9em
+
+    .login-form
+      position: absolute
+      top: 100%
+      right: 0
+      padding: 10px
+      border: 1px solid $med-border
+      border-radius: 10px
+      +white-bg
+      %form
+        margin-bottom: 0
+
+  .textWithField,.imageWithForm
+    &:not(.showForm) .form
+      display: none
+
+
+  .editable
+    //text-decoration: underline
+    //text-decoration-style: dotted
+    border-bottom: 1px dotted #ccc
+    &:focus
+      border-bottom-width: 2px
+
+  .em
+    font-style: italic
+
+  .codeBetween,.codeLast
+    white-space: pre-wrap
+    font-size: 1em
+  .codeBetween-ws
+    font-size: 1em
+
+  .codeBox
+    &.width-12-code.highlighted.plain
+      width: 100% !important
+    &:not(.highlighted) .codeInputDiv.highlighted
+      display: none
+    &:not(.highlighted) .btn-group.highlight-style
+      display: none
+    &:not(.plain) 
+      .codeInputDiv.plain
+        display: none
+
+    &.plain
+      &.highlighted 
+        .precol
+          display: none
+        .maincol
+          width: 100%
+        .codeInputDiv.highlighted
+          float: right
+          flex-basis: 50%
+          &:not(:focus)
+            border-left-width: 0px
+          border-bottom-left-radius: 0px
+          border-top-left-radius: 0px
+          padding-left: 10px
+
+        .codeInputDiv.plain
+          padding-right: 10px
+          flex-basis: 50%
+          border-right-style: dashed
+          border-bottom-right-radius: 0px
+          border-top-right-radius: 0px
+
+    &.blocky
+      .codeInputDiv.highlighted
+        .codeBlock
+          display: inline-block
+          white-space: initial
+
+    &:not(.blocky)
+      .codeInputDiv.highlighted
+        .codeBlock
+          border-bottom-width: 0px
+          border-bottom-color: none
+          border-top-width: 0px
+          border-top-color: none
+          &:not(.depth0):hover
+            border-left-width: 3px
+            border-right-width: 3px
+            padding: 2px 2px 0px 2px
+
+  .codeInputDiv.plain
+    .codeBlock
+      white-space: nowrap
+
+      padding: 0px 0px 0px 0px
+      margin: 0px 0px 0px 0px
+      border-radius: 0px
+      border-top-right-radius: 0px
+      border-left-width: 0px
+      border-left-style: none
+      border-right-width: 0px
+      border-right-style: none
+      border-bottom-width: 0px
+      border-bottom-color: none
+      border-top-width: 0px
+      border-top-color: none
+
+
+
+  .codeInputDivs
+    display: flex
+    flex-wrap: wrap
+    position: relative
+    //min-height: 150px
+
+  .codeModel
+    .saving
+      opacity: 0
+    .saved
+      opacity: 0
+    &.is-saving
+      .saving
+        opacity: 1
+    &.is-saved
+      .saved
+        opacity: 1
+
+    .name-pull-right
+      position: relative
+      top: 10px
+      height: 0px
+      right: 5px
+
+    .footer-buttons
+      padding: 5px 5px 0px 5px
+
+  .code-indent-0,.code-indent-1,.code-indent-2,.code-indent-3,.code-indent-4,.code-indent-5,.code-indent-6,.code-indent-7
+    position: relative
+    &:before
+      color: $indent-code
+      position: absolute
+      left: 0
+      top: -15%
+      width: 100%
+      content: '⎟'
+      transform: scale(0.2,0.3)
+  .code-indent-0,.code-indent-2,.code-indent-4,.code-indent-6
+    &:before
+      transform: scale(0.2,0.5)
+  .code-indent-4
+    &:before
+      color: $indent-code-4
+      transform: scale(0.2,0.75)
+  .code-indent-0
+    &:before
+      color: $indent-code-4
+      transform: scale(0.2,1)
+
+  .codeBlock
+    white-space: pre-wrap
+    //position: relative
+
+    &.depth0
+      padding-right: 6px
+      padding-left: 6px
+      min-height: 1em
+      display: block
+      position: relative
+      width: 100%
+
+    &:not(.depth0)
+      border-top: 1px solid rgba(0,0,0,0)
+      border-bottom: 1px solid rgba(0,0,0,0)
+      padding: 2px 4px 0px 4px      
+      margin: 2px 4px 1px 4px
+
+      &.depth1
+        margin-left: 0
+        margin-right: 0
+
+      border-radius: 8px
+      border-left-width: 1px
+      border-left-style: solid
+      border-right-width: 1px
+      border-right-style: solid
+      border-color: $light-border
+
+    font-weight: normal
+    font-style: normal
+
+    //&.code-category-topLevel
+    //  border: 0px solid rgba(0,0,0,0)
+
+
+    &.code-category-none
+      border: 0px solid rgba(0,0,0,0)
+
+    &.code-category-none,&.code-rule-none
+      color: $error-code
+
+    &.code-rule-floor
+    &.code-rule-fraction,&.code-rule-number
+      color: $number-code
+    &.code-rule-addition
+    &.code-rule-subtraction
+    &.code-rule-negative
+    &.code-rule-multiplication
+    &.code-rule-division
+    &.code-rule-equate
+      background-color: $equate-bg
+    &.code-rule-inverse
+    &.code-rule-lessthan
+    &.code-rule-greaterthan
+    &.code-rule-or,&.code-rule-and
+      color: $bool-code
+    &.code-rule-comma
+      //border-style: dotted
+      padding: 0px
+    &.code-rule-last
+      //border-style: dotted
+      padding: 0px
+    &.code-rule-first
+    &.code-rule-dotsuffix
+      color: $dot-code
+    &.code-rule-rot
+    &.code-rule-metric
+    &.code-rule-insub
+    &.code-rule-subdist
+    &.code-rule-deb
+    &.code-rule-coor
+    &.code-rule-gatherrot
+    &.code-rule-rotation
+    &.code-rule-setrot
+    &.code-rule-gathertrans
+    &.code-rule-translation
+    &.code-rule-settrans
+    &.code-rule-variable
+      color: $var-code
+      &.children0
+        color: $var-child-code
+    &.code-rule-function
+      color: $fn-code
+    &.code-rule-localvariable
+      font-style: italic
+      color: $var-code
+      &.children0
+        color: $var-child-code
+    &.code-rule-ternary
+      &:nth-child(2)
+        color: $ternary-2-code
+      &:nth-child(3)
+        color: $ternary-3-code
+
+    &:hover
+      border-color: black
+
+  .codeBetween
+    position: relative
+
+
+  .codeInputDiv
+    position: relative
+    overflow-x: visible
+    flex-grow: 1
+    white-space: pre-wrap
+
+    &.small-sig
+      font-size: 1.2em
+    &.small-body
+      font-size: 0.8em
+
+    &:focus
+      outline: none
+    &.big-body,&.big-sig
+      border-bottom: 2px solid rgba(0,0,0,0)
+      &:focus
+        border-bottom-color: black
+
+    &.plain
+      font-family: 'Inconsolata'
+
+    &.highlighted
+      font-family: 'Inconsolata'
+
+  .endpoint
+    .loaded-content + .loading
+      display: none
+
+  .code-buttons
+    margin-bottom: 10px
+
+  .sixteen-nine,.four-three,.one-one,.five-two
+    position: relative
+    &:before
+      display: block
+      content: ""
+      width: 100%
+    >.content
+      position: absolute
+      top: 0
+      left: 0
+      right: 0
+      bottom: 0
+
+  .one-one:before
+    padding-top: 100%
+  .five-two:before
+    padding-top: 40%
+  .four-three:before
+    padding-top: 75%
+  .sixteen-nine:before
+    padding-top: 56.25%
+
+  .image3d-container
+    &.eight-hundred .image3d .PNGRender
+      width: 800px
+      height: 500px
+    &.thumb .image3d .PNGRender
+      width: 140px
+      height: 80px
+    &.full-size
+      width: 100%
+      height: 100%
+      .image3d
+        width: 100%
+        height: 100%
+        .PNGRender
+          width: 100%
+          height: 100%
+
+    &.thick-border .image3d .PNGRender
+      border: 2px solid $med-border
+      border-radius: 5px
+      padding: 2px
+    &.thin-border .image3d .PNGRender
+      border: 1px solid $med-border
+      border-radius: 2px
+      padding: 1px
+
+    
+  .PNGRender:-webkit-full-screen
+    width: 100%
+    height: 100%
+
+  .render-row
+    height: 80px
+    overflow: hidden
+
+  .debug-div
+    white-space: pre
+
+  tr.remove-row>td>*
+    overflow: visible
+
+  .my-card
+    width: 100%
+
+    .PNGRender>canvas
+      border-radius: 15px
+
+    .card-anchor
+      position: absolute
+      top: -15px
+      pointer-events: none
+
+    .visit-caret
+      position: relative
+      left: -3px
+      top: -4px
+      font-size: 1.4rem
+
+    .small-expand-caret
+      transform: rotate(90deg)
+      position: relative
+      left: 0rem
+      top: 0px
+      font-size: 1.5rem
+      display: inline-block
+
+    .expand-caret
+      transform: rotate(90deg) scale(1,2)
+      position: relative
+      left: 0.41rem
+      top: 10px
+      font-size: 1.5rem
+      display: inline-block
+
+    .retract-caret
+      transform: rotate(90deg) scale(1,2)
+      position: relative
+      left: 0.41rem
+      top: 10px
+      font-size: 1.5rem
+      display: inline-block
+
+    .hider-text
+      right: 0.7rem
+      top: -2px
+      font-size: 1.2rem
+      display: inline-block
+
+    .hider-caret
+      transform: rotate(90deg) scale(1,2)
+      // TODO ugh, these are getting really messy, this is a standout
+      left: 49%
+      top: 5px
+      font-size: 1.2rem
+      display: inline-block
+
+    .settings-button
+      position: relative
+      left: -1px
+      top: 2px
+      font-size: 0.9rem
+
+    .expander-link
+      font-size: 0.75rem
+
+    -webkit-transition: all .2s ease
+    -moz-transition: all .2s ease
+    -o-transition: all .2s ease
+    transition: all .2s ease
+
+    &>.contents,&>*>.contents
+      +white-bg
+      border: 1px solid $light-border
+      &.expanded
+        border: 1px solid $med-border
+      border-radius: 15px
+      margin: 0 8px 16px
+      padding: 15px 0px 0px 0px
+      opacity: 1
+      
+      &>.info,&>*>.info
+        margin: 0px 8px 15px
+        &>.block-heading,&>*>.block-heading
+          font-size: 1.25rem
+          margin-bottom: 2px
+          text-align: center
+          position: relative
+          .expander-link
+            position: absolute
+            left: 0px
+            bottom: 3px
+          &:before
+            position: relative
+            display: block
+            left: 30%
+            width: 40%
+            height: 20px
+            top: 10px
+            border-top: 1px solid $light-border
+            content: ""
+
+      &>.sub-cards,&>*>.sub-cards
+        +whitish-bg
+        &:after
+          position: absolute
+          bottom: 0px
+          border-radius: 17px
+          border-top-left-radius: 0
+          border-top-right-radius: 0
+          left: 0px
+          height: 15px
+          width: 100%
+          display: block
+          background-color: $whitish
+          content: ""
+
+        &:before
+          position: relative
+          display: block
+          top: 0px
+          left: 0px
+          width: 100%
+          height: 20px
+          background: linear-gradient($white, $whitish)
+          content: ""
+
+        &>.contents
+
+          position: relative
+          padding: 15px 0px 0px 0px
+  
+          &>.block-heading,&>*>.block-heading
+            font-size: 1.25rem
+            margin-bottom: 2px
+            text-align: center
+            position: relative
+            &:before
+              position: relative
+              display: block
+              left: 30%
+              width: 40%
+              height: 20px
+              top: 10px
+              border-top: 1px solid $light-border
+              content: ""
+
+      &>.image,&>*>.image
+        width: 100%
+        +whitish-bg
+        border: 1px solid $vlight-border
+        border-radius: 15px
+        margin-top: 10px
+
+        .bottom-progress-bar
+          position: absolute
+          bottom: 0
+          left: 0
+          width: 100%
+          border-radius: 15px
+          border-top-left-radius: 0
+          border-top-right-radius: 0
+          overflow: hidden
+
+      &>.inset-block,&>*>.inset-block
+        margin-left: 5px
+        
+      &>.block,&>*>.block
+        width: 100%
+        +white-bg
+        border: 1px solid $vlight-border
+        border-radius: 15px
+        padding: 0px 8px 15px
+        margin-top: 10px
+
+        &>.inner-block,&>*>.inner-block
+          width: 100%
+          border: 1px solid $vlight-border
+          border-radius: 15px
+          padding: 0px 8px 15px
+          margin-top: 10px
+
+        &>.image,&>*>.image
+          width: 100%
+          +whitish-bg
+          border: 1px solid $vlight-border
+          border-radius: 15px
+          margin-top: 10px
+
+
+.full-size-child>*
+  width: 100%
+  height: 100%
+.no-padding
+  padding: 0px !important
+.inline
+  display: inline !important
+.no-top-margin
+  margin-top: 0px !important
+.no-bottom-margin
+  margin-bottom: 0px !important
+
+.navbar-default
+  +brown-bg
+  border-radius: 0px !important
+  margin-bottom: 0px
+  border: 1px solid $light-border
+
+.parallax-1,.parallax-2
+  &.parallax-1
+    transform: translateZ(-0.4px) scale3d(1.4,1.4,1)
+  &.parallax-2
+    transform: translateZ(-0.8px) scale3d(1.8,1.8,1)
+  transform-origin: top
+
+.container-fluid
+  padding-left: 25px
+  padding-right: 25px
+
+.page-name-heading
+  +white-bg
+
+  text-align: center
+  border-color: $light-border
+  border-left-width: 1px
+  border-right-width: 1px
+  border-bottom-width: 1px
+  border-top-width: 0px
+  border-style: solid
+  padding: 0.5rem 1rem 33px
+  margin-bottom: 35px
+
+  .page-type
+    font-size: 1em
+
+.toggle-expand-page-settings.my-modal-group
+  .page-settings
+    right: 0
+    width: 79vw
+
+.page-settings
+  position: absolute
+  margin-left: 10px
+
+  top: 105%
+  right: 90%
+  display: flex
+  flex-flow: column nowrap
+  justify-content: flex-start
+  align-items: flex-end
+
+  width: 60vw
+  @media (min-width: 960px)
+    width: 40vw
+  @media (min-width: 1100px)
+    width: 33vw
+
+
+  &>.page-setting
+    width: 100%
+    position: relative
+    +white-bg
+    &>*
+      padding: 10px 20px
+    border-color: $med-border
+    border-width: 1px
+    border-left-width: 2px
+    border-left-color: $vlight-border
+    border-right-width: 2px
+    border-right-color: $vlight-border
+    border-bottom-width: 0px
+    border-style: solid
+
+    &:first-child
+      border-top-left-radius: 20px
+      border-top-width: 2px
+      border-top-color: $vlight-border
+
+    &:last-child
+      border-bottom-left-radius: 20px
+      border-bottom-right-radius: 20px
+      border-bottom-width: 2px
+      border-bottom-color: $vlight-border
+
+    display: flex
+    flex-flow: row wrap
+    justify-content: flex-start
+    align-items: baseline
+
+    &>.button
+      text-align: center
+      font-weight: 1.2
+
+    &>*
+      flex-basis: 100%
+
+    &>.title
+      border-right-style: dotted
+      border-right-width: 1px
+      border-right-color: $light-border
+
+    &>.setting
+      &>.subsetting
+        width: 100%
+        padding: 5px 0px
+
+        border-top: 1px solid $light-border
+
+        &:first-child
+          border-top-width: 0px
+
+    &>.subsetting
+      width: 100%
+      padding: 10px 20px
+
+      border-top: 1px solid $light-border
+
+      &:first-child
+        border-top-width: 0px
+
+
+
+    @media (min-width: 960px)
+      &>.title
+        flex-basis: 30%
+      &>.setting
+        flex-basis: 70%
+
+    .help-button
+      &:hover
+        text-decoration: underline
+      cursor: pointer
+      position: relative
+      top: -5px
+      font-size: 0.8em
+
+    &.help-text
+      +white-bg
+      border-top-style: dotted
+      border-top-color: $vlight-border
+      font-size: 0.8em
+
+
+
+
+.page-heading-buttons
+  position: relative
+  padding-left: 25px
+  padding-right: 25px
+  top: -36px
+  height: 0px
+
+.page-padding
+  padding-left: 25px
+  padding-right: 25px
+
+.page-content-heading
+  margin-top: 20px
+  margin-bottom: 20px
+  text-align: center
+
+.page-next-no-line
+  margin-top: 40px
+  text-align: center
+
+.page-next
+  margin-top: 20px
+  text-align: center
+  &:before
+    margin-bottom: 20px
+    display: block
+    content: ''
+    height: 0px
+    width: 80%
+    margin-left: auto
+    margin-right: auto
+    border-top-width: 1px
+    border-bottom-width: 0px
+    border-left-width: 0px
+    border-right-width: 0px
+    border-style: solid
+    border-color: $dark-border
+
+.page-body
+  padding: 8px
+
+.page-block
+  +white-bg
+  border: 1px solid $med-border
+  border-radius: 3px
+  padding: 20px
+
+.page-card-block
+  +white-bg
+  border: 1px solid $med-border
+  border-radius: 3px
+  padding: 20px
+
+footer
+  >div>a
+    padding: 5px 20px 5px
+
+.navbar.center .navbar-inner
+  text-align: center
+
+.navbar.center .navbar-inner .nav
+  display: inline-block
+  float: none
+  vertical-align: top
+
+.hover-dimmer .dim-unless-hover
+  opacity: 0.1
+  -webkit-transition: opacity 0.2s cubic-bezier(0.215, 0.61, 0.355, 1)
+  -moz-transition: opacity 0.2s cubic-bezier(0.215, 0.61, 0.355, 1)
+  -o-transition: opacity 0.2s cubic-bezier(0.215, 0.61, 0.355, 1)
+  transition: opacity 0.2s cubic-bezier(0.215, 0.61, 0.355, 1)
+
+.hover-dimmer:hover .dim-unless-hover
+  opacity: 1
+  -webkit-transition: opacity 0.1s linear
+  -moz-transition: opacity 0.1s linear
+  -o-transition: opacity 0.1s linear
+  transition: opacity 0.1s linear

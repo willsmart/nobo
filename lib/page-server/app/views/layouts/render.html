@@ -1,0 +1,163 @@
+
+<canvas id="acanvas" width="100" height="100" style="display:none;"></canvas>
+
+<script id="shader-fs" type="fragshader">
+    precision highp float;
+    precision lowp int;
+ 
+    uniform sampler2D uSampler;
+
+    uniform mat4 invModel;
+    uniform vec3 cameraPosition;
+    
+    uniform vec3 axisWidths;
+
+    // material settings
+    //uniform sampler2D materialTex;
+    uniform float materialShininess;
+    uniform vec3 materialSpecularColor;
+    uniform vec4 materialColor;
+
+    uniform vec3 lightPosition;
+    uniform vec3 lightIntensities; //a.k.a the color of the light
+    uniform float lightAttenuation;
+    uniform float lightAmbientCoefficient;
+
+    varying highp vec3 vRand;
+    varying highp vec3 fragNormal;
+    varying highp vec4 fragVert;
+    varying highp vec4 modelPos;
+    varying lowp vec4 fragColor;
+
+    mat3 transpose(in highp mat3 inMatrix) {
+        vec3 i0 = inMatrix[0];
+        vec3 i1 = inMatrix[1];
+        vec3 i2 = inMatrix[2];
+
+        return mat3(
+            vec3(i0.x, i1.x, i2.x),
+            vec3(i0.y, i1.y, i2.y),
+            vec3(i0.z, i1.z, i2.z)
+        );
+    }
+
+    void main() {
+        vec3 normal = normalize(transpose(mat3(invModel)) * fragNormal);
+        vec3 surfacePos = vec3(fragVert);
+        float axisVal = clamp(min(min(sign(abs(modelPos.x-cameraPosition.x)-axisWidths.x),sign(abs(modelPos.y-cameraPosition.y)-axisWidths.y)),sign(abs(modelPos.z+cameraPosition.z)-axisWidths.z)),0.5,1.0);
+        vec3 randColor = vRand.rgb;
+        vec4 surfaceColor = vec4(mix(vec3(randColor)*axisVal,vec3(materialColor),1.0),materialColor.w);
+        vec3 surfaceToLight = normalize(lightPosition - surfacePos);
+        vec3 surfaceToCamera = normalize(cameraPosition - surfacePos);
+
+        //ambient
+        vec3 ambient = lightAmbientCoefficient * surfaceColor.rgb * lightIntensities;
+
+        //diffuse
+        float diffuseCoefficient = max(0.0, dot(normal, surfaceToLight));
+        vec3 diffuse = diffuseCoefficient * surfaceColor.rgb * lightIntensities;
+
+        //specular
+        float specularCoefficient = 0.0;
+        if(diffuseCoefficient > 0.0)
+        specularCoefficient = pow(max(0.0, dot(surfaceToCamera, reflect(-surfaceToLight, normal))), materialShininess);
+        vec3 specular = specularCoefficient * materialSpecularColor * lightIntensities;
+
+        //attenuation
+        float distanceToLight = length(lightPosition - surfacePos);
+        float attenuation = 1.0 / (1.0 + lightAttenuation * pow(distanceToLight, 2.0));
+
+        //linear color (color before gamma correction)
+        vec3 linearColor = ambient + attenuation*(diffuse + specular);
+
+        //final color (after gamma correction)
+        vec3 gamma = vec3(1.0/2.2); 
+        gl_FragColor = vec4(pow(linearColor, gamma), surfaceColor.a);
+
+        //gl_FragColor=vec4(0.0,1.0,1.0,1.0);
+        //gl_FragColor=materialColor*lightAmbientCoefficient;
+    //gl_FragColor=vec4(linearColor,1.0);
+   //gl_FragColor=materialColor*diffuseCoefficient;
+    }
+</script>
+
+<script id="shader-vs" type="vertshader">
+    precision highp float;
+    precision lowp int;
+
+    attribute highp vec2 aTextureCoord;
+    uniform highp float uTextureOffsetY;
+
+    uniform mat4 model;
+
+    uniform highp float dataHeight;
+    uniform highp float it;
+
+    uniform vec4 focusDistance;
+
+    uniform highp float heightOnNormal;
+
+    uniform mat4 uMMatrix;
+    uniform mat4 uVMatrix;
+    uniform mat4 invModel;
+    uniform mat4 uPMatrix;
+    uniform sampler2D uSampler;
+
+    varying highp vec3 vRand;
+    varying highp vec3 fragNormal;
+    varying highp vec4 fragVert;
+    varying highp vec4 modelPos;
+    varying lowp vec4 fragColor;
+
+    highp vec3 rgb2hsv(highp vec3 c)
+    {
+        highp vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        highp vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        highp vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+
+        highp float d = q.x - min(q.w, q.y);
+        highp float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+     
+
+    highp vec3 hsv2rgb(highp vec3 c)
+    {
+        highp vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        highp vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    }
+
+    void main(void) {
+//        vec3 indexrgb=floor(texture2D(uSampler, vec2(aTextureCoord.x,aTextureCoord.y/dataHeight+uTextureOffsetY)).rgb*255.0+0.5);
+        vec3 indexrgb=floor(texture2D(uSampler, vec2(floor(aTextureCoord.x)/4096.0,floor(aTextureCoord.y)/dataHeight+uTextureOffsetY)).rgb*255.0+0.5);
+//        vec2 vertpos=vec2(indexrgb.r/2048.0+fract(indexrgb.g/8.0)+0.5/4096.0, (floor(indexrgb.g/8.0)+indexrgb.b*32.0)/dataHeight);
+        vec2 vertpos=vec2(floor(indexrgb.r*2.0+fract(indexrgb.g/8.0)*4096.0+0.5)/4096.0, (floor(indexrgb.g/8.0)+indexrgb.b*32.0+0.5)/dataHeight);
+
+        vec3 nxyz=//vec3(255.0,0.0,0.0);
+            texture2D(uSampler, vec2((4.0*floor(aTextureCoord.x/4.0)+3.0)/4096.0,floor(aTextureCoord.y)/dataHeight+uTextureOffsetY)).rgb*255.0+0.5;
+
+        vec4 
+            xyzL=floor(texture2D(uSampler, vertpos)*255.0+0.5),
+            xyzH=floor(texture2D(uSampler, vertpos+vec2(1.0/4096.0,0.0))*255.0+0.5);
+
+        vec3 pos=vec3(
+            xyzL.x/32768.0+xyzH.x/128.0-1.0,
+            xyzL.y/32768.0+xyzH.y/128.0-1.0,
+            xyzL.z/32768.0+xyzH.z/128.0-1.0
+        );
+        vec3 norm=
+        vec3(
+            nxyz.x/128.0-1.0,
+            nxyz.y/128.0-1.0,
+            nxyz.z/128.0-1.0
+        );
+        modelPos = model  * vec4(pos, 1.0);
+        fragNormal=normalize(norm);
+        fragVert = uMMatrix  * (vec4(pos, 1.0) + vec4(fragNormal*heightOnNormal, 1.0));
+        gl_Position = uPMatrix*fragVert;
+        vRand = hsv2rgb(fract(normalize(xyzL.xyz)+normalize(nxyz.xyz))*vec3(1.0,0.5,0.3)+vec3(0.0,0.0,0.0));
+
+        fragColor=vec4(0.0,0.0,0.0,1.0);//,clamp(min((modelPos.z-focusDistance.x)/(focusDistance.y-focusDistance.x),(focusDistance.w-modelPos.z)/(focusDistance.w-focusDistance.z)),0.0,1.0));
+    }
+</script>
