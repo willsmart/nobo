@@ -289,7 +289,7 @@ class Templates {
 
     const type = thisTemplates.cache.schema.allTypes[typeName];
     const outputKeys = {};
-    Object.getOwnPropertyNames(type.fields).forEach(fieldName => {
+    Object.keys(type.fields).forEach(fieldName => {
       const field = type.fields[fieldName];
       outputKeys[fieldName] = {
         datapointId: field.getDatapointId({ dbRowId: dbRowId })

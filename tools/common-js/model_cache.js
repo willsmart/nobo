@@ -92,7 +92,7 @@ class ModelCache {
 
     cache.newlyInvalidDatapointIds.push(datapointId);
 
-    Object.getOwnPropertyNames(datapoint.viewsById).forEach(viewId => {
+    Object.keys(datapoint.viewsById).forEach(viewId => {
       const view = datapoint.viewsById[viewId];
       if (!view.invalidDatapointCount++) {
         cache.invalidViewsById[viewId] = datapoint.viewsById[viewId];
@@ -193,7 +193,7 @@ class ModelCache {
     const outputKeysByDatapointId = {};
     let invalidDatapointCount = 0;
 
-    Object.getOwnPropertyNames(outputKeys).forEach(outputKey => {
+    Object.keys(outputKeys).forEach(outputKey => {
       let val = outputKeys[outputKey];
       if (typeof val != "object") val = {};
       if (val.value !== undefined) {
@@ -226,7 +226,7 @@ class ModelCache {
       datapoint.viewsById[viewId] = view;
     });
 
-    Object.getOwnPropertyNames(view.outputKeysByDatapointId).forEach(datapointId => {
+    Object.keys(view.outputKeysByDatapointId).forEach(datapointId => {
       if (outputKeysByDatapointId[datapointId]) return;
 
       const datapoint = cache.getOrCreateDatapoint({ datapointId: datapointId });
@@ -270,7 +270,7 @@ class ModelCache {
     datapoint.value = clone(value);
 
     const ret = [];
-    Object.getOwnPropertyNames(datapoint.viewsById).forEach(viewId => {
+    Object.keys(datapoint.viewsById).forEach(viewId => {
       const view = datapoint.viewsById[viewId];
       if (!--view.invalidDatapointCount) {
         delete cache.invalidViewsById[viewId];
@@ -306,7 +306,7 @@ class ModelCache {
       return value;
     }
 
-    Object.getOwnPropertyNames(view.datapointsByOutputKey).forEach(outputKey => {
+    Object.keys(view.datapointsByOutputKey).forEach(outputKey => {
       if (version[outputKey]) return;
       const datapointAndVariant = view.datapointsByOutputKey[outputKey];
 
@@ -323,7 +323,7 @@ class ModelCache {
       version[outputKey] = value;
     });
 
-    Object.getOwnPropertyNames(view.valuesByOutputKey).forEach(outputKey => {
+    Object.keys(view.valuesByOutputKey).forEach(outputKey => {
       const value = view.valuesByOutputKey[outputKey];
 
       if (value === undefined || value === null || (Array.isArray(value) && !value.length)) {
@@ -363,10 +363,10 @@ class ModelCache {
     });
 
     const promises = [];
-    Object.getOwnPropertyNames(fieldsByRowByType).forEach(typeName => {
+    Object.keys(fieldsByRowByType).forEach(typeName => {
       const type = schema.allTypes[typeName];
       const fieldsByRow = fieldsByRowByType[typeName];
-      Object.getOwnPropertyNames(fieldsByRow).forEach(dbRowId => {
+      Object.keys(fieldsByRow).forEach(dbRowId => {
         const fields = fieldsByRow[dbRowId];
 
         promises.push(
@@ -428,10 +428,10 @@ class ModelCache {
     });
 
     const promises = [];
-    Object.getOwnPropertyNames(fieldsByRowByType).forEach(typeName => {
+    Object.keys(fieldsByRowByType).forEach(typeName => {
       const type = schema.allTypes[typeName];
       const fieldsByRow = fieldsByRowByType[typeName];
-      Object.getOwnPropertyNames(fieldsByRow).forEach(dbRowId => {
+      Object.keys(fieldsByRow).forEach(dbRowId => {
         const fieldInfos = fieldsByRow[dbRowId];
 
         promises.push(

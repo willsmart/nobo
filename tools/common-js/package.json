@@ -6,12 +6,13 @@
   "dependencies": {
     "bufferutil": "^3.0.3",
     "change-case": "^3.0.2",
+    "fs-promisify": "^0.2.0",
     "pg": "^7.4.1",
+    "promisify-fs": "^1.0.39",
     "request": "^2.83.0",
     "sleep": "^5.1.1",
     "socket.io": "^2.0.4",
     "utf-8-validate": "^4.0.0",
-    "ws": "^3.3.3",
-    "yamljs": "0.3.0"
+    "ws": "^3.3.3"
   }
 }

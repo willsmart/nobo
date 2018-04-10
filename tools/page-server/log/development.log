@@ -37659,3 +37659,39 @@ ActionView::MissingTemplate (Missing template public/page with {:locale=>[:en], 
   Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/_trace.html.erb (2.4ms)
   Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/_request_and_response.html.erb (1.3ms)
   Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/missing_template.html.erb within rescues/layout (22.0ms)
+
+
+Started GET "/user/1" for ::1 at 2018-04-10 17:15:12 +1200
+Processing by PublicController#page as HTML
+  Parameters: {"path"=>"user/1"}
+  Rendered public/page.html.haml within layouts/base (14.2ms)
+DEPRECATION WARNING: Extra .css in SCSS file is unnecessary. Rename /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/stylesheets/_mixins.css.scss to /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/stylesheets/_mixins.scss. (called from _app_views_layouts_base_html_haml___2861864773848580561_70093468292080 at /Users/Will/mycode/noco-demo/joined/tools/page-server/app/views/layouts/base.html.haml:13)
+DEPRECATION WARNING: Extra .css in SCSS file is unnecessary. Rename /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/stylesheets/_mixins.css.scss to /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/stylesheets/_mixins.scss. (called from _app_views_layouts_base_html_haml___2861864773848580561_70093468292080 at /Users/Will/mycode/noco-demo/joined/tools/page-server/app/views/layouts/base.html.haml:13)
+Completed 500 Internal Server Error in 7610ms
+
+ActionView::Template::Error (couldn't find file 'cparserWorker' with type 'application/javascript'
+Checked in these paths: 
+  /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/images
+  /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/javascripts
+  /Users/Will/mycode/noco-demo/joined/tools/page-server/app/assets/stylesheets
+  /Users/Will/.rvm/gems/ruby-2.1.5/gems/jquery-rails-4.3.1/vendor/assets/javascripts
+  /Users/Will/.rvm/gems/ruby-2.1.5/bundler/gems/threejs-rails-1b495c8d11fe/vendor/assets/javascripts
+  /Users/Will/.rvm/gems/ruby-2.1.5/gems/coffee-rails-4.0.1/lib/assets/javascripts
+  /Users/Will/.rvm/gems/ruby-2.1.5/gems/popper_js-1.11.1/assets/javascripts
+  /Users/Will/.rvm/gems/ruby-2.1.5/gems/bootstrap-4.0.0.beta/assets/stylesheets
+  /Users/Will/.rvm/gems/ruby-2.1.5/gems/bootstrap-4.0.0.beta/assets/javascripts):
+    10:     %meta{description: t('meta.description') }
+    11:     %meta{keywords: t('meta.keywords')}
+    12:     = csrf_meta_tag
+    13:     = stylesheet_link_tag "application", media: "all"
+    14:     = yield(:head)
+    15: 
+    16:     %link{:href => image_path("favicon.png"), :rel => "shortcut icon", :type => "image/png"}
+  app/assets/javascripts/application.js:18
+  app/views/layouts/base.html.haml:13:in `_app_views_layouts_base_html_haml___2861864773848580561_70093468292080'
+
+
+  Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/_source.erb (9.4ms)
+  Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/_trace.html.erb (2.7ms)
+  Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/_request_and_response.html.erb (0.8ms)
+  Rendered /Users/Will/.rvm/gems/ruby-2.1.5/gems/actionpack-4.2.6/lib/action_dispatch/middleware/templates/rescues/template_error.html.erb within rescues/layout (32.5ms)

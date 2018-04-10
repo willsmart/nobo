@@ -25,11 +25,12 @@ class WebSocketServer {
     });
   }
 
-  start() {
+  start({ port = 3100 } = {}) {
     const server = this;
 
+    this.serverParams = { port: port };
     server.wss = new WebSocket.Server({
-      port: 3100
+      port: port
     });
 
     var nextWsIndex = 1;
@@ -66,6 +67,8 @@ class WebSocketServer {
         ws.ping("", false, true);
       });
     }, 30000);
+
+    console.log(`Web socket server listening on port ${port}`);
   }
 
   newVersionAvailableForViews(viewIds) {
@@ -325,7 +328,7 @@ class WebSocketClient {
     if (typeof obj != "object") return;
     let payload = {};
     if (obj.subscribe) {
-      Object.getOwnPropertyNames(obj.subscribe).forEach(proxyableViewId => {
+      Object.keys(obj.subscribe).forEach(proxyableViewId => {
         var version = obj.subscribe[proxyableViewId];
         console.log(`View: ${proxyableViewId}[${version}]`);
 

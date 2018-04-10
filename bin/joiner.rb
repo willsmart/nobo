@@ -318,6 +318,7 @@ if loop_time.nil?
     puts "No changes, directories were already synced"
   end
   puts "... #{Time.now.to_s}"
+  puts "(if you want the joiner script to watch for changes, use the '--loop' command line flag)"
 else
   puts "Joining the directory trees under #{$base_dirs.to_json} into #{$base_join_dir}, will resync each #{loop_time} sec"
   quit = false

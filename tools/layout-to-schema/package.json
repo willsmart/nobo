@@ -4,5 +4,8 @@
   "main": "main.js",
   "author": "Will Smart <will.r.smart@gmail.com>",
   "dependencies": {
+    "yamljs": "0.3.0",
+    "promisify-fs": "^1.0.39",
+    "fs-promisify": "^0.2.0"
   }
 }

@@ -122,7 +122,7 @@ class TempSchema {
     delete this.sql;
     this.getSqlObject().retrigger = retrigger;
 
-    Object.getOwnPropertyNames(schema.allTypes).forEach(k => {
+    Object.keys(schema.allTypes).forEach(k => {
       const type = schema.allTypes[k];
       if (!/^[A-Z]/.test(k)) return;
 
@@ -136,7 +136,7 @@ class TempSchema {
 
     delete this.sql;
 
-    Object.getOwnPropertyNames(schema.allTypes).forEach(k => {
+    Object.keys(schema.allTypes).forEach(k => {
       const type = schema.allTypes[k];
       if (!/^[A-Z]/.test(k)) return;
 
@@ -155,7 +155,7 @@ class TempSchema {
     sqlObj.retrigger = retrigger;
     sqlObj.fromTempSchema = new TempSchema({ schema: fromSchema });
 
-    Object.getOwnPropertyNames(fromSchema.allTypes).forEach(k => {
+    Object.keys(fromSchema.allTypes).forEach(k => {
       const fromType = fromSchema.allTypes[k];
       if (!/^[A-Z]/.test(k)) return;
 
@@ -164,7 +164,7 @@ class TempSchema {
       }
     });
 
-    Object.getOwnPropertyNames(schema.allTypes).forEach(k => {
+    Object.keys(schema.allTypes).forEach(k => {
       const type = schema.allTypes[k];
       if (!/^[A-Z]/.test(k)) return;
 
@@ -172,12 +172,12 @@ class TempSchema {
         this.ensureCreateTableSql(type);
       } else {
         const fromType = fromSchema.allTypes[type.name];
-        Object.getOwnPropertyNames(fromType.fields).forEach(k => {
+        Object.keys(fromType.fields).forEach(k => {
           const fromField = fromType.fields[k];
           if (!type.fields[fromField.name]) this.ensureDropFieldSql(fromField);
         });
 
-        Object.getOwnPropertyNames(type.fields).forEach(k => {
+        Object.keys(type.fields).forEach(k => {
           const field = type.fields[k];
           const fromField = fromType.fields[field.name];
           if (fromField) this.ensureAlterFieldSql(field);
@@ -193,7 +193,7 @@ class TempSchema {
       tables: {},
       getFullSql: function() {
         let ret = "";
-        Object.getOwnPropertyNames(this.tables).forEach(k => {
+        Object.keys(this.tables).forEach(k => {
           const table = this.tables[k];
           ret +=
             `
@@ -206,31 +206,31 @@ class TempSchema {
 `;
           if (table.dropTable) {
             ret += table.dropTable;
-            Object.getOwnPropertyNames(table.changeNotifier).forEach(name => {
+            Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
               if (typeof trigger == "object" && trigger.dropSql) ret += trigger.dropSql;
             });
           } else {
-            Object.getOwnPropertyNames(table.changeNotifier).forEach(name => {
+            Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
               if (typeof trigger == "object" && trigger.sql) ret += trigger.sql;
             });
           }
           if (table.createTable) ret += table.createTable;
           if (table.dropFields) {
-            Object.getOwnPropertyNames(table.dropFields).forEach(k => {
+            Object.keys(table.dropFields).forEach(k => {
               const fieldSql = table.dropFields[k];
               ret += fieldSql;
             });
           }
           if (table.addFields) {
-            Object.getOwnPropertyNames(table.addFields).forEach(k => {
+            Object.keys(table.addFields).forEach(k => {
               const fieldSql = table.addFields[k];
               ret += fieldSql;
             });
           }
           if (table.alterFields) {
-            Object.getOwnPropertyNames(table.alterFields).forEach(k => {
+            Object.keys(table.alterFields).forEach(k => {
               const fieldSql = table.alterFields[k];
               ret += fieldSql;
             });
@@ -394,7 +394,7 @@ DROP FUNCTION "` +
         insert: "",
         update: ""
       };
-      Object.getOwnPropertyNames(type.fields).forEach(k => {
+      Object.keys(type.fields).forEach(k => {
         const field = type.fields[k];
         const fieldSql = TempSchema.sqlChangeNotifierForField(field);
         if (fieldSql.delete) {
@@ -444,7 +444,7 @@ DROP FUNCTION "` +
       const fromType = sql.fromTempSchema.schema.allTypes[type.name];
       if (fromType && fromType !== type) {
         const sqlFromType = sql.fromTempSchema.getSqlObjectForType(fromType);
-        Object.getOwnPropertyNames(sqlFromType.changeNotifier).forEach(name => {
+        Object.keys(sqlFromType.changeNotifier).forEach(name => {
           const fromTrigger = sqlFromType.changeNotifier[name];
           const trigger = changeNotifier[name];
           if (trigger && trigger.sql == fromTrigger.sql) {
@@ -489,7 +489,7 @@ CREATE TABLE "` +
   "id" integer DEFAULT "nextval"('"` +
       idSequenceName +
       `"'::"regclass") NOT NULL`;
-    Object.getOwnPropertyNames(type.fields).forEach(k => {
+    Object.keys(type.fields).forEach(k => {
       const field = type.fields[k];
       const sqlField = sqlFieldForField(field);
       if (sqlField && !sqlField.isVirtual) {

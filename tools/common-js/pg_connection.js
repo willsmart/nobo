@@ -15,6 +15,7 @@ class PostgresqlConnection {
       "getRowFromDB",
       "getRowsFromDB",
       "listenForViewChanges",
+      "startDBChangeNotificationPrompter",
       "getViewFields",
       "updateViewFields",
       "connectionString"
@@ -112,7 +113,7 @@ class PostgresqlConnection {
     });
   }
 
-  async listenForViewChanges(cacheToNotify) {
+  async listenForViewChanges({ cache }) {
     return this.listenToDB({
       channel: "modelchanges",
       callbackKey: "modelchanges",
@@ -120,10 +121,35 @@ class PostgresqlConnection {
         changes = JSON.parse(changes);
         if (Array.isArray(changes)) {
           changes.forEach(datapointId => {
-            cacheToNotify.invalidateDatapoint({ datapointId: datapointId });
+            cache.invalidateDatapoint({ datapointId: datapointId });
           });
-          cacheToNotify.validateNewlyInvalidDatapoints(); //TODO
+          cache.validateNewlyInvalidDatapoints(); //TODO
         }
+      }
+    });
+  }
+
+  async startDBChangeNotificationPrompter({ cache, delay = 500 }) {
+    const connection = this;
+
+    await connection.listenToDB({
+      channel: "modelchanges",
+      callbackKey: "dbcnp",
+      callback: changes => {
+        if (connection.dbcnpTimeout === undefined) return;
+        clearTimeout(tconnectionhis.dbcnpTimeout);
+      }
+    });
+    await connection.listenToDB({
+      channel: "prompterscript",
+      callbackKey: "dbcnp",
+      callback: changes => {
+        if (connection.dbcnpTimeout !== undefined) return;
+        connection.dbcnpTimeout = setTimeout(() => {
+          delete connection.dbcnpTimeout;
+          console.log("Telling the db to notify others of the outstanding change");
+          connection.query("UPDATE model_change_notify_request SET model_change_id = 0 WHERE name = 'modelchanges';");
+        }, delay);
       }
     });
   }
@@ -178,7 +204,7 @@ class PostgresqlConnection {
       const ret = {};
       fragments.forEach(fragment => {
         if (!fragment) return;
-        Object.getOwnPropertyNames(fragment).forEach(fieldName => {
+        Object.keys(fragment).forEach(fieldName => {
           ret[fieldName] = fragment[fieldName];
         });
       });
@@ -246,20 +272,22 @@ class PostgresqlConnection {
         console.log(`Received message from db on ${msg.channel}: "${msg.payload}"`);
         const callbacks = connection.listeningChannels[msg.channel];
         if (callbacks)
-          Object.getOwnPropertyNames(callbacks).forEach(key => {
+          Object.keys(callbacks).forEach(key => {
             callbacks[key](msg.payload);
           });
       });
     }
 
-    if (typeof callback == "function") {
-      connection.listeningChannels[channel] = connection.listeningChannels[channel] || {};
-      connection.listeningChannels[channel][callbackKey || "default"] = callback;
+    if (!connection.listeningChannels[channel]) {
+      const sql = `LISTEN ${channel};`;
+      console.log(sql);
+      await connection.listeningClient.query(sql);
+      connection.listeningChannels[channel] = {};
     }
 
-    const sql = `LISTEN ${channel};`;
-    console.log(sql);
-    await connection.listeningClient.query(sql);
+    if (typeof callback == "function") {
+      connection.listeningChannels[channel][callbackKey || "default"] = callback;
+    }
   }
 
   /// Takes the name and variant of a field, returns all the info required to SELECT it

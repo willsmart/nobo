@@ -23,7 +23,10 @@ class SchemaDefn {
   }
 
   addLayout(object) {
-    this._addLayout(object);
+    if (!Array.isArray(object)) object = [object];
+    object.forEach(child => {
+      this._addLayout(child);
+    });
   }
 
   clear() {
@@ -34,7 +37,7 @@ class SchemaDefn {
   loadSource(source) {
     if (!Array.isArray(source)) return;
     source.forEach(layout => {
-      this.addLayout(layout);
+      this._addLayout(layout);
     });
   }
 
@@ -51,7 +54,7 @@ class SchemaDefn {
         _: "Type",
         stripped: function() {
           let ret = {};
-          if (Object.getOwnPropertyNames(this.fields).length) ret.fields = strippedValues(this.fields);
+          if (Object.keys(this.fields).length) ret.fields = strippedValues(this.fields);
           return ret;
         },
         name: name,
@@ -74,7 +77,7 @@ class SchemaDefn {
                 if (this.default !== undefined) ret.default = this.default;
                 if (this.isVirtual) ret.isVirtual = true;
                 if (this.isMultiple) ret.isMultiple = true;
-                if (Object.getOwnPropertyNames(this.links).length) ret.links = strippedValues(this.links);
+                if (Object.keys(this.links).length) ret.links = strippedValues(this.links);
                 return ret;
               },
               name: name,
@@ -150,7 +153,7 @@ class SchemaDefn {
         myField.default = object;
       }
     } else if (object && typeof object == "object") {
-      Object.getOwnPropertyNames(object).forEach(key => {
+      Object.keys(object).forEach(key => {
         let val = object[key];
         switch (key) {
           case "as":

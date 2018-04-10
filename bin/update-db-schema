@@ -1,2 +1,12 @@
 #!/bin/bash
+args=$@
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 
+cd "$bindir/../tools/common-js"
+npm install
+
+cd "$bindir/../tools/layout-to-schema"
+npm install
+
+cd "$bindir/.."
+node tools/layout-to-schema/main.js $args
