@@ -28,8 +28,10 @@ class PublicController < ActionController::Base
     ids = []
     displayed_field_ids = []
 
+    templates_dir = "../../templates" # template-manager lives in the tools dir, templates is a sibling of tools
+
     rx = /\$\{(\w+)(?:(?:([\*\/\+\-\?]|->)|([\!=]=|&[lg]t;=?)([^|}?]*)(\?)?)([^|}]*))?(?:\|((?:[^\{\}]|\{[^\{\}]*\})*))?\}/
-    Dir.glob("app/views/templates/**/*.html*").each do |full_filename|
+    Dir.glob("#{templates_dir}/**/*.html*").each do |full_filename|
       logger.debug "Template file: #{full_filename}"
       match=(full_filename.match /app\/views\/(.*\/)((my )?+([\w]+)?+(?:\[(\w+)\])?)\.html(\.haml)?/)
       if match then
