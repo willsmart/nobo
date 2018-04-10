@@ -14,8 +14,7 @@ class PublicController < ActionController::Base
   # The upshot is that changing the template file on disk, then calling this method will update the templates/children/etc
   #   in the db, and for most changes will propagate the new template to clients that are viewing any changed templates/connections
   def adjust_templates
-    _adjust_templates
-    render nothing: true
+    render text: _adjust_templates
   end
 
 
@@ -23,6 +22,8 @@ class PublicController < ActionController::Base
     Thread.current[:uses_fields] = {}
     Thread.current[:uses_models] = {}
     Thread.current[:uses_current_user] = false
+
+    ret = []
 
     refs = {}
     ids = []
@@ -32,7 +33,7 @@ class PublicController < ActionController::Base
 
     rx = /\$\{(\w+)(?:(?:([\*\/\+\-\?]|->)|([\!=]=|&[lg]t;=?)([^|}?]*)(\?)?)([^|}]*))?(?:\|((?:[^\{\}]|\{[^\{\}]*\})*))?\}/
     Dir.glob("#{templates_dir}/**/*.html*").each do |full_filename|
-      logger.debug "Template file: #{full_filename}"
+      ret << "Template file: #{full_filename}"
       match=(full_filename.match /app\/views\/(.*\/)((my )?+([\w]+)?+(?:\[(\w+)\])?)\.html(\.haml)?/)
       if match then
         dir=match[1]
@@ -71,11 +72,22 @@ class PublicController < ActionController::Base
 
         refs[filename] = {dom:dom, fields:fields}
 
+        loggedTemplate = false
         if (template = Template.find_by(variant:variant, owner_only:owner_only, class_filter:clas)).nil?
+          ret << "New template #{filename}"
+          loggedTemplate = true
           template = Template.new({filename:filename, variant:variant, owner_only:owner_only, class_filter:clas, dom:dom})
         else
-          template.dom = dom
-          template.filename = filename
+          if template.dom != dom
+            ret << "Template #{filename} dom changed"
+            loggedTemplate = true
+            template.dom = dom
+          end
+          if template.filename != filename
+            ret << "Template #{template.filename} >> #{filename}"
+            loggedTemplate = true
+            template.filename = filename
+          end
         end
 
         template.save!
@@ -83,6 +95,11 @@ class PublicController < ActionController::Base
 
         fields.each do |field|
           if (displayed_field = TemplateDisplayedField.find_by(template:template, field:field)).nil?
+            if !loggedTemplate
+              ret << "Template #{template.filename}"
+              loggedTemplate = true
+            end
+            ret << "  New template displayed field #{field}"
             displayed_field = TemplateDisplayedField.new({template:template, field:field})
             displayed_field.save!
           end
@@ -116,18 +133,34 @@ class PublicController < ActionController::Base
       dom = refs[ref_name][:dom]
       fields = refs[ref_name][:fields]
 
+      loggedTemplate = false
       if (template = Template.find_by(variant:variant, owner_only:owner_only, class_filter:class_filter)).nil?
-        template = Template.new({filename:filename, variant:variant, owner_only:owner_only, class_filter:class_filter, dom:dom})
+        ret << "New template #{filename}"
+        loggedTemplate = true
+      template = Template.new({filename:filename, variant:variant, owner_only:owner_only, class_filter:class_filter, dom:dom})
       else
-        template.dom = dom
-        template.filename = filename
+        if template.dom != dom
+          ret << "Template #{filename} dom changed"
+          loggedTemplate = true
+          template.dom = dom
+        end
+        if template.filename != filename
+          ret << "Template #{template.filename} >> #{filename}"
+          loggedTemplate = true
+          template.filename = filename
+        end
       end
       template.save!
       ids.push template.id      
 
       fields.each do |field|
         if (displayed_field = TemplateDisplayedField.find_by(template:template, field:field)).nil?
-          displayed_field = TemplateDisplayedField.new({template:template, field:field})
+          if !loggedTemplate
+            ret << "Template #{template.filename}"
+            loggedTemplate = true
+          end
+          ret << "  New template displayed field #{field}"
+        displayed_field = TemplateDisplayedField.new({template:template, field:field})
           displayed_field.save!
         end
 
@@ -144,6 +177,7 @@ class PublicController < ActionController::Base
       rx = /<(\w+(?:\s+(?!class)\w+\s*=\s*(?:'(?:\\.|[^'])*+'|"(?:\\.|[^"])*+"))*+\s+class\s*=\s*'(?:\s*+(?!(?:my-|subtemplate-uses-)?[\w_]++(?:-model-child|-subtemplate)\b)(?:\\.|[^' ])*+\s*+)*+(my-|subtemplate-uses-)?+([\w_]++)(-model-child|-subtemplate)\b(?:\\.|[^'])*+'(?:\s+\w+\s*=\s*(?:'(?:\\.|[^'])*+'|"(?:\\.|[^"])*+"))*+)>/
       key_count = {}
       subtemplate_key_count = {}
+      loggedTemplate = false
       template.dom.scan(rx).each do |caps|
         dom_field_base = caps[2].camelize(:lower)
         owner_only = caps[1].present? && caps[1]=='my-'
@@ -163,6 +197,11 @@ class PublicController < ActionController::Base
             match[1]
           end
           if (child = template.subtemplates.find_by(variant:variant, dom_field:dom_field, model_view:model_view)).nil?
+            if !loggedTemplate
+              ret << "Template #{template.filename}"
+              loggedTemplate = true
+            end
+            ret << "  New subtemplate #{dom_field}"
             child = Subtemplate.new({template:template, variant:variant, dom_field:dom_field, model_view:model_view})
             child.save!
           end
@@ -181,6 +220,11 @@ class PublicController < ActionController::Base
             match[1]
           end
           if (child = template.children.find_by(owner_only:owner_only, class_filter:nil, variant:variant, dom_field:dom_field, model_field:model_field)).nil?
+            if !loggedTemplate
+              ret << "Template #{template.filename}"
+              loggedTemplate = true
+            end
+            ret << "  New template child #{dom_field}"
             child = TemplateChild.new({template:template, owner_only:owner_only, class_filter:nil, variant:variant, dom_field:dom_field, model_field:model_field})
             child.save!
           end
@@ -192,6 +236,8 @@ class PublicController < ActionController::Base
 
     Subtemplate.where('id NOT IN (?)',subtemplate_ids).delete_all
     TemplateChild.where('id NOT IN (?)',child_ids).delete_all
+
+    ret.join("\n")
   end
 
 end
