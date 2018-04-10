@@ -1,9 +1,9 @@
-const SchemaDefn = require("../js/schema");
-const Connection = require("../js/pg_connection");
-const SchemaToSQL = require("../js/schema_to_postgresql.js");
-const processArgs = require("../js/process_args");
-const strippedValues = require("../js/stripped_values");
-const addYamlFileToSchema = require("../js/add_yaml_file_to_schema");
+const SchemaDefn = require("../common-js/schema");
+const Connection = require("../common-js/pg_connection");
+const SchemaToSQL = require("../common-js/schema_to_postgresql.js");
+const processArgs = require("../common-js/process_args");
+const strippedValues = require("../common-js/stripped_values");
+const addYamlFileToSchema = require("../common-js/add_yaml_file_to_schema");
 
 var args = processArgs();
 

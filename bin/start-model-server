@@ -1,0 +1,6 @@
+#!/bin/bash
+args=$@
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+
+cd "$bindir/../tools/model-server"
+node main.js

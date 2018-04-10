@@ -43,8 +43,8 @@ until (arg=args.shift).nil?
   set_arg = _set_arg
 end
 
-$base_dirs = ['triggerhappy/lib','app',$env,'secrets']
-$pushback_order = ['app','triggerhappy/lib','secrets']
+$base_dirs = ['noco','app',$env,'secrets']
+$pushback_order = ['app','noco','secrets']
 
 def self.safe_JSON_parse(json)
   return if json.nil?

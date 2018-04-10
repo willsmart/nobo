@@ -26,5 +26,5 @@ none as yet
 
 * Deployment instructions
 
-Run bin/makeAssets, this will put html/js/css/image files in tmp/productionAssets, upload these to s3 as your static site
+Run bin/makeAssets, this will put html/common-js/css/image files in tmp/productionAssets, upload these to s3 as your static site
 Run bin/deployAssets <s3://mydomain.com/mybucket/> to additionally upload these to s3 as your static site

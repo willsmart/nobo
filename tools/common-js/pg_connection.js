@@ -209,7 +209,7 @@ class PostgresqlConnection {
   // private methods
 
   async query(sql, argArray) {
-    console.log(sql);
+    //console.log(sql);
     return this.pool.query(sql, argArray);
   }
 

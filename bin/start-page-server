@@ -1,0 +1,6 @@
+#!/bin/bash
+args=$@
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+
+cd "$bindir/../tools/page-server"
+bundle exec rails s

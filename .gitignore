@@ -1,3 +1,4 @@
 node_modules/
 tmp/
 lib/page-server/public/assets
+tools/template-manager/log

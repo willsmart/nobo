@@ -1,11 +1,11 @@
-const SchemaDefn = require("../js/schema");
-const WebSocketServer = require("../js/web-socket-server");
-const ModelCache = require("../js/model_cache");
-const Templates = require("../js/templates");
-const Connection = require("../js/pg_connection");
+const SchemaDefn = require("../common-js/schema");
+const WebSocketServer = require("../common-js/web-socket-server");
+const ModelCache = require("../common-js/model_cache");
+const Templates = require("../common-js/templates");
+const Connection = require("../common-js/pg_connection");
 
 const Sleep = require("sleep");
-const processArgs = require("../js/process_args");
+const processArgs = require("../common-js/process_args");
 
 (async function() {
   var args = processArgs();
