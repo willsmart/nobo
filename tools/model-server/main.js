@@ -1,3 +1,6 @@
+// model-server/main
+// © Will Smart 2018. Licence: MIT
+
 const SchemaDefn = require("../common-js/schema");
 const WebSocketServer = require("../common-js/web-socket-server");
 const ModelCache = require("../common-js/model_cache");

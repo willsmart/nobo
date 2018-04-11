@@ -1,3 +1,10 @@
+// pg_connection
+// © Will Smart 2018. Licence: MIT
+
+// This is a tool to read and write values in a postgresql db tables, load and save layouts, and listen to db notifications
+// The chief reason for creating this (instead of just grabbing a orm)
+//   is that noco uses triggers as a fundamental part of its work (see schema_to_postgresql.js)
+
 const ChangeCase = require("change-case");
 const { Pool, Client } = require("pg");
 const SchemaToPostgresql = require("./schema_to_postgresql");

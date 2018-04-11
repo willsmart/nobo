@@ -1,4 +1,43 @@
-const ChangeCase = require("change-case");
+// convert_ids
+// © Will Smart 2018. Licence: MIT
+
+// This module allows string ids to be converted to and from the various data pointer types used by noco
+// The types include:
+//
+//  rowId : a pointer to a particular row in a db table.
+//          Made up of a snake_case table name and the id value for the row joined by double underscores
+//          eg. user__1
+//
+//  viewId : the name of a particular view on a row in a db table
+//          Made up of a rowId and a snake_case variant name joined by double underscores
+//          eg. user__1__table_row
+//          Essentially the variant lets noco know what template to apply to the row,
+//            and so what fields to include and what variants to use for child views
+//
+//  datapointId : a pointer to a particular field value in a db table.
+//          Made up of a rowId and a snake_case field name prefixed by #, joined by double underscores
+//          eg. user__1__#name
+//          Note that link values are also seen as datapoints.
+//          So user__1__#posts could well be an array of rowId's for posts
+//
+// PROXIES
+//  proxyRowId : a proxy pointer to a particular row in a db table as understood by a particular client.
+//          Made up of a snake_case table name and a snake_case proxy key joined by double underscores
+//          eg. user__me
+//          In the case of user__me, the proxy key 'me' could be mapped to the current user's id
+//          If logged out, user__me could be made to redirect to some other view, like app__default
+//
+//  proxyViewId : a proxy pointer to a particular view of a row in a db table as understood by a particular client.
+//          Made up of a proxyRowId and a snake_case variant name joined by double underscores
+//          eg. user__me__table_row
+//
+// GENERAL
+//  proxyableViewId : all viewId's and proxyViewId's are proxyableViewId's
+//          This allows code to deal with both cases generally if need be
+//
+//  proxyableRowId : all rowId's and proxyRowId's are proxyableRowId's
+//          This allows code to deal with both cases generally if need be
+//
 
 const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   dbRowIdRegex = /([1-9][0-9]*)/,
@@ -47,9 +86,11 @@ const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
 // API
 module.exports = {
   // deconstructs a string id into its component parts or throws if not possible
-  //  arguments object with one key of:
-  //    rowId, proxyableRowId, viewId, proxyableViewId, datapointId
+  // arguments object with one key of:
+  //   rowId, proxyableRowId, viewId, proxyableViewId, datapointId
   decomposeId,
+
+  // similar, but will return the supplied argument unchanged if it already has typeName defined
   ensureDecomposed,
 
   // reconstructs string ids from their component parts or throws if not possible
@@ -68,6 +109,8 @@ module.exports = {
   proxyableRowRegex,
   proxyableViewRegex
 };
+
+const ChangeCase = require("change-case");
 
 // deconstructs a string id into its component parts or throws if not possible
 //  arguments object with one key of:
@@ -145,6 +188,8 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, variant }) {
 
   return ret;
 }
+
+// Helper methods for applying the regexes
 
 function stringToRow(rowId) {
   const match = rowRegex.exec(rowId);

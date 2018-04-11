@@ -1,3 +1,16 @@
+// model_cache
+// © Will Smart 2018. Licence: MIT
+
+// This is the central datapoint cache used by noco
+// Datapoints can be marked as 'invalid' via invalidateDatapoint (i.e. need to be reloaded from the db)
+//   This should be called in response to a signal from the db
+// They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
+
+// Datapoints are components of views, which are essentially objects created with datapoints as properties
+// Each view stores a sequence of 'versions' that have been assembled from the datapoints
+// A new version is created whenever one of the view's datapoints is retrieved from the db resulting in a different value
+// use addNewViewVersionCallback to be notified when this happens
+
 const clone = require("./clone");
 const ConvertIds = require("./convert_ids");
 const PublicApi = require("./public_api");

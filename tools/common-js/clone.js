@@ -1,7 +1,12 @@
-// API
+// clone
+// © Will Smart 2018. Licence: MIT
+
+// This is a stupidly simple cloning device for basic objects and arrays
+
+// API is the function. Use via
+//   const clone = require(pathToClone)
 module.exports = clone;
 
-// stupidly simple cloning device
 function clone(val) {
   if (Array.isArray(val)) return cloneArray(val);
   if (typeof val == "object") return cloneObject(val);

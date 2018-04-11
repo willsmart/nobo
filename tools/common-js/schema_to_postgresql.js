@@ -1,3 +1,13 @@
+// convert_ids
+// © Will Smart 2018. Licence: MIT
+
+// This is a tool to create and manipulate postgresql db tables and schemas
+// The chief reason for creating this (instead of just grabbing a orm)
+//   is that noco uses triggers as a fundamental part of its work
+// Each field of each table created has triggers attached, meaning that any change will be
+//   propagated into a central table, and will result in interested parties being notified
+//
+
 const ChangeCase = require("change-case");
 const ModelChangeLog = "ModelChangeLog";
 const ModelChangeNotifyRequest = "ModelChangeNotifyRequest";

@@ -1,3 +1,6 @@
+// layout-to-schema/main
+// © Will Smart 2018. Licence: MIT
+
 const SchemaDefn = require("../common-js/schema");
 const Connection = require("../common-js/pg_connection");
 const SchemaToSQL = require("../common-js/schema_to_postgresql.js");
