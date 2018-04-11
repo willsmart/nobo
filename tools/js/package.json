@@ -6,7 +6,8 @@
   "dependencies": {
     "bufferutil": "^3.0.3",
     "change-case": "^3.0.2",
-    "fs-promisify": "^0.2.0",
+    "haml": "^0.4.3",
+    "parse5": "^4.0.0",
     "pg": "^7.4.1",
     "request": "^2.83.0",
     "sleep": "^5.1.1",

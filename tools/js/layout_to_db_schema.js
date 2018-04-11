@@ -1,13 +1,13 @@
-// layout-to-schema/main
+// layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const SchemaDefn = require("../common-js/schema");
-const Connection = require("../common-js/pg_connection");
-const SchemaToSQL = require("../common-js/schema_to_postgresql.js");
-const processArgs = require("../common-js/process_args");
-const strippedValues = require("../common-js/stripped_values");
+const SchemaDefn = require("./schema");
+const Connection = require("./pg_connection");
+const SchemaToSQL = require("./schema_to_postgresql.js");
+const processArgs = require("./process_args");
+const strippedValues = require("./stripped_values");
 const fs = require("fs");
-const promisify = require("fs-promisify");
+const { promisify } = require("util");
 const YAML = require("yamljs");
 
 const readFile_p = promisify(fs.readFile);

@@ -1,13 +1,13 @@
-// model-server/main
+// model_server
 // © Will Smart 2018. Licence: MIT
 
-const SchemaDefn = require("../common-js/schema");
-const WebSocketServer = require("../common-js/web-socket-server");
-const ModelCache = require("../common-js/model_cache");
-const Templates = require("../common-js/templates");
-const Connection = require("../common-js/pg_connection");
+const SchemaDefn = require("./schema");
+const WebSocketServer = require("./web-socket-server");
+const ModelCache = require("./model_cache");
+const Templates = require("./templates");
+const Connection = require("./pg_connection");
 const fs = require("fs");
-const processArgs = require("../common-js/process_args");
+const processArgs = require("./process_args");
 
 (async function() {
   var args = processArgs();

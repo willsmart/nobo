@@ -25,7 +25,8 @@ class PostgresqlConnection {
       "startDBChangeNotificationPrompter",
       "getViewFields",
       "updateViewFields",
-      "connectionString"
+      "connectionString",
+      "query"
     ];
   }
 

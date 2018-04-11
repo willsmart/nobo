@@ -6,7 +6,16 @@ const PublicApi = require("./public_api");
 class Templates {
   // public methods
   static publicMethods() {
-    return ["load", "findForView", "completeOutputKeysForView", "outputKeysForView"];
+    return [
+      "load",
+      "findForView",
+      "completeOutputKeysForView",
+      "outputKeysForView",
+      "findTemplateBy",
+      "findDisplayedFieldBy",
+      "findSubtemplateBy",
+      "findTemplateChildBy"
+    ];
   }
 
   async load({ cache }) {
@@ -300,6 +309,45 @@ class Templates {
     });
 
     return outputKeys;
+  }
+
+  findTemplateBy({ variant, classFilter, ownerOnly }) {
+    const thisTemplates = this;
+
+    const id = Object.keys(thisTemplates.templatesById).find(id => {
+      const template = thisTemplates.templatesById[id];
+      return template.variant == variant && template.classFilter == classFilter && template.ownerOnly == ownerOnly;
+    });
+
+    return id === undefined ? undefined : thisTemplates.templatesById[id];
+  }
+
+  findDisplayedFieldBy({ templateId, field }) {
+    return this.templatesById[templateId].displayedFieldsByField[field];
+  }
+
+  findSubtemplateBy({ templateId, domField }) {
+    const thisTemplates = this,
+      template = this.templatesById[templateId];
+
+    const id = Object.keys(template.subtemplates).find(id => {
+      const subtemplate = template.subtemplates[id];
+      return subtemplate.domField == domField;
+    });
+
+    return id === undefined ? undefined : template.subtemplates[id];
+  }
+
+  findTemplateChildBy({ templateId, domField }) {
+    const thisTemplates = this,
+      template = this.templatesById[templateId];
+
+    const id = Object.keys(template.templateChildren).find(id => {
+      const child = template.templateChildren[id];
+      return child.domField == domField;
+    });
+
+    return id === undefined ? undefined : template.templateChildren[id];
   }
 }
 
