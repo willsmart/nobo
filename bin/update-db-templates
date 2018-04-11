@@ -1,6 +1,7 @@
 #!/bin/bash
 args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+toolsdir="$bindir/../tools"
 
-cd "$bindir/../tools/template-manager"
+cd "$toolsdir/template-manager"
 bundle exec rake templates:adjust

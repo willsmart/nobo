@@ -1,6 +1,3 @@
-// convert_ids
-// © Will Smart 2018. Licence: MIT
-
 const mapValues = require("./map_values");
 
 // API

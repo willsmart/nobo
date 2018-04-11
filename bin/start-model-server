@@ -1,12 +1,10 @@
 #!/bin/bash
 args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+toolsdir="$bindir/../tools"
 
-cd "$bindir/../tools/common-js"
-npm install
-
-cd "$bindir/../tools/model-server"
+cd "$toolsdir/js"
 npm install
 
 cd "$bindir/.."
-node tools/model-server/main.js $args
+node "$toolsdir/js/model-server.js $args

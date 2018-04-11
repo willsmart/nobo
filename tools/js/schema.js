@@ -1,6 +1,3 @@
-// convert_ids
-// © Will Smart 2018. Licence: MIT
-
 const strippedValues = require("./stripped_values");
 const ConvertIds = require("./convert_ids");
 const PublicApi = require("./public_api");

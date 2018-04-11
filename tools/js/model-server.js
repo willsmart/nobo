@@ -7,8 +7,6 @@ const ModelCache = require("../common-js/model_cache");
 const Templates = require("../common-js/templates");
 const Connection = require("../common-js/pg_connection");
 const fs = require("fs");
-
-const Sleep = require("sleep");
 const processArgs = require("../common-js/process_args");
 
 (async function() {

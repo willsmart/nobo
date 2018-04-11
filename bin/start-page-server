@@ -1,6 +1,7 @@
 #!/bin/bash
 args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+toolsdir="$bindir/../tools"
 
-cd "$bindir/../tools/page-server"
+cd "$toolsdir/page-server"
 bundle exec rails s
