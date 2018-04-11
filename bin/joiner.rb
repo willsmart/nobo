@@ -211,7 +211,7 @@ def sync
           dtm = info[:mtimes][dir]
           file = "#{dir}/#{subdir}"
           tm = File.new(file).mtime
-          mtimes[file] = (ascendingTimes(dtm, dtm) ? tm : dtm)
+          mtimes[file] = (ascendingTimes(dtm, tm) ? tm : dtm)
         end
 
         stack.push({
