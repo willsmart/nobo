@@ -69,7 +69,7 @@ const lstat_p = promisify(fs.lstat);
     };
     newTemplateInfos.push(template);
 
-    console.log(`    Template file '${path}'`);
+    //console.log(`    Template file '${path}'`);
 
     const doc = Parse5.parseFragment(body).childNodes[0];
 
@@ -185,10 +185,15 @@ const lstat_p = promisify(fs.lstat);
   }
 
   ids = {
-    templates: [],
-    displayedFields: [],
-    subtemplates: [],
-    templateChildren: []
+    templates: {},
+    displayedFields: {},
+    subtemplates: {},
+    templateChildren: {},
+
+    templatesWas: (await connection.query("SELECT id from template;")).rows.map(row => row.id),
+    displayedFieldsWas: (await connection.query("SELECT id from template_displayed_field;")).rows.map(row => row.id),
+    subtemplatesWas: (await connection.query("SELECT id from subtemplate;")).rows.map(row => row.id),
+    templateChildrenWas: (await connection.query("SELECT id from template_child;")).rows.map(row => row.id)
   };
 
   await Promise.all(
@@ -204,6 +209,7 @@ const lstat_p = promisify(fs.lstat);
     }) {
       let template = await findTemplateBy({ ownerOnly, classFilter, variant });
       if (!template) {
+        console.log(`New template: ${filename}`);
         await connection.query(
           "INSERT INTO template(class_filter, dom, filename, owner_only, variant) VALUES ($1::character varying, $2::text, $3::character varying, $4::boolean, $5::character varying);",
           [classFilter, dom, filename, ownerOnly, variant]
@@ -214,9 +220,10 @@ const lstat_p = promisify(fs.lstat);
         }
       }
       const templateId = template.id;
-      ids.templates.push(templateId);
+      ids.templates[templateId] = true;
 
       if (template.dom != dom || template.filename != filename) {
+        console.log(`Template: ${filename} has changed dom or filename`);
         connection.query("UPDATE template SET dom=$1::text, filename=$2::character varying WHERE id=$3::integer;", [
           dom,
           filename,
@@ -228,6 +235,7 @@ const lstat_p = promisify(fs.lstat);
         Object.keys(displayedFields).map(async function(field) {
           let displayedField = await findDisplayedFieldBy({ templateId, field });
           if (!displayedField) {
+            console.log(`New displayed field ${field} in template ${filename}`);
             await connection.query(
               "INSERT INTO template_displayed_field(template_id, field) VALUES ($1::integer, $2::character varying);",
               [templateId, field]
@@ -237,7 +245,7 @@ const lstat_p = promisify(fs.lstat);
               throw new Error("Failed to save displayed field");
             }
           }
-          ids.displayedFields.push(displayedField.id);
+          ids.displayedFields[displayedField.id] = true;
         })
       );
 
@@ -247,6 +255,7 @@ const lstat_p = promisify(fs.lstat);
 
           let subtemplate = await findSubtemplateBy({ templateId, domField });
           if (!subtemplate) {
+            console.log(`New subtemplate ${domField} in template ${filename}`);
             await connection.query(
               "INSERT INTO subtemplate(template_id, dom_field, model_view, variant) VALUES ($1::integer, $2::character varying, $3::character varying, $4::character varying);",
               [templateId, domField, subtemplateInfo.modelView, subtemplateInfo.variant]
@@ -256,9 +265,10 @@ const lstat_p = promisify(fs.lstat);
               throw new Error("Failed to save subtemplate");
             }
           }
-          ids.subtemplates.push(subtemplate.id);
+          ids.subtemplates[subtemplate.id] = true;
 
           if (subtemplate.model_view != subtemplateInfo.modelView || subtemplate.variant != subtemplateInfo.variant) {
+            console.log(`Subtemplate ${domField} of template ${filename} has changed model or variant`);
             connection.query(
               "UPDATE subtemplate SET model_view=$1::character varying, variant=$2::character varying WHERE id=$3::integer;",
               [subtemplateInfo.modelView, subtemplateInfo.variant, subtemplate.id]
@@ -273,6 +283,7 @@ const lstat_p = promisify(fs.lstat);
 
           let child = await findTemplateChildBy({ templateId, domField });
           if (!child) {
+            console.log(`New template child ${domField} in template ${filename}`);
             await connection.query(
               "INSERT INTO template_child(template_id, dom_field, model_field, variant) VALUES ($1::integer, $2::character varying, $3::character varying, $4::character varying);",
               [templateId, domField, childInfo.modelField, childInfo.variant]
@@ -282,9 +293,10 @@ const lstat_p = promisify(fs.lstat);
               throw new Error("Failed to save template child");
             }
           }
-          ids.templateChildren.push(child.id);
+          ids.templateChildren[child.id] = true;
 
           if (child.model_field != childInfo.modelField || child.variant != childInfo.variant) {
+            console.log(`Child ${domField} of template ${filename} has changed field or variant`);
             connection.query(
               "UPDATE template_child SET model_field=$1::character varying, variant=$2::character varying WHERE id=$3::integer;",
               [childInfo.modelField, childInfo.variant, child.id]
@@ -295,12 +307,29 @@ const lstat_p = promisify(fs.lstat);
     })
   );
 
-  await connection.query("DELETE FROM template WHERE id <> ALL ($1::integer[]);", [ids.templates]);
-  await connection.query("DELETE FROM template_displayed_field WHERE id <> ALL ($1::integer[]);", [
-    ids.displayedFields
-  ]);
-  await connection.query("DELETE FROM subtemplate WHERE id <> ALL ($1::integer[]);", [ids.subtemplates]);
-  await connection.query("DELETE FROM template_child WHERE id <> ALL ($1::integer[]);", [ids.templateChildren]);
+  ids.deleteTemplates = ids.templatesWas.filter(id => !ids.templates[id]);
+  ids.deleteDisplayedFields = ids.displayedFieldsWas.filter(id => !ids.displayedFields[id]);
+  ids.deleteSubtemplates = ids.subtemplatesWas.filter(id => !ids.subtemplates[id]);
+  ids.deleteTemplateChildren = ids.templateChildrenWas.filter(id => !ids.templateChildren[id]);
+
+  if (ids.deleteTemplates.length) {
+    console.log(`Deleting ${ids.deleteTemplates.length} template rows`);
+    await connection.query("DELETE FROM template WHERE id == ANY ($1::integer[]);", [ids.deleteTemplates]);
+  }
+  if (ids.deleteDisplayedFields.length) {
+    console.log(`Deleting ${ids.deleteDisplayedFields.length} displayed field rows`);
+    await connection.query("DELETE FROM template_displayed_field WHERE id == ANY ($1::integer[]);", [
+      ids.deleteDisplayedFields
+    ]);
+  }
+  if (ids.deleteSubtemplates.length) {
+    console.log(`Deleting ${ids.deleteSubtemplates.length} subtemplate rows`);
+    await connection.query("DELETE FROM subtemplate WHERE id == ANY ($1::integer[]);", [ids.deleteSubtemplates]);
+  }
+  if (ids.deleteTemplateChildren.length) {
+    console.log(`Deleting ${ids.deleteTemplateChildren.length} template child rows`);
+    await connection.query("DELETE FROM template_child WHERE id == ANY ($1::integer[]);", [ids.deleteTemplateChildren]);
+  }
 
   console.log("Done");
 })();
