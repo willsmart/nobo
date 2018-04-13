@@ -34,21 +34,20 @@ class PublicController < ActionController::Base
     rx = /\$\{(\w+)(?:(?:([\*\/\+\-\?]|->)|([\!=]=|&[lg]t;=?)([^|}?]*)(\?)?)([^|}]*))?(?:\|((?:[^\{\}]|\{[^\{\}]*\})*))?\}/
     Dir.glob("#{templates_dir}/**/*.html*").each do |full_filename|
       ret << "Template file: #{full_filename}"
-      match=(full_filename.match /app\/views\/(.*\/)((my )?+([\w]+)?+(?:\[(\w+)\])?)\.html(\.haml)?/)
+      match=(full_filename.match /\/((my )?+([\w]+)?+(?:\[(\w+)\])?)\.html(\.haml)?/)
       if match then
-        dir=match[1]
-        filename=match[2]
-        owner_only=match[3].present?
-        clas=match[4]
-        variant=match[5]
-        is_haml=match[6].present?
+        filename=match[1]
+        owner_only=match[2].present?
+        clas=match[3]
+        variant=match[4]
+        is_haml=match[5].present?
         
         dom = File.open(full_filename, "rb") {|io| io.read}
         puts dom
         if is_haml
           dom = Haml::Engine.new(dom).render
         end
-        logger.debug "dir:#{dir} filename:#{filename} owner_only:#{owner_only} class:#{clas} variant:#{variant}\n    dom:#{dom}\n\n"
+        #ret << "dir:#{dir} filename:#{filename} owner_only:#{owner_only} class:#{clas} variant:#{variant}\n    dom:#{dom}\n\n"
         next unless dom.present?
 
         if match2 = (dom.match /^\s*<!--\s*->\s*([\w_\-\[\]\(\)]+)\s*-->\s*$/)
@@ -63,7 +62,6 @@ class PublicController < ActionController::Base
         end
 
         fields = {}
-
         dom.scan(rx).each do |caps|
           fields[caps[0]] = true
         end
@@ -92,7 +90,6 @@ class PublicController < ActionController::Base
 
         template.save!
         ids.push template.id
-
         fields.each do |field|
           if (displayed_field = TemplateDisplayedField.find_by(template:template, field:field)).nil?
             if !loggedTemplate
@@ -153,6 +150,7 @@ class PublicController < ActionController::Base
       template.save!
       ids.push template.id      
 
+      puts fields.to_json
       fields.each do |field|
         if (displayed_field = TemplateDisplayedField.find_by(template:template, field:field)).nil?
           if !loggedTemplate
@@ -168,8 +166,16 @@ class PublicController < ActionController::Base
       end
     end
 
-    TemplateDisplayedField.where('id NOT IN (?)',displayed_field_ids).delete_all
-    Template.where('id NOT IN (?)',ids).delete_all
+    if displayed_field_ids.empty?
+      TemplateDisplayedField.delete_all
+    else
+      TemplateDisplayedField.where('id NOT IN (?)',displayed_field_ids).delete_all
+    end
+    if ids.empty?
+      Template.delete_all
+    else
+      Template.where('id NOT IN (?)',ids).delete_all
+    end
 
     child_ids=[]
     subtemplate_ids=[]
@@ -234,8 +240,16 @@ class PublicController < ActionController::Base
       end
     end
 
-    Subtemplate.where('id NOT IN (?)',subtemplate_ids).delete_all
-    TemplateChild.where('id NOT IN (?)',child_ids).delete_all
+    if subtemplate_ids.empty?
+      Subtemplate.delete_all
+    else
+      Subtemplate.where('id NOT IN (?)',subtemplate_ids).delete_all
+    end
+    if child_ids.empty?
+      TemplateChild.delete_all
+    else
+      TemplateChild.where('id NOT IN (?)',child_ids).delete_all
+    end
 
     ret.join("\n")
   end
