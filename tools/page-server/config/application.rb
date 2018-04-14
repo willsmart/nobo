@@ -38,8 +38,6 @@ module PoscadRails
     # config.i18n.load_path += Dir[Rails.root.join('my', 'locales', '*.{rb,yml}').to_s]
     # config.i18n.default_locale = :de
 
-    config.assets.precompile += ['cparserWorker.js']
-
     config.after_initialize do #TODO hackhack
         ActionController::Base.cache_store = :mem_cache_store, "localhost"
 

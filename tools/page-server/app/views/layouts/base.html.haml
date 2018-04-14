@@ -34,10 +34,4 @@
       .models.d-flex.justify-content-center
         .__childOf_type-root__marker-page.__childOf_type-root__marker-page_collection-1.__childOf_type-root__marker-page_placeholder{"__collectionindex"=>1, "model_as_parent"=>1}
 
-    %script
-      = raw(render formats: ['js'], file: 'public/rules')
-      = raw(render formats: ['js'], file: 'public/models')
-
     = javascript_include_tag "application"
-
-    = render :template => 'layouts/render'

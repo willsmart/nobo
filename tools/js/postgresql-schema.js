@@ -494,9 +494,6 @@ CREATE SEQUENCE "` +
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-ALTER TABLE "` +
-      idSequenceName +
-      `" OWNER TO "postgres";
 CREATE TABLE "` +
       sql.sqlName +
       `" (

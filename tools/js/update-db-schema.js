@@ -65,7 +65,7 @@ const readdir_p = promisify(fs.readdir);
 
   //console.log("Tables:\n" + JSON.stringify(strippedValues(schema.allTypes), null, 2));
 
-  const layoutWas = await connection.getCurrentLayoutFromDB({
+  let layoutWas = await connection.getCurrentLayoutFromDB({
     allowEmpty: true
   });
   let sql;
@@ -99,8 +99,8 @@ const readdir_p = promisify(fs.readdir);
   }
 
   if (args.sqlfile) {
-    await writeFile_p(sqlfile, sql);
-    console.log(`Saved sql to '${sqlfile}'`);
+    await writeFile_p(args.sqlfile, sql);
+    console.log(`Saved sql to '${args.sqlfile}'`);
   }
 
   if (!sql) {
