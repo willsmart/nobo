@@ -3,5 +3,8 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
-cd "$toolsdir/template-manager"
-bundle exec rake templates:adjust
+cd "$toolsdir/js"
+npm install
+
+cd "$bindir/.."
+node "$toolsdir/js/update-db-templates.js" $args

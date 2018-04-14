@@ -1,4 +1,4 @@
-const mapValues = require("./map_values");
+const mapValues = require("./map-values");
 
 // API
 module.exports = strippedValues;

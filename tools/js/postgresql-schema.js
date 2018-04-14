@@ -205,45 +205,49 @@ class TempSchema {
         let ret = "";
         Object.keys(this.tables).forEach(k => {
           const table = this.tables[k];
-          ret +=
-            `
-
-
-
--- ` +
-            table.sqlName +
-            `
-`;
+          let tableSQL = "";
           if (table.dropTable) {
-            ret += table.dropTable;
+            tableSQL += table.dropTable;
             Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
-              if (typeof trigger == "object" && trigger.dropSql) ret += trigger.dropSql;
+              if (typeof trigger == "object" && trigger.dropSql) tableSQL += trigger.dropSql;
             });
           } else {
             Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
-              if (typeof trigger == "object" && trigger.sql) ret += trigger.sql;
+              if (typeof trigger == "object" && trigger.sql) tableSQL += trigger.sql;
             });
           }
-          if (table.createTable) ret += table.createTable;
+          if (table.createTable) tableSQL += table.createTable;
           if (table.dropFields) {
             Object.keys(table.dropFields).forEach(k => {
               const fieldSql = table.dropFields[k];
-              ret += fieldSql;
+              tableSQL += fieldSql;
             });
           }
           if (table.addFields) {
             Object.keys(table.addFields).forEach(k => {
               const fieldSql = table.addFields[k];
-              ret += fieldSql;
+              tableSQL += fieldSql;
             });
           }
           if (table.alterFields) {
             Object.keys(table.alterFields).forEach(k => {
               const fieldSql = table.alterFields[k];
-              ret += fieldSql;
+              tableSQL += fieldSql;
             });
+          }
+
+          if (tableSQL) {
+            ret +=
+              `
+
+
+
+-- ` +
+              table.sqlName +
+              `
+${tableSQL}`;
           }
         });
         return ret;

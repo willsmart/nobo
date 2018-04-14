@@ -7,9 +7,9 @@
 
 const ChangeCase = require("change-case");
 const { Pool, Client } = require("pg");
-const SchemaToPostgresql = require("./schema_to_postgresql");
-const PublicApi = require("./public_api");
-const ConvertIds = require("./convert_ids");
+const SchemaToPostgresql = require("./postgresql-schema");
+const PublicApi = require("./public-api");
+const ConvertIds = require("./convert-ids");
 
 // API is auto-generated at the bottom from the public interface of this class
 

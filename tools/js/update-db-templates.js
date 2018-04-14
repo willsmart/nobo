@@ -5,10 +5,10 @@
 
 const Parse5 = require("parse5");
 const Haml = require("haml");
-const Connection = require("./pg_connection");
-const SchemaToSQL = require("./schema_to_postgresql.js");
-const processArgs = require("./process_args");
-const strippedValues = require("./stripped_values");
+const Connection = require("./postgresql-connection");
+const SchemaToSQL = require("./postgresql-schema.js");
+const processArgs = require("./process-args");
+const strippedValues = require("./stripped-values");
 const fs = require("fs");
 const { promisify } = require("util");
 const YAML = require("yamljs");

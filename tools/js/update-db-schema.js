@@ -2,10 +2,10 @@
 // © Will Smart 2018. Licence: MIT
 
 const SchemaDefn = require("./schema");
-const Connection = require("./pg_connection");
-const SchemaToSQL = require("./schema_to_postgresql.js");
-const processArgs = require("./process_args");
-const strippedValues = require("./stripped_values");
+const Connection = require("./postgresql-connection");
+const SchemaToSQL = require("./postgresql-schema.js");
+const processArgs = require("./process-args");
+const strippedValues = require("./stripped-values");
 const fs = require("fs");
 const { promisify } = require("util");
 const YAML = require("yamljs");
@@ -98,11 +98,14 @@ const readdir_p = promisify(fs.readdir);
     }
   }
 
-  const sqlFilename = "schema.sql";
-  await writeFile_p(sqlFilename, sql);
-  console.log(`Saved sql to '${sqlFilename}'`);
+  if (args.sqlfile) {
+    await writeFile_p(sqlfile, sql);
+    console.log(`Saved sql to '${sqlfile}'`);
+  }
 
-  if (args["--save"]) {
+  if (!sql) {
+    console.log(`Database structure is already up to date. Nothing to do`);
+  } else if (args["--save"]) {
     console.log(`Adjusting the DB schema to match the provided layout files...`);
     await connection.saveLayoutToDB({
       sql: sql,

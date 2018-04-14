@@ -3,11 +3,11 @@
 
 const SchemaDefn = require("./schema");
 const WebSocketServer = require("./web-socket-server");
-const ModelCache = require("./model_cache");
+const ModelCache = require("./model-cache");
 const Templates = require("./templates");
-const Connection = require("./pg_connection");
+const Connection = require("./postgresql-connection");
 const fs = require("fs");
-const processArgs = require("./process_args");
+const processArgs = require("./process-args");
 
 (async function() {
   var args = processArgs();

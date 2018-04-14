@@ -7,4 +7,4 @@ cd "$toolsdir/js"
 npm install
 
 cd "$bindir/.."
-node "$toolsdir/js/layout_to_db_schema.js $args
+node "$toolsdir/js/update-db-schema.js" $args
