@@ -1,7 +1,7 @@
 // model_cache
 // © Will Smart 2018. Licence: MIT
 
-// This is the central datapoint cache used by noco
+// This is the central datapoint cache used by nobo
 // Datapoints can be marked as 'invalid' via invalidateDatapoint (i.e. need to be reloaded from the db)
 //   This should be called in response to a signal from the db
 // They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)

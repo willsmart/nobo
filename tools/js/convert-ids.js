@@ -1,7 +1,7 @@
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
-// This module allows string ids to be converted to and from the various data pointer types used by noco
+// This module allows string ids to be converted to and from the various data pointer types used by nobo
 // The types include:
 //
 //  rowId : a pointer to a particular row in a db table.
@@ -11,7 +11,7 @@
 //  viewId : the name of a particular view on a row in a db table
 //          Made up of a rowId and a snake_case variant name joined by double underscores
 //          eg. user__1__table_row
-//          Essentially the variant lets noco know what template to apply to the row,
+//          Essentially the variant lets nobo know what template to apply to the row,
 //            and so what fields to include and what variants to use for child views
 //
 //  datapointId : a pointer to a particular field value in a db table.
