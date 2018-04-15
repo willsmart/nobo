@@ -23,7 +23,7 @@ document.ModelDOM_classes.ModelDOM_misc = (ModelDOM_misc = class ModelDOM_misc {
   periodicTasks() {
     const body = $(document.body);
     if (body.hasClass('has-scrollbar')) {
-      if (!(document.body.scrollHeight > document.body.clientHeight)) { return body.removeClass('has-scrollbar'); }
+      if (document.body.scrollHeight <= document.body.clientHeight) { return body.removeClass('has-scrollbar'); }
     } else {
       if (document.body.scrollHeight > document.body.clientHeight) { return body.addClass('has-scrollbar'); }
     }

@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS205: Consider reworking code to avoid use of IIFEs
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
@@ -345,7 +344,7 @@ document.ModelDOM_classes.ModelDOM_templating = (ModelDOM_templating = class Mod
 
     let ret = "";
     let ind = 0;
-    for (var field of Array.from(fields)) {
+    for (var field of fields) {
       if (field.start>ind) { ret += text.substring(ind,field.start); }
 
       ret += (() => { let v;

@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS203: Remove `|| {}` from converted for-own loops
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
@@ -46,7 +45,7 @@ document.ModelDOM_classes.ModelDOM_util = (ModelDOM_util = class ModelDOM_util {
       return ret;
     } else if ($.isArray(value)) {
       ret = [];
-      for (v of Array.from(value)) {
+      for (v of value) {
         ret.push(document.modelDOM.cloneModelValue(v));
       }
       return ret;
@@ -74,7 +73,7 @@ document.ModelDOM_classes.ModelDOM_util = (ModelDOM_util = class ModelDOM_util {
     let els;
     const ret = {};
     if (form && (els = form.elements)) {
-      for (let el of Array.from(els)) {
+      for (let el of els) {
         ret[el.name]=el.value;
       }
     }

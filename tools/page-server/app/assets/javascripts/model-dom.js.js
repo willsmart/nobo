@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS203: Remove `|| {}` from converted for-own loops
  * DS206: Consider reworking classes to avoid initClass
@@ -218,7 +217,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       const elid = modelEl[0].id;
 
       let textNodeIndex = 1;
-      for (let node of Array.from(el.childNodes)) {
+      for (let node of el.childNodes) {
         if (node.nodeType === 3) { // text node
           var template;
           if (template = el.getAttribute(`__template_textNode-${textNodeIndex}`)) {
@@ -231,7 +230,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
       const regex = /^__template_attr_((?!__template_).+)$/;
       const addAttr = {};
-      for (let attr of Array.from(el.attributes)) {
+      for (let attr of el.attributes) {
         if (attr.specified) {var match;
         
           if (match = regex.exec(attr.name)) {
@@ -268,19 +267,19 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
               
                 const prevMappings = lastMappings || [];
                 var lastMappings = [];
-                for (let prevEl of Array.from($(`.${model.classAsChild}__${change.prevIndex}`).filter(':not(.__deadModel)'))) {
+                for (let prevEl of $(`.${model.classAsChild}__${change.prevIndex}`).filter(':not(.__deadModel)')) {
                   const jqprevEl = $(prevEl);
                   if (newMappings = this.insertNewModelElement(model,jqprevEl,undefined,jqprevEl.parent(),change.value,undefined,index,field,undefined,true)) {
-                    for (mapping of Array.from(newMappings)) { lastMappings.push(mapping); }
-                    for (mapping of Array.from(newMappings)) { mappings.push(mapping); }
+                    for (mapping of newMappings) { lastMappings.push(mapping); }
+                    for (mapping of newMappings) { mappings.push(mapping); }
                   }
                 }
                 if (!prevIsMarker) {
-                  for (let prevMapping of Array.from(prevMappings)) {
+                  for (let prevMapping of prevMappings) {
                     if (prevMapping.add.is(`.${model.classAsChild}__${change.prevIndex}`)) {
                       if (newMappings = this.insertNewModelElement(model,prevMapping.add,undefined,prevMapping.marker,change.value,undefined,index,field,undefined,true)) {
-                        for (mapping of Array.from(newMappings)) { lastMappings.push(mapping); }
-                        for (mapping of Array.from(newMappings)) { mappings.push(mapping); }
+                        for (mapping of newMappings) { lastMappings.push(mapping); }
+                        for (mapping of newMappings) { mappings.push(mapping); }
                       }
                     }
                   }
@@ -296,7 +295,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
       // we need to add these after doing the other updates. Otherwise child collections that were made as part of making
       //  new nodes could potentially be updated using the diff for that collection
-      for (mapping of Array.from(mappings)) { mapping.after.after(mapping.add); }
+      for (mapping of mappings) { mapping.after.after(mapping.add); }
     }
 
 
@@ -336,7 +335,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
       const clss = wrapper.className.split(/\s+/);
       const prfx = parentModel.classAsChild+"__";
-      for (let cls of Array.from(clss)) {
+      for (let cls of clss) {
         if ((cls.substring(0,prfx.length)===prfx) && /^\d+$/.test(index=cls.substring(prfx.length))) {
           index = +index;
           break;
@@ -347,7 +346,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       //  return ERROR("Can't remake model element since the element supplied has no index in its collection",el)
 
       const mappings = this.insertNewModelElement(parentModel,undefined,collectionIndex,jqparentEl,model,overrideModel,index,undefined,markerClass,false);
-      for (let mapping of Array.from(mappings)) {
+      for (let mapping of mappings) {
         if (!mapping.after) {
           jqwrapper.replaceWith(mapping.add);
         }
@@ -378,7 +377,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
               }
             }
           } else if ($.isArray(change)) {
-            for (index of Array.from(change)) {
+            for (index of change) {
               sel = `.${model.classAsChild}__${index}`;
               if (sels.length) {
                 sels += `,${sel}`;
@@ -393,7 +392,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       if (sels.length) {
         const els = $(sels).filter(':not(.__deadModel)');
         els.find('*').addBack().addClass('__deadModel');
-        for (let el of Array.from(els)) {
+        for (let el of els) {
           this.queueModelEvent(el,'removemodel');
         }
       }
@@ -433,7 +432,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       if (jqmarker[0].hasAttribute('__subtemplatePath')) { subtemplatePath = jqmarker[0].getAttribute('__subtemplatePath'); }
 
       let fieldSubstitutes = {};
-      for (var attr of Array.from(jqmarker[0].attributes)) {
+      for (var attr of jqmarker[0].attributes) {
         if (attr.specified) {
           if (!(match = /^(\w+)_field$/.exec(attr.name))) { continue; }
           fieldSubstitutes[match[1]] = this.quickStartupTemplatedText(attr.value,model,parentModel,{},elid);
@@ -478,7 +477,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       }
 
       fieldSubstitutes = {};
-      for (attr of Array.from(jqmarker[0].attributes)) {
+      for (attr of jqmarker[0].attributes) {
         if (attr.specified) {
           if (!(match = /^(\w+)_field$/.exec(attr.name))) { continue; }
           fieldSubstitutes[match[1]] = this.quickStartupTemplatedText(attr.value,useModel,useParentModel,{},elid);
@@ -496,7 +495,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
       if (useModel) { jqnode.addClass(useModel.class); }
       if (domInfo.domModels) {
-        for (let domModel of Array.from(domInfo.domModels)) {
+        for (let domModel of domInfo.domModels) {
           jqnode.addClass(domModel.class+"__dom");
         }
       }
@@ -522,12 +521,12 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
         jqwrapper[0].id = elid+"_base";
 
         if ((jqplaceholderEl = jqwrapper.find(`.${placeholderClass}`)).length) {
-          for (cls of Array.from(jqplaceholderEl[0].className.split(/\s+/))) {
+          for (cls of jqplaceholderEl[0].className.split(/\s+/)) {
             if (cls && (cls!==placeholderClass)) {
               jqnode.addClass(cls);
             }
           }
-          for (attr of Array.from(jqplaceholderEl[0].attributes)) {
+          for (attr of jqplaceholderEl[0].attributes) {
             if (attr.specified && (attr.name!=='class')) {
               jqnode[0].setAttribute(attr.name, attr.value);
             }
@@ -545,7 +544,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       if (useModel) { this.setupModelNodeSubtree(useModel,useParentModel,usingParentModel,jqnode,false,undefined,elid,[1],fieldSubstitutes,domInfo.templateModel,subtemplatePath,{}); }
 
       const clss = jqmarker[0].className.split(/\s+/);
-      for (cls of Array.from(clss)) {
+      for (cls of clss) {
         if (/^__childOf(?:(?!__marker-).)*$/.test(cls)) {
           jqnode.addClass(cls);
         }
@@ -560,14 +559,14 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
       if (domInfo.templateModel) { this.insertNewModelElementChildren(domInfo.templateModel,jqnode,justReturnMapping,depth,inSubtemplateForModelIds,ret); }
 
       if (index===undefined) { index = 'single'; }
-      for (var mapping of Array.from(ret)) {
+      for (var mapping of ret) {
         if (parentModel) {
           mapping.add.addClass(parentModel.classAsChild+"__"+index);
         }
       }
 
       if (!justReturnMapping) {
-        for (mapping of Array.from(ret)) {
+        for (mapping of ret) {
           if (mapping.after) { mapping.after.after(mapping.add); }
         }
       }
@@ -589,17 +588,17 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
           childMarkerSel = `.${model.classAsChild}__${f.markerIndex}`;
           if (jqnode.is(childMarkerSel)) {
             jqprevChildEl = jqnode;
-            for (m of Array.from(f.array)) {
+            for (m of f.array) {
               if (mappings = this.insertNewModelElement(model,jqprevChildEl,undefined,jqnode,m.model,undefined,m.index,childField,undefined,justReturnMapping,depth,inSubtemplateForModelIds)) {
                 jqprevChildEl = mappings[0].add;
-                for (let mapping of Array.from(mappings)) { ret.push(mapping); }
+                for (let mapping of mappings) { ret.push(mapping); }
               }
             }
           } else {
-            for (childMarkerEl of Array.from(jqnode.find(childMarkerSel))) {
+            for (childMarkerEl of jqnode.find(childMarkerSel)) {
               jqprevChildEl = $(childMarkerEl);
               jqpar = jqprevChildEl.parent();
-              for (m of Array.from(f.array)) {
+              for (m of f.array) {
                 if (mappings = this.insertNewModelElement(model,jqprevChildEl,undefined,jqpar,m.model,undefined,m.index,childField,undefined,false,depth,inSubtemplateForModelIds)) {
                   jqprevChildEl = mappings[0].add;
                 }
@@ -615,7 +614,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
             const markerClass = model.classAsChild+"__"+this.markerIndex('subtemplates')+'__'+this.sanitizeClassName(subtemplatePath,true);
             childMarkerSel = `.${markerClass}`;
             if (!jqnode.is(childMarkerSel)) {
-              for (childMarkerEl of Array.from(jqnode.find(childMarkerSel))) {
+              for (childMarkerEl of jqnode.find(childMarkerSel)) {
                 jqprevChildEl = $(childMarkerEl);
                 jqpar = jqprevChildEl.parent();
                 if (!inSubtemplateForModelIds) { inSubtemplateForModelIds = {}; }
@@ -665,7 +664,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
       if (field===undefined) {
         let collectionIndex, markerClass, match, style;
-        for (cls of Array.from(clss)) { if ((match=/^(?!subtemplate-uses-)([\w_]*)-model-child$/.exec(cls))) { break; } }
+        for (cls of clss) { if ((match=/^(?!subtemplate-uses-)([\w_]*)-model-child$/.exec(cls))) { break; } }
         if (match) {
           let index;
           field=match[1];
@@ -677,7 +676,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
             modelChildIndexesByField[field] = 1;
           }
         } else {
-          for (cls of Array.from(clss)) { if ((match=/^model-child$/.exec(cls))) { break; } }
+          for (cls of clss) { if ((match=/^model-child$/.exec(cls))) { break; } }
           if (match) {
             field=null;
 
@@ -714,7 +713,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
         // setup model subtemplates, any node marked with a class like users-subtemplate will be seen as a marker for an array of children under that field, the difference being that they are the children of the template
 
         } else if (template) {
-          for (cls of Array.from(clss)) { if ((match=/^(\w*)-subtemplate$/.exec(cls))) { break; } }
+          for (cls of clss) { if ((match=/^(\w*)-subtemplate$/.exec(cls))) { break; } }
           if (match) {
             field=match[1];
             if (node.hasAttribute('model')) {
@@ -779,7 +778,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
         if (!isMarker) {
           // setup templates for attributes and textnodes that need replacing based on the model value
 
-          for (let attr of Array.from(node.attributes)) {
+          for (let attr of node.attributes) {
             if (attr.specified) {
               ({ value } = attr);
               if (/^__template_/.test(attr.name)) { continue; }
@@ -793,7 +792,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
               if (!(fields = this.templateFields(value))) { continue; }
               if (fieldSubstitutes) {
                 hasSubs = false;
-                for (f of Array.from(fields)) { if ((hasSubs=(fieldSubstitutes[f.field]!==undefined))) { break; } }
+                for (f of fields) { if ((hasSubs=(fieldSubstitutes[f.field]!==undefined))) { break; } }
                 if (hasSubs) {
                   value = this.templatedText(value,fieldSubstitutes,elid,usingModel.id,parentModel,fields,true);
                   if (!(fields = this.templateFields(value))) {
@@ -805,16 +804,16 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
               addAttr[`__template_attr_${attr.name}`] = value;
               addAttr[attr.name] = this.templatedText(value,usingModel.fields,elid,usingModel.id,parentModel,fields);
-              for (f of Array.from(fields)) {
+              for (f of fields) {
                 hasValueFields[f.field] = true;
-                if (f.defFields) { for (f2 of Array.from(f.defFields)) { hasValueFields[f2.field] = true; } }
+                if (f.defFields) { for (f2 of f.defFields) { hasValueFields[f2.field] = true; } }
               }
             }
           }
         }
 
         let textNodeIndex = 1;
-        for (let child of Array.from(node.childNodes)) {
+        for (let child of node.childNodes) {
           if (child.nodeType === 3) { // text node
             const thisindex = textNodeIndex++;
             value = child.textContent;
@@ -827,7 +826,7 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
             if (!(fields = this.templateFields(value))) { continue; }
             if (fieldSubstitutes) {
               hasSubs = false;
-              for (f of Array.from(fields)) { if ((hasSubs=(fieldSubstitutes[f.field]!==undefined))) { break; } }
+              for (f of fields) { if ((hasSubs=(fieldSubstitutes[f.field]!==undefined))) { break; } }
               if (hasSubs) {
                 value = this.templatedText(value,fieldSubstitutes,elid,usingModel.id,parentModel,fields,true);
                 if (!(fields = this.templateFields(value))) {
@@ -838,9 +837,9 @@ document.ModelDOM_classes.ModelDOM_dom = (ModelDOM_dom = (function() {
 
               addAttr[`__template_textNode-${thisindex}`] = value;
               child.textContent = this.templatedText(value,usingModel.fields,usingModel.id,parentModel,elid,fields);
-              for (f of Array.from(fields)) {
+              for (f of fields) {
                 hasValueFields[f.field] = true;
-                if (f.defFields) { for (f2 of Array.from(f.defFields)) { hasValueFields[f2.field] = true; } }
+                if (f.defFields) { for (f2 of f.defFields) { hasValueFields[f2.field] = true; } }
               }
             }
           } else if (child.nodeType === 1) { // element

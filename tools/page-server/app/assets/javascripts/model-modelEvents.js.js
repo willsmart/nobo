@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
@@ -23,7 +22,7 @@ document.ModelDOM_classes.ModelDOM_modelEvents = (ModelDOM_modelEvents = class M
         const el = jqel[0];
         if (el.hasAttribute('fadeinmodel')) {
           fadeIn = +el.getAttribute('fadeinmodel');
-          if (!(fadeIn>0)) { fadeIn = 300; }
+          if (fadeIn<=0) { fadeIn = 300; }
         } else if (jqel.hasClass('fade-in-model')) {
           fadeIn = 300;
         }
@@ -38,7 +37,7 @@ document.ModelDOM_classes.ModelDOM_modelEvents = (ModelDOM_modelEvents = class M
         const el = jqel[0];
         if (el.hasAttribute('fadeoutmodel')) {
           fadeOut = +el.getAttribute('fadeinmodel');
-          if (!(fadeOut>0)) { fadeOut = 200; }
+          if (fadeOut<=0) { fadeOut = 200; }
         } else if (jqel.hasClass('fade-out-model')) {
           fadeOut = 2000;
         }
@@ -119,7 +118,7 @@ document.ModelDOM_classes.ModelDOM_modelEvents = (ModelDOM_modelEvents = class M
     const delayedRemoves = {};
     for (let type of ['removemodel', 'insertmodel', 'changemodel']) {
       if ((elements = modelEvents[type])) {
-        for (let element of Array.from(elements)) {
+        for (let element of elements) {
           var cb;
           let cbret = undefined;
           if ((((cb = element.getAttribute(`on${type}`)) && (typeof(cb)==='string')) || (cb = this.defaultModelCallbacks[type])) && (cb = this.getFunction(cb))) {

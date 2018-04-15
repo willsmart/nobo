@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
@@ -75,7 +74,7 @@ document.ModelDOM_classes.ModelDOM_server = (ModelDOM_server = class ModelDOM_se
       subscribe:{}
     };
 
-    for (let o of Array.from(models)) {
+    for (let o of models) {
       if (resetVersions) { o.model.ver=0; }
       body.subscribe[o.model.id] = o.model.ver;
     }
@@ -220,7 +219,7 @@ document.ModelDOM_classes.ModelDOM_server = (ModelDOM_server = class ModelDOM_se
       const me = document.modelDOM;
       me._isOpen = true;
       if (me._sendsWhileClosed) {
-        for (let pair of Array.from(me._sendsWhileClosed)) {
+        for (let pair of me._sendsWhileClosed) {
           me.send(pair.msg, pair.cb);
         }
         me._sendsWhileClosed = [];

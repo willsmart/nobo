@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS202: Simplify dynamic range loops
  * DS205: Consider reworking code to avoid use of IIFEs
@@ -265,7 +264,7 @@ if (!document.aautil) {
     if (count===undefined) { count = -1; }
     if (el) {
       let found = false;
-      for (modal of Array.from(document.aautil._modals)) {
+      for (modal of document.aautil._modals) {
         if (modal.jqel[0]===el) {
           found = true;
           break;
@@ -377,7 +376,7 @@ if (!document.aautil) {
       togon.filter('.toggle-display,.toggle-fader').each(function() {
         let delay;
         const jqel=$(this);
-        if (!((delay=this.getAttribute('delay'))>0)) { delay=400; }
+        if ((delay=this.getAttribute('delay'))<=0) { delay=400; }
         return setTimeout(function() {
           if (jqel.hasClass('toggle-on')) { return; }
           return jqel.css('display','none');
@@ -405,7 +404,7 @@ if (!document.aautil) {
   removeStylesheetRule(name){
     let index;
     const stylesheet = document.aautil.stylesheet();
-    if (!((index = document.aautil._stylesheetRuleNames.indexOf(name))>=0)) { return; }
+    if ((index = document.aautil._stylesheetRuleNames.indexOf(name))<0) { return; }
     stylesheet.deleteRule(index);
     document.aautil._stylesheetRuleNames.splice(index,1);
     document.aautil._stylesheetRules.splice(index,1);

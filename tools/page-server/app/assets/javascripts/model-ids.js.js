@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS205: Consider reworking code to avoid use of IIFEs
  * DS206: Consider reworking classes to avoid initClass
@@ -89,7 +88,7 @@ document.ModelDOM_classes.ModelDOM_model = (ModelDOM_model = (function() {
       }
       this._debugCallArgs = ((() => {
         const result = [];
-        for (arg of Array.from(args)) {           result.push(arg);
+        for (arg of args) {           result.push(arg);
         }
         return result;
       })());

@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS202: Simplify dynamic range loops
  * DS205: Consider reworking code to avoid use of IIFEs
@@ -87,11 +86,11 @@ document.ModelDOM_classes.ModelDOM_diff = (ModelDOM_diff = class ModelDOM_diff {
         if ($.isPlainObject(f) && f.array) {
           change = ((() => {
             const result = [];
-            for (v of Array.from(f.array)) {               result.push(v.index);
+            for (v of f.array) {               result.push(v.index);
             }
             return result;
           })());
-          for (childInfo of Array.from(f.array)) { if ($.isPlainObject(childInfo) && childInfo.model) { this.unlinkModels(model,childInfo.model); } }
+          for (childInfo of f.array) { if ($.isPlainObject(childInfo) && childInfo.model) { this.unlinkModels(model,childInfo.model); } }
         }
 
 
@@ -129,16 +128,16 @@ document.ModelDOM_classes.ModelDOM_diff = (ModelDOM_diff = class ModelDOM_diff {
         }
         return result1;
       })());
-      for (field of Array.from(removeFields)) {
+      for (field of removeFields) {
         // if the field was an array but has been deleted then unlink child models
         if ($.isPlainObject(f) && f.array) {
           model.fieldChanges[field] = ((() => {
             const result2 = [];
-            for (v of Array.from(f.array)) {               result2.push(v.index);
+            for (v of f.array) {               result2.push(v.index);
             }
             return result2;
           })());
-          for (childInfo of Array.from(f.array)) { if (childInfo && childInfo.model) { this.unlinkModels(model,childInfo.model); } }
+          for (childInfo of f.array) { if (childInfo && childInfo.model) { this.unlinkModels(model,childInfo.model); } }
         } else {
           if ($.isPlainObject(f)) {
             for (chfield in f) {
@@ -223,7 +222,7 @@ document.ModelDOM_classes.ModelDOM_diff = (ModelDOM_diff = class ModelDOM_diff {
         }
         return result;
       })());
-      for (field of Array.from(removeFields)) {
+      for (field of removeFields) {
         if (valuesAreChildrenOfModel && (typeof(f=dict[field])==='string') && (model = this.models[f])) {
           this.unlinkModels(valuesAreChildrenOfModel,model);
         }

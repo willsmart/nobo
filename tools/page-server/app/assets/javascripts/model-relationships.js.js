@@ -1,6 +1,5 @@
 /*
  * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
  * DS102: Remove unnecessary code created because of implicit returns
  * DS202: Simplify dynamic range loops
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
@@ -52,7 +51,7 @@ document.ModelDOM_classes.ModelDOM_relationships = (ModelDOM_relationships = cla
     if (!this.deletedModels) { this.deletedModels = []; }
     while ((keys = Object.keys(this.orphanModels)).length) {
       this.orphanModels = {};
-      for (let modelId of Array.from(keys)) {
+      for (let modelId of keys) {
         var model;
         if ((model = this.models[modelId])) {
           this.deletedModels.push(model);
@@ -66,7 +65,7 @@ document.ModelDOM_classes.ModelDOM_relationships = (ModelDOM_relationships = cla
   }
 
   deleteOrphanModels() {
-    for (let model of Array.from(this.deletedModels)) {
+    for (let model of this.deletedModels) {
       delete this.models[model.id];
       delete this.modelsByClass[model.class];
       this.doneWithModels[model.id] = model;
@@ -89,7 +88,7 @@ document.ModelDOM_classes.ModelDOM_relationships = (ModelDOM_relationships = cla
     const time = Math.floor(new Date().getTime()/1000);
 
     if (!this.manageDeletedModels_time) { this.manageDeletedModels_time = time; }
-    if (!(this.manageDeletedModels_time < (time-this.secondsToKeepOrphanModelsBeforeDeletion))) { return; }
+    if (this.manageDeletedModels_time >= (time-this.secondsToKeepOrphanModelsBeforeDeletion)) { return; }
 
     for (let delTime = this.manageDeletedModels_time, end = time-this.secondsToKeepOrphanModelsBeforeDeletion, asc = this.manageDeletedModels_time <= end; asc ? delTime < end : delTime > end; asc ? delTime++ : delTime--) {
       var watingModels;
