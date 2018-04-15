@@ -6,18 +6,18 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 let ModelDOM_model;
-if (!document.ModelDOM_classes) { document.ModelDOM_classes = {}; }
-document.ModelDOM_classes.ModelDOM_model = (ModelDOM_model = (function() {
+if (!document.ModelDOM_classes) {
+  document.ModelDOM_classes = {};
+}
+document.ModelDOM_classes.ModelDOM_model = ModelDOM_model = (function() {
   ModelDOM_model = class ModelDOM_model {
     static initClass() {
-  
-      this.prototype.doDebugCall =true;
-      this.prototype._doDebugCall =true;
-  
-      this.prototype._debugCallDepth =1;
+      this.prototype.doDebugCall = true;
+      this.prototype._doDebugCall = true;
+
+      this.prototype._debugCallDepth = 1;
     }
     constructor() {
-
       this.modelIdWithVariant = this.modelIdWithVariant.bind(this);
       this.model = this.model.bind(this);
       this.models = {};
@@ -26,100 +26,124 @@ document.ModelDOM_classes.ModelDOM_model = (ModelDOM_model = (function() {
       this.doneWithModels = {};
     }
 
-    constructLocation(o){
+    constructLocation(o) {
       let f, rowidres;
-      if (!$.isPlainObject(o) || !o.type) { return; }
-      if (o.rowid) { rowidres = /^([a-z\d]*)(?:\[([\w\d_]+)\])?$/.exec(o.rowid); }
-      return `/${o.type}`+
-        (rowidres && rowidres[1] && (rowidres[1]!=='default') ? `/${rowidres[1]}` : '')+
-        (rowidres && rowidres[2] ? `:${rowidres[2]}` : '')+
-        (o.variant && (o.variant!=='default') && /[\w-.]+/.test(o.variant) ? `~${o.variant}` : '')+
-        (((f=o.name) && (typeof(f)==='string'))||(o.fields && (f=o.fields['name']) && (typeof(f)==='string')) ? `//${f.replace(/[^A-Za-z0-9-_.!~*'()]/g,'-')}` : '');
+      if (!$.isPlainObject(o) || !o.type) {
+        return;
+      }
+      if (o.rowid) {
+        rowidres = /^([a-z\d]*)(?:\[([\w\d_]+)\])?$/.exec(o.rowid);
+      }
+      return (
+        `/${o.type}` +
+        (rowidres && rowidres[1] && rowidres[1] !== "default" ? `/${rowidres[1]}` : "") +
+        (rowidres && rowidres[2] ? `:${rowidres[2]}` : "") +
+        (o.variant && o.variant !== "default" && /[\w-.]+/.test(o.variant) ? `~${o.variant}` : "") +
+        (((f = o.name) && typeof f === "string") || (o.fields && (f = o.fields["name"]) && typeof f === "string")
+          ? `//${f.replace(/[^A-Za-z0-9-_.!~*'()]/g, "-")}`
+          : "")
+      );
     }
 
-    parseLocation(s){
+    parseLocation(s) {
       let res;
-      if (!(res = /^\/(\w+)(?:\/([a-z\d]+))?(?::([\w\d_]+))?(?:(?:~|%7[eE])([\w-.]+))?(?:\/\/(.*))?$/.exec(s))) { return; }
+      if (!(res = /^\/(\w+)(?:\/([a-z\d]+))?(?::([\w\d_]+))?(?:(?:~|%7[eE])([\w-.]+))?(?:\/\/(.*))?$/.exec(s))) {
+        return;
+      }
       return {
         type: res[1],
-        rowid: (res[2] && (res[2]!=='default') ? res[2] : '') + (res[3] ? `[${res[3]}]` : ''),
-        variant: (res[4] && (res[4] !== 'default') ? res[4] : undefined),
+        rowid: (res[2] && res[2] !== "default" ? res[2] : "") + (res[3] ? `[${res[3]}]` : ""),
+        variant: res[4] && res[4] !== "default" ? res[4] : undefined,
         name: res[5]
       };
     }
 
-    constructModelId(o){
-      if (!$.isPlainObject(o) || !o.type) { return; }
-      return (o.mine ? 'my ' : '')+
-        o.type+
-        (o.rowid && /^[a-z\d]+$/.test(o.rowid) ? `__${o.rowid}` : '__default')+
-        (o.variant && /[\w-.]+/.test(o.variant) ? `__${o.variant}` : '__default');
+    constructModelId(o) {
+      if (!$.isPlainObject(o) || !o.type) {
+        return;
+      }
+      return (
+        (o.mine ? "my " : "") +
+        o.type +
+        (o.rowid && /^[a-z\d]+$/.test(o.rowid) ? `__${o.rowid}` : "__default") +
+        (o.variant && /[\w-.]+/.test(o.variant) ? `__${o.variant}` : "__default")
+      );
     }
 
-    parseModelId(s){
+    parseModelId(s) {
       let res;
-      if (!(res = /^(my\b ?)?((?:[a-z0-9]+(?:_[a-z0-9]+)*))?(?:__([a-z\d]+))?(?:__([\w\-.]+))?$/.exec(s))) { return; }
+      if (!(res = /^(my\b ?)?((?:[a-z0-9]+(?:_[a-z0-9]+)*))?(?:__([a-z\d]+))?(?:__([\w\-.]+))?$/.exec(s))) {
+        return;
+      }
       return {
-        mine: res[1]!==undefined,
+        mine: res[1] !== undefined,
         type: res[2],
-        rowid: (res[3] && (res[3]!=='default') ? res[3] : ''),
-        variant: (res[4] && (res[4]!=='default') ? res[4] : undefined)
+        rowid: res[3] && res[3] !== "default" ? res[3] : "",
+        variant: res[4] && res[4] !== "default" ? res[4] : undefined
       };
     }
 
-    modelIdWithVariant(id, variant){
+    modelIdWithVariant(id, variant) {
       let o;
-      if (!(o = this.parseModelId(id))) { return; }
+      if (!(o = this.parseModelId(id))) {
+        return;
+      }
       o.variant = variant;
       return this.constructModelId(o);
     }
-    debugCall(fn,argNames,args){
+    debugCall(fn, argNames, args) {
       let arg;
       const depth = this._debugCallDepth++;
-      if (depth>30) {
+      if (depth > 30) {
         ERROR("too deep");
         die();
       }
       const argDict = {};
       for (let ind = 0; ind < argNames.length; ind++) {
         const name = argNames[ind];
-        arg = (args.length>ind ? args[ind] : undefined);
+        arg = args.length > ind ? args[ind] : undefined;
         argDict[name] = arg;
       }
-      this._debugCallArgs = ((() => {
+      this._debugCallArgs = (() => {
         const result = [];
-        for (arg of args) {           result.push(arg);
+        for (arg of args) {
+          result.push(arg);
         }
         return result;
-      })());
-      this._debugCallArgs.unshift(JSON.mystringify(argDict,4));
-      this._debugCallArgs.unshift(">".repeat(depth)+" (window.BP:"+(document._bpIndex+1)+") "+fn);
+      })();
+      this._debugCallArgs.unshift(JSON.mystringify(argDict, 4));
+      this._debugCallArgs.unshift(">".repeat(depth) + " (window.BP:" + (document._bpIndex + 1) + ") " + fn);
       this._doDebugCall = false;
-      const ret = this[fn].apply(this,args);
-      if (ret!==undefined) { this.debug.apply(this,["<".repeat(depth)+" "+fn,ret]); }
+      const ret = this[fn].apply(this, args);
+      if (ret !== undefined) {
+        this.debug.apply(this, ["<".repeat(depth) + " " + fn, ret]);
+      }
       this._debugCallDepth = depth;
       return ret;
     }
     debug() {
-      return console.log.apply(this,arguments);
+      return console.log.apply(this, arguments);
     }
 
-
-    model(modelId,name){
+    model(modelId, name) {
       //if @_doDebugCall then return @debugCall("model",["modelId"],arguments) else (if @_doDebugCall = @doDebugCall then console.log.apply(this,@_debugCallArgs); window.BP())
 
       let ret;
-      if (ret = this.models[modelId]) {
+      if ((ret = this.models[modelId])) {
         let tuple;
-        if (tuple = this.modelsQueuedForDeletion[modelId]) {
+        if ((tuple = this.modelsQueuedForDeletion[modelId])) {
           delete this.modelsQueuedForDeletion[modelId];
-          if (this.modelsQueuedForDeletionByTime[tuple[1]]) { delete this.modelsQueuedForDeletionByTime[tuple[1]][modelId]; }
+          if (this.modelsQueuedForDeletionByTime[tuple[1]]) {
+            delete this.modelsQueuedForDeletionByTime[tuple[1]][modelId];
+          }
         }
       } else {
         let o;
-        if (!(o = this.parseModelId(modelId))) { return; }
+        if (!(o = this.parseModelId(modelId))) {
+          return;
+        }
 
-        ret = (this.models[modelId] = {
+        ret = this.models[modelId] = {
           id: modelId,
           mine: o.mine,
           type: o.type,
@@ -129,23 +153,26 @@ document.ModelDOM_classes.ModelDOM_model = (ModelDOM_model = (function() {
           variant: o.variant,
           memberModels: {},
           memberOfModels: {},
-          fields:{},
-          fieldChanges:{},
-          overrideVariants:{},
-          nextIndex:1,
-          classSuffix: (!o.mine ? "" : "_mine")+
-            (o.type==="" ? "" : `_type-${this.sanitizeClassName(o.type,true)}`)+
-            (!o.rowid ? "" : `_id-${this.sanitizeClassName(o.rowid,true)}`)+
-            (!o.variant ? "" : `_variant-${this.sanitizeClassName(o.variant,true)}`)
-        });
+          fields: {},
+          fieldChanges: {},
+          overrideVariants: {},
+          nextIndex: 1,
+          classSuffix:
+            (!o.mine ? "" : "_mine") +
+            (o.type === "" ? "" : `_type-${this.sanitizeClassName(o.type, true)}`) +
+            (!o.rowid ? "" : `_id-${this.sanitizeClassName(o.rowid, true)}`) +
+            (!o.variant ? "" : `_variant-${this.sanitizeClassName(o.variant, true)}`)
+        };
         ret.class = `__model${ret.classSuffix}`;
         ret.classAsChild = `__childOf${ret.classSuffix}`;
 
         this.modelsByClass[ret.class] = ret;
 
-        if (modelId!=='root') {
-          this.needModels[modelId] = ret; 
-          if (this.doneWithModels) { delete this.doneWithModels[modelId]; }
+        if (modelId !== "root") {
+          this.needModels[modelId] = ret;
+          if (this.doneWithModels) {
+            delete this.doneWithModels[modelId];
+          }
         }
 
         this.sendModels();
@@ -155,5 +182,4 @@ document.ModelDOM_classes.ModelDOM_model = (ModelDOM_model = (function() {
   };
   ModelDOM_model.initClass();
   return ModelDOM_model;
-})());
-
+})();
