@@ -8,7 +8,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_modelEvents = ModelDOM_modelEvents = class ModelDOM_modelEvents {
-  constructor() {
+  construct() {
     this.queueModelEvent = this.queueModelEvent.bind(this);
     this.notifyModelChanges = this.notifyModelChanges.bind(this);
     this.getFunction = this.getFunction.bind(this);

@@ -9,7 +9,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_templating = ModelDOM_templating = class ModelDOM_templating {
-  constructor() {
+  construct() {
     this.quickStartupTemplatedText = this.quickStartupTemplatedText.bind(this);
     this.quickTemplatedText = this.quickTemplatedText.bind(this);
     this.startupTemplateFields = this.startupTemplateFields.bind(this);

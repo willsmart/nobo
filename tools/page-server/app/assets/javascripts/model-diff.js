@@ -10,7 +10,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_diff = ModelDOM_diff = class ModelDOM_diff {
-  constructor() {
+  construct() {
     this.applyModelDiffs = this.applyModelDiffs.bind(this);
     this.applyModelDiff = this.applyModelDiff.bind(this);
     this.applyDictDiff = this.applyDictDiff.bind(this);

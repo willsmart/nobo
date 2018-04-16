@@ -22,7 +22,7 @@ document.ModelDOM_classes.ModelDOM_dom = ModelDOM_dom = (function() {
         document.modelDOM.checkAppear()
       );
     }
-    constructor() {
+    construct() {
       let id;
       this.refreshLocation = this.refreshLocation.bind(this);
       this.updateModels = this.updateModels.bind(this);
