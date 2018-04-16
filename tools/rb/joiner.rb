@@ -84,6 +84,7 @@ def ascendingTimes(tm1,tm2,deb=false)
 end
 
 def sync
+  $prevModTimes = {}
   secrets_changed = false
   ret=0
   dirs = $base_dirs.select{|dir| Dir.exist?(dir)}
