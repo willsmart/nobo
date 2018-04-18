@@ -86,13 +86,6 @@ class WebSocketServer {
       }
 
       const version = server.cache.getLatestViewVersionIfAny(viewIdInfo);
-      if (
-        !version ||
-        (viewInfo.latestVersionByViewId[viewIdInfo.viewId] &&
-          viewInfo.latestVersionByViewId[viewIdInfo.viewId].version == version.version)
-      )
-        return;
-
       viewInfo.latestVersionByViewId[viewIdInfo.viewId] = version;
       const diffsByOwnershipByFromVersion = {};
       clientIndexes.forEach(clientIndex => {
@@ -257,6 +250,11 @@ class WebSocketClient {
     Object.keys(client.subscriptions).forEach(proxyableViewId => {
       const viewInfo = server.views[proxyableViewId];
       if (viewInfo) delete viewInfo.subscribedClients[client.index];
+    });
+    Object.keys(client.proxyByProxyRowId).forEach(proxyViewId => {
+      const proxy = client.proxyByProxyRowId[proxyViewId];
+      const proxiesByClientIndex = server.proxiesByRowId[proxy.rowId];
+      if (proxiesByClientIndex) delete proxiesByClientIndex[client.index];
     });
   }
 
