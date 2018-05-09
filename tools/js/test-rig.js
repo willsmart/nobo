@@ -5,6 +5,7 @@
 
 const PublicApi = require("./public-api");
 const DbSchemaUpdater = require("./db-schema-updater");
+const DbSeeder = require("./db-seeder");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -46,21 +47,20 @@ class TestRig {
   Test the ${rig.moduleName} component
 ========================================
 `);
-    await rig.task({
-      name: "Set up db"
-    }, async function () {
-      await rig.setupDB()
+    await rig.task("Set up db", async function () {
+      await rig.setupDb()
+    })
+    await rig.task("Seed db", async function () {
+      await rig.seedDb()
     })
   }
 
   async end() {
     const rig = this
 
-    await rig.task({
-      name: "Tear down db"
-    }, async function () {
-      await rig.tearDownDB()
-    })
+    // await rig.task("Tear down db", async function () {
+    //   await rig.tearDownDB()
+    // })
 
     console.log(`
 
@@ -69,9 +69,9 @@ class TestRig {
 `);
   }
 
-  async task({
-    name
-  }, code) {
+  async task(name, code) {
+    if (typeof (name) == 'object') name = name.name;
+
     const rig = this
 
     rig.startTask({
@@ -83,9 +83,9 @@ class TestRig {
     })
   }
 
-  startTask({
-    name
-  }) {
+  startTask(name) {
+    if (typeof (name) == 'object') name = name.name;
+
     const rig = this
 
     if (rig.taskName !== undefined) {
@@ -106,9 +106,10 @@ class TestRig {
     Done ${this.taskName}
 
 `)
+    delete this.taskName
   }
 
-  async setupDB() {
+  async setupDb() {
     const rig = this,
       updater = rig.dbSchemaUpdater;
 
@@ -124,6 +125,15 @@ class TestRig {
     rig.connection = updater.connection
   }
 
+  async seedDb() {
+    const rig = this,
+      seeder = rig.dbSeeder;
+
+    await seeder.insertSeeds({
+      quiet: !rig.verbose
+    })
+  }
+
   async tearDownDB() {
     const rig = this,
       updater = rig.dbSchemaUpdater;
@@ -137,9 +147,16 @@ class TestRig {
 
   get dbSchemaUpdater() {
     return this._updater ? this._updater : (this._updater = new DbSchemaUpdater({
-      path: `${rig.path}/db`
+      path: `${this.path}/db`
     }))
   }
+
+  get dbSeeder() {
+    return this._seeder ? this._seeder : (this._seeder = new DbSeeder({
+      path: `${this.path}/db`
+    }))
+  }
+
 }
 
 // API is the public facing class

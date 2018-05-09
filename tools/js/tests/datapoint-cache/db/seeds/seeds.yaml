@@ -1,12 +1,19 @@
 -   App:
-    -   id: name
-        name: "The app name"
+    -   id: 1
+        name: "1 app name"
         users:
-        -   name: "The user name"
-            bio: "The user bio"
+        -   id: 2
+            name: "2 user name"
+            bio: "2 user bio"
+        -   id: 1
+            name: "1 user name"
+            bio: "1 user bio"
             posts:
-            -   title: "The post title"
-                body: "The post body"
+            -   id: 1
+                title: "1 post title"
+                body: "1 post body"
                 replies:
-                -   title: "The reply title"
-                    body: "The reply body"
+                -   id: 2
+                    title: "2 reply title"
+                    body: "2 reply body"
+                    user: 2

@@ -25,8 +25,12 @@ class DbSeeder {
   } = {}) {
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
-    this.seedsDir = fs.realpathSync(`${path}/seeds`);
-    this.rootSeedsDir = fs.realpathSync(`db/seeds`);
+    if (fs.existsSync(`${path}/seeds`)) {
+      this.seedsDir = fs.realpathSync(`${path}/seeds`);
+    }
+    if (fs.existsSync('db/seeds')) {
+      this.rootSeedsDir = fs.realpathSync('db/seeds');
+    }
   }
 
   get connection() {
@@ -177,9 +181,8 @@ class DbSeeder {
         rowsById
       } = context;
 
-      if (!dbRowId) dbRowId = `?${context.nextPlaceholderId++}`;
       const type_name = ChangeCase.snakeCase(type.name);
-      rowId = `${type_name}__${dbRowId}`;
+      rowId = `${type_name}__${dbRowId || `?${context.nextPlaceholderId++}`}`;
 
       if (!rowsById[rowId]) {
         rowsById[rowId] = {
@@ -235,8 +238,7 @@ class DbSeeder {
       }
     };
 
-    for (const [key, value] of Object.entries(seed)) {
-      if (key == "id") continue;
+    for (let [key, value] of Object.entries(seed)) {
 
       if (/^[A-Z]/.test(key)) {
         const type = schema.allTypes[key];
@@ -259,13 +261,15 @@ class DbSeeder {
         continue;
       }
 
+      ensureRow();
+
+      if (key == "id") continue;
+
       const field = type.fields[key];
       if (!field) {
         console.log(`Type '${type.name}' has no field '${key}' while seeding db (lines will be ignored)`);
         continue;
       }
-
-      ensureRow();
 
       if (!field.isId) {
         if (field.isVirtual) continue;
@@ -279,6 +283,12 @@ class DbSeeder {
         }
         row.fields[field.name] = value;
         continue;
+      }
+
+      if (typeof value == 'number') {
+        value = {
+          id: value
+        }
       }
 
       if (typeof value != "object") {
@@ -363,10 +373,15 @@ class DbSeeder {
   }
 
   async insertSeeds({
-    rowsById
+    rowsById,
+    quiet
   } = {}) {
     const seeder = this,
       connection = seeder.connection;
+
+    function log() {
+      if (!quiet) console.log.apply(console, arguments)
+    }
 
     rowsById = rowsById || (await seeder.seedRows());
     const rowIds = seeder.bestSortingForSeedRows({
@@ -381,6 +396,7 @@ class DbSeeder {
       const {
         type,
         fields,
+        dbRowId,
         findBy,
         dbRowIdDependencies,
         dbRowIdDependents
@@ -410,7 +426,6 @@ class DbSeeder {
         }
       }
 
-      const dbRowId = fields.id
       delete fields.id
 
       const fieldNames = [],
@@ -423,7 +438,9 @@ class DbSeeder {
           if (field.isMultiple) continue
           templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, 'integer'))
           if (value) {
-            value = rowsById[value].dbRowId || null
+            if (typeof (value) != 'number') {
+              value = rowsById[value].dbRowId || null
+            }
           } else value = null
           values.push(value)
         } else {
@@ -432,14 +449,22 @@ class DbSeeder {
         }
       }
 
-      const performInsertOrUpdate = (dbRowId) => {
+      function performInsertOrUpdate(dbRowId) {
         if (dbRowId) {
           if (Object.keys(fields).length) {
             const fieldSettings = fieldNames.map((fieldName, index) => `${fieldName}=${templates[index]}`)
 
-            const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(", ")} WHERE "${tableName}"."id" = ${dbRowId};`
-            console.log(sql, values)
-            return connection.query(sql, values)
+            const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(", ")} WHERE "${tableName}"."id" = ${dbRowId} RETURNING id;`
+            log(sql, values)
+            return connection.query(sql, values).then(({
+              rows
+            }) => {
+              if (rows.length) return;
+              fieldNames.push('id')
+              templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, 'integer'))
+              values.push(dbRowId)
+              return performInsertOrUpdate()
+            })
           }
         } else {
           let sql
@@ -449,7 +474,7 @@ class DbSeeder {
             sql = `INSERT INTO "${tableName}" (${fieldNames.join(',')}) VALUES (${templates.join(", ")}) RETURNING id;`;
           }
 
-          console.log(sql, values)
+          log(sql, values)
           return connection.query(sql, values).then(({
             rows
           }) => {
@@ -478,7 +503,9 @@ class DbSeeder {
           if (field.isId) {
             if (field.isMultiple) continue
             if (value) {
-              value = rowsById[value].dbRowId || null
+              if (typeof (value) != 'number') {
+                value = rowsById[value].dbRowId || null
+              }
             } else value = null
           }
 
@@ -494,7 +521,7 @@ class DbSeeder {
         }
 
         const sql = `SELECT id FROM "${tableName}" WHERE ${fieldConditions.join(' AND ')} LIMIT 1;`
-        console.log(sql, values)
+        log(sql, values)
         sqlPromises.push(connection.query(sql, values).then(({
           rows
         }) => {

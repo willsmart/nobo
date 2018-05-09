@@ -3,38 +3,34 @@
 
 const TestRig = require("../../test-rig");
 const processArgs = require("../../process-args");
+const DatapointCache = require("../../datapoint-cache");
 
 (async function () {
-    var args = processArgs();
+  var args = processArgs();
 
-    console.log("   args: " + JSON.stringify(args));
+  console.log("   args: " + JSON.stringify(args));
 
-    // api: 
-    // "getExistingDatapoint",
-    // "getOrCreateDatapoint",
-    // "validateNewlyInvalidDatapoints",
-    // "commitNewlyUpdatedDatapoints",
+  // api: 
+  // "getExistingDatapoint",
+  // "getOrCreateDatapoint",
+  // "validateNewlyInvalidDatapoints",
+  // "commitNewlyUpdatedDatapoints",
 
-    // "schema",
-    // "connection"
+  // "schema",
+  // "connection"
 
-    await TestRig.go({
-        path: __dirname,
-        moduleName: "Datapoint Cache",
-        verbose: args.verbose
-      }, rig => {
-        rig.startTask({
-          name: "constructor"
-        })
-        const datapointCache = new datapointCache(rig)
+  await TestRig.go({
+    path: __dirname,
+    moduleName: "Datapoint Cache",
+    verbose: args.verbose
+  }, rig => {
+    rig.startTask("constructor")
+    const datapointCache = new DatapointCache(rig)
 
-        rig.startTask({
-          name: "getExistingDatapoint (does not exist)"
-        })
-        datapointCache.getExistingDatapoint({
-          datapointId: ""
-        })
-
-      }
+    rig.startTask("getExistingDatapoint (does not exist)")
+    datapointCache.getExistingDatapoint({
+      datapointId: "app__1__name"
     })
+    rig.endTask()
+  })
 })();

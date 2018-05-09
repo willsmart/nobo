@@ -32,8 +32,12 @@ class DbSchemaUpdater {
   } = {}) {
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
-    this.layoutDir = fs.realpathSync(`${path}/layout`);
-    this.rootLayoutDir = fs.realpathSync(`db/layout`);
+    if (fs.existsSync(`${path}/layout`)) {
+      this.layoutDir = fs.realpathSync(`${path}/layout`);
+    }
+    if (fs.existsSync('db/layout')) {
+      this.rootLayoutDir = fs.realpathSync(`db/layout`);
+    }
   }
 
   get connection() {
