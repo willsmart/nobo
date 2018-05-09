@@ -36,14 +36,13 @@ const processArgs = require("./process-args");
     connection: connection
   });
 
+  await cache.start();
+
   const layout = await connection.getCurrentLayoutFromDB();
   if (!layout && layout.source) throw new Error("No layout");
 
   schema.clear();
   schema.loadSource(layout.source);
-
-  const templates = new Templates();
-  await templates.load({ cache });
 
   if (args.model) {
     const model = await cache.getLatestViewVersion({ proxyableViewId: args.model });

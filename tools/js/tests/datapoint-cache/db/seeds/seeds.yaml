@@ -1,0 +1,12 @@
+-   App:
+    -   id: name
+        name: "The app name"
+        users:
+        -   name: "The user name"
+            bio: "The user bio"
+            posts:
+            -   title: "The post title"
+                body: "The post body"
+                replies:
+                -   title: "The reply title"
+                    body: "The reply body"

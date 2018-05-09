@@ -1,0 +1,10 @@
+#!/bin/bash
+args=$@
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+toolsdir="$bindir/../tools"
+
+cd "$toolsdir/js"
+npm install
+
+cd "$bindir/.."
+node "$toolsdir/js/seed-db.js" $args

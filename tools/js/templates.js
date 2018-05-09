@@ -6,16 +6,7 @@ const PublicApi = require("./public-api");
 class Templates {
   // public methods
   static publicMethods() {
-    return [
-      "load",
-      "findForView",
-      "completeOutputKeysForView",
-      "outputKeysForView",
-      "findTemplateBy",
-      "findDisplayedFieldBy",
-      "findSubtemplateBy",
-      "findTemplateChildBy"
-    ];
+    return ["load", "findForView", "completeOutputKeysForView", "outputKeysForView"];
   }
 
   async load({ cache }) {
@@ -191,54 +182,6 @@ class Templates {
     }
   }
 
-  outputKeysForView(viewIdInfo) {
-    const thisTemplates = this;
-
-    if (viewIdInfo.variant == "complete") {
-      return thisTemplates.completeOutputKeysForView(viewIdInfo);
-    }
-
-    const type = this.cache.schema.allTypes[viewIdInfo.typeName];
-    if (!type) throw new Error(`No type "${viewIdInfo.typeName}"`);
-
-    const template = this.findForView(viewIdInfo);
-    if (!template) throw new Error(`No suitable template found for "${viewIdInfo.viewId}"`);
-
-    const ret = {};
-
-    template.displayedFields.forEach(displayedField => {
-      const field = type.fields[displayedField.field];
-      if (!field || field.isId) return;
-      ret[displayedField.field] = {
-        datapointId: field.getDatapointId({ dbRowId: viewIdInfo.dbRowId })
-      };
-    });
-    template.templateChildren.forEach(child => {
-      const field = type.fields[child.modelField];
-      if (!field) return;
-      const info = {
-        datapointId: field.getDatapointId({ dbRowId: viewIdInfo.dbRowId })
-      };
-      if (field.isId) {
-        info.variant = child.variant || "default";
-      }
-
-      ret[child.domField || child.modelField] = info;
-    });
-
-    if (viewIdInfo.typeName != "Template") {
-      ret.template = {
-        value: [template.meForClients]
-      };
-      ret.subtemplates = { value: {} };
-      thisTemplates._addViewSubtemplates(viewIdInfo, template, "", ret.subtemplates.value);
-    } else {
-      thisTemplates._addTemplateViewSubtemplates(viewIdInfo, ret);
-    }
-
-    return ret;
-  }
-
   _addViewSubtemplates(viewIdInfo, template, prefix, addTo) {
     const thisTemplates = this;
 
@@ -309,45 +252,6 @@ class Templates {
     });
 
     return outputKeys;
-  }
-
-  findTemplateBy({ variant, classFilter, ownerOnly }) {
-    const thisTemplates = this;
-
-    const id = Object.keys(thisTemplates.templatesById).find(id => {
-      const template = thisTemplates.templatesById[id];
-      return template.variant == variant && template.classFilter == classFilter && template.ownerOnly == ownerOnly;
-    });
-
-    return id === undefined ? undefined : thisTemplates.templatesById[id];
-  }
-
-  findDisplayedFieldBy({ templateId, field }) {
-    return this.templatesById[templateId].displayedFieldsByField[field];
-  }
-
-  findSubtemplateBy({ templateId, domField }) {
-    const thisTemplates = this,
-      template = this.templatesById[templateId];
-
-    const id = Object.keys(template.subtemplates).find(id => {
-      const subtemplate = template.subtemplates[id];
-      return subtemplate.domField == domField;
-    });
-
-    return id === undefined ? undefined : template.subtemplates[id];
-  }
-
-  findTemplateChildBy({ templateId, domField }) {
-    const thisTemplates = this,
-      template = this.templatesById[templateId];
-
-    const id = Object.keys(template.templateChildren).find(id => {
-      const child = template.templateChildren[id];
-      return child.domField == domField;
-    });
-
-    return id === undefined ? undefined : template.templateChildren[id];
   }
 }
 

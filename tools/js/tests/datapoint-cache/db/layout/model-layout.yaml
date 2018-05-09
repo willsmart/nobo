@@ -1,0 +1,13 @@
+- app(App):
+    name(string): {default: "NoBo demo"}
+    
+    ~< users(User):
+        name(string): {default: "Unnamed user"}
+        bio(string): null
+
+        ~< posts(Post):
+          as: user
+          title(string): null
+          body(string): null
+          ~< replies(Post):
+            as: reply_to_post

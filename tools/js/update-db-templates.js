@@ -230,16 +230,29 @@ async function forEachPromise(iterable, callback) {
   }
 
   await dealWithTemplatesDirectory({ path: templateDir });
+
+  const templateHolderId = 1;
+  await ensureTemplateHolder();
   processTemplates();
 
+  async function ensureTemplateHolder({ dbRowId = templateHolderId } = {}) {
+    const sql = "SELECT * FROM template_holder WHERE id = $1::integer",
+      args = [dbRowId];
+    const rows = (await connection.query(sql, args)).rows;
+    if (rows.length) return rows[0];
+    console.log(`New template holder`);
+    await connection.query("INSERT INTO template_holder(id) VALUES ($1::integer);", [dbRowId]);
+    return (await connection.query(sql, args)).rows[0];
+  }
+
   async function findTemplateBy({ variant, classFilter, ownerOnly }) {
-    const args = [];
-    let sql = "SELECT * FROM template WHERE";
+    const args = [templateHolderId];
+    let sql = "SELECT * FROM template WHERE template_holder_id=$1::integer";
 
     if (variant) {
-      sql += " variant=$1::character varying";
+      sql += ` AND variant=$${args.length + 1}::character varying`;
       args.push(variant);
-    } else sql += " variant IS NULL";
+    } else sql += " AND variant IS NULL";
 
     if (classFilter) {
       sql += ` AND class_filter=$${args.length + 1}::character varying`;
@@ -310,8 +323,8 @@ async function forEachPromise(iterable, callback) {
     if (!template) {
       console.log(`New template: ${filename}`);
       await connection.query(
-        "INSERT INTO template(class_filter, dom, filename, owner_only, variant) VALUES ($1::character varying, $2::text, $3::character varying, $4::boolean, $5::character varying);",
-        [classFilter, dom, filename, ownerOnly, variant]
+        "INSERT INTO template(template_holder_id, class_filter, dom, filename, owner_only, variant) VALUES ($1::integer, $2::character varying, $3::text, $4::character varying, $5::boolean, $6::character varying);",
+        [templateHolderId, classFilter, dom, filename, ownerOnly, variant]
       );
       template = await findTemplateBy({ ownerOnly, classFilter, variant });
       if (!template) {

@@ -110,24 +110,37 @@ function sqlFieldForField_noCache(field) {
   return ret;
 }
 
-function getCreationSql({ schema, retrigger }) {
+function getCreationSql({
+  schema,
+  retrigger
+}) {
   return new TempSchema(arguments[0]).getCreationSql(arguments[0]);
 }
 
-function getDropSql({ schema }) {
+function getDropSql({
+  schema
+}) {
   return new TempSchema(arguments[0]).getDropSql();
 }
 
-function getDiffSql({ schema, fromSchema, retrigger }) {
+function getDiffSql({
+  schema,
+  fromSchema,
+  retrigger
+}) {
   return new TempSchema(arguments[0]).getDiffSql(arguments[0]);
 }
 
 class TempSchema {
-  constructor({ schema }) {
+  constructor({
+    schema
+  }) {
     this.schema = schema;
   }
 
-  getCreationSql({ retrigger }) {
+  getCreationSql({
+    retrigger
+  }) {
     const schema = this.schema;
 
     delete this.sql;
@@ -156,7 +169,10 @@ class TempSchema {
     return this.sql.getFullSql();
   }
 
-  getDiffSql({ fromSchema, retrigger }) {
+  getDiffSql({
+    fromSchema,
+    retrigger
+  }) {
     const schema = this.schema;
 
     if (!fromSchema) return this.getCreationSql();
@@ -167,7 +183,9 @@ class TempSchema {
     delete this.sql;
     const sqlObj = this.getSqlObject();
     sqlObj.retrigger = retrigger;
-    sqlObj.fromTempSchema = new TempSchema({ schema: fromSchema });
+    sqlObj.fromTempSchema = new TempSchema({
+      schema: fromSchema
+    });
     sqlObj.fromTempSchema.isFrom = true;
 
     Object.keys(fromSchema.allTypes).forEach(k => {
@@ -206,10 +224,14 @@ class TempSchema {
   getSqlObject() {
     this.sql = this.sql || {
       tables: {},
-      getFullSql: function({ includeChangeNotifiers = true } = {}) {
+      getFullSql: function ({
+        includeChangeNotifiers = true
+      } = {}) {
         let ret = "";
         if (!this.isFrom && this.fromTempSchema) {
-          ret += this.fromTempSchema.getSqlObject().getFullSql({ includeChangeNotifiers: false });
+          ret += this.fromTempSchema.getSqlObject().getFullSql({
+            includeChangeNotifiers: false
+          });
         }
         Object.keys(this.tables).forEach(k => {
           const table = this.tables[k];
@@ -273,8 +295,7 @@ ${tableSQL}`;
     return {
       functionName: name,
       triggerName: name + "_trigger",
-      sql:
-        `
+      sql: `
 CREATE OR REPLACE FUNCTION "` +
         name +
         `"() RETURNS "trigger"
@@ -294,8 +315,7 @@ ALTER FUNCTION "` +
         name +
         `"() OWNER TO "postgres";
 `,
-      dropSql:
-        `
+      dropSql: `
 DROP FUNCTION "` +
         name +
         `"();
@@ -342,12 +362,12 @@ DROP FUNCTION "` +
         IF NEW.id > 1 THEN
 
           SELECT EXTRACT(EPOCH FROM (NEW.at - "at")) INTO since_last_change FROM  "` +
-          sqlName +
-          `" WHERE id = NEW.id - 1;
+        sqlName +
+        `" WHERE id = NEW.id - 1;
 
           IF since_last_change < ` +
-          prompterDelay +
-          ` THEN
+        prompterDelay +
+        ` THEN
             -- Rapid changes, so use the prompter script to enforce a delay
             NOTIFY prompterscript;
           ELSE
@@ -377,8 +397,8 @@ DROP FUNCTION "` +
 
       -- check if there are new model changes listeners might be interested in
         SELECT last_value INTO latest_model_change_id FROM  ` +
-          changeIdSequenceName +
-          `;
+        changeIdSequenceName +
+        `;
         IF FOUND THEN
 
           NEW.model_change_id = latest_model_change_id;
@@ -438,7 +458,7 @@ DROP FUNCTION "` +
       changeNotifier.delete = TempSchema.wrapAsTrigger(
         functionName + "__delete",
         bodySql.delete +
-          `
+        `
 
       -- Row deletion
           INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, OLD.id, '-') ON CONFLICT DO NOTHING;
@@ -449,7 +469,7 @@ DROP FUNCTION "` +
       changeNotifier.insert = TempSchema.wrapAsTrigger(
         functionName + "__insert",
         bodySql.insert +
-          `
+        `
 
       -- Row insertion
           INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '+') ON CONFLICT DO NOTHING;
@@ -460,7 +480,7 @@ DROP FUNCTION "` +
       changeNotifier.update = TempSchema.wrapAsTrigger(
         functionName + "__update",
         bodySql.update +
-          `
+        `
 
           RETURN NEW;
 `
@@ -476,12 +496,8 @@ DROP FUNCTION "` +
           const trigger = changeNotifier[name];
           if (trigger && trigger.sql == fromTrigger.sql) {
             delete changeNotifier[name];
-          } else {
-            console.log("hi");
           }
         });
-      } else {
-        console.log("hi");
       }
     }
 
@@ -537,42 +553,42 @@ ALTER TABLE ONLY "` +
       `_pkey" PRIMARY KEY (id);
 
     ` +
-      (!sql.changeNotifier.delete
-        ? ""
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.delete.triggerName +
-          '" BEFORE DELETE ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.delete.functionName +
-          '"();\n') +
-      (!sql.changeNotifier.insert
-        ? ""
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.insert.triggerName +
-          '" BEFORE INSERT ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.insert.functionName +
-          '"();\n') +
-      (!sql.changeNotifier.afterInsert
-        ? ""
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.afterInsert.triggerName +
-          '" AFTER INSERT ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.afterInsert.functionName +
-          '"();\n') +
-      (!sql.changeNotifier.update
-        ? ""
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.update.triggerName +
-          '" BEFORE UPDATE ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.update.functionName +
-          '"();\n') +
+      (!sql.changeNotifier.delete ?
+        "" :
+        'CREATE TRIGGER "' +
+        sql.changeNotifier.delete.triggerName +
+        '" BEFORE DELETE ON "' +
+        sql.sqlName +
+        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+        sql.changeNotifier.delete.functionName +
+        '"();\n') +
+      (!sql.changeNotifier.insert ?
+        "" :
+        'CREATE TRIGGER "' +
+        sql.changeNotifier.insert.triggerName +
+        '" BEFORE INSERT ON "' +
+        sql.sqlName +
+        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+        sql.changeNotifier.insert.functionName +
+        '"();\n') +
+      (!sql.changeNotifier.afterInsert ?
+        "" :
+        'CREATE TRIGGER "' +
+        sql.changeNotifier.afterInsert.triggerName +
+        '" AFTER INSERT ON "' +
+        sql.sqlName +
+        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+        sql.changeNotifier.afterInsert.functionName +
+        '"();\n') +
+      (!sql.changeNotifier.update ?
+        "" :
+        'CREATE TRIGGER "' +
+        sql.changeNotifier.update.triggerName +
+        '" BEFORE UPDATE ON "' +
+        sql.sqlName +
+        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+        sql.changeNotifier.update.functionName +
+        '"();\n') +
       `
 ALTER SEQUENCE "` +
       idSequenceName +
@@ -701,8 +717,7 @@ ALTER SEQUENCE "` +
         const sqlLinkedField = sqlFieldForField(linkedField);
 
         return {
-          delete:
-            `
+          delete: `
         -- ` +
             sqlField.sqlName +
             `
@@ -718,8 +733,7 @@ ALTER SEQUENCE "` +
             `') ON CONFLICT DO NOTHING;
             END IF;
 `,
-          insert:
-            `
+          insert: `
         -- ` +
             sqlField.sqlName +
             `
@@ -735,8 +749,7 @@ ALTER SEQUENCE "` +
             `') ON CONFLICT DO NOTHING;
             END IF;
 `,
-          update:
-            `
+          update: `
         -- ` +
             sqlField.sqlName +
             `
@@ -785,8 +798,7 @@ ALTER SEQUENCE "` +
     }
 
     return {
-      update:
-        `
+      update: `
         -- ` +
         sqlField.sqlName +
         `

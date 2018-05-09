@@ -15,6 +15,7 @@ const clone = require("./clone");
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./public-api");
 const mapValues = require("./map-values");
+const TemplateLocator = require("./template-locator");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -37,8 +38,15 @@ class ModelCache {
 
       "schema",
       "connection",
-      "templates",
-      "setTemplates"
+      "templateLocator",
+
+      "start",
+
+      "watchDatapoint",
+      "stopWatchingDatapoint",
+      "uniqueCallbackKey",
+      "associateDatapointCallback",
+      "getDatapointValue"
     ];
   }
 
@@ -54,9 +62,67 @@ class ModelCache {
     this.updatedDatapointsById = {};
     this.newlyUpdatedDatapointIds = [];
     this.newViewVersionCallbacks = {};
+    this.newlyValidDatapointsByCallbackKey = {};
+    this.datapointCallbacks = {};
+    this.nextUniqueCallbackIndex = 1;
+    this.spareTempCallbackKeys = [];
+    this._templateLocator = new TemplateLocator({ cache: this });
   }
 
   // public methods
+
+  uniqueCallbackKey({ callbackKeyPrefix = "callback" } = {}) {
+    return `prefix___${this.nextUniqueCallbackIndex++}`;
+  }
+
+  associateDatapointCallback({ callbackKey, callback }) {
+    this.newlyValidDatapointsByCallbackKey[callbackKey] = callback;
+  }
+
+  get tempCallbackKey() {
+    return this.spareTempCallbackKeys.pop() || this.uniqueCallbackKey("__spare");
+  }
+
+  doneWithTempCallbackKey(key) {
+    this.spareTempCallbackKeys.push(key);
+  }
+
+  async getDatapointValue({ datapointId }) {
+    const cache = this;
+
+    const datapoint = cache.getOrCreateDatapoint({ datapointId });
+    if (!datapoint.invalid) return datapoint.publicValue;
+
+    const ret = new Promise(resolve => {
+      datapoint.watchingOneShotResolvers = datapoint.watchingOneShotResolvers || [];
+      datapoint.watchingOneShotResolvers.push(resolve);
+    });
+
+    cache.validateNewlyInvalidDatapoints();
+
+    return ret;
+  }
+
+  watchDatapoint({ datapointId, callbackKey }) {
+    const cache = this;
+
+    const datapoint = cache.getOrCreateDatapoint({ datapointId });
+
+    datapoint.changeCallbacks[callbackKey] = true;
+  }
+
+  stopWatchingDatapoint({ datapointId, callbackKey }) {
+    const cache = this;
+
+    const datapoint = cache.getOrCreateDatapoint({ datapointId });
+
+    delete datapoint.changeCallbacks[callbackKey];
+    if (!Object.keys(datapoint.changeCallbacks).length) delete datapoint.changeCallbacks;
+  }
+
+  async start() {
+    await this._templateLocator.load();
+  }
 
   get schema() {
     return this._schema;
@@ -66,21 +132,14 @@ class ModelCache {
     return this._connection;
   }
 
-  get templates() {
-    return this._templates;
-  }
-
-  setTemplates(templates) {
-    this._templates = templates;
+  get templateLocator() {
+    return this._templateLocator;
   }
 
   async getLatestViewVersion({ viewId }, { outputKeyProvider } = {}) {
     const cache = this;
 
     const idInfo = ConvertIds.ensureDecomposed(arguments[0]);
-
-    outputKeyProvider = outputKeyProvider || (idInfo => cache.templates.outputKeysForView(idInfo));
-    if (!outputKeyProvider) return this.getLatestViewVersionIfAny(idInfo);
 
     this.ensureViewFields(idInfo, { outputKeyProvider });
 
@@ -305,7 +364,8 @@ class ModelCache {
 
     const idInfo = arguments[0];
 
-    outputKeyProvider = outputKeyProvider || (idInfo => this.templates.outputKeysForView(idInfo));
+    outputKeyProvider = outputKeyProvider || (idInfo => cache.templateLocator.outputKeysForView(idInfo));
+
     const outputKeys = outputKeyProvider(idInfo);
     this.setViewFields(idInfo, outputKeys);
   }
@@ -433,6 +493,7 @@ class ModelCache {
     delete datapoint.invalid;
     delete cache.invalidDatapointsById[datapointId];
     datapoint.value = clone(value);
+    datapoint.publicValue = clone(datapoint.value);
 
     const ret = [];
     Object.keys(datapoint.viewsById).forEach(viewId => {
@@ -459,6 +520,19 @@ class ModelCache {
         if (!--dependentDatapoint.invalidDependencyDatapointCount) {
           cache.validateDatapoint({ datapointId: dependentDatapoint.datapointId, useGetter: true });
         }
+      }
+    }
+    if (datapoint.changeCallbacks) {
+      for (let key of Object.keys(datapoint.changeCallbacks)) {
+        cache.newlyValidDatapointsByCallbackKey[key] = cache.newlyValidDatapointsByCallbackKey[key] || {};
+        cache.newlyValidDatapointsByCallbackKey[key][datapoint.datapointId] = datapoint.publicValue;
+      }
+    }
+    if (datapoint.watchingOneShotResolvers) {
+      const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
+      delete datapoint.watchingOneShotResolvers;
+      for (let resolve of watchingOneShotResolvers) {
+        resolve(datapoint.publicValue);
       }
     }
 
@@ -574,6 +648,13 @@ class ModelCache {
     });
 
     return Promise.all(promises).then(() => {
+      const newlyValidDatapointsByCallbackKey = cache.newlyValidDatapointsByCallbackKey;
+      cache.newlyValidDatapointsByCallbackKey = {};
+      for (let [key, valuesById] of Object.entries(newlyValidDatapointsByCallbackKey)) {
+        const callback = this.datapointCallbacks[key];
+        if (callback) callback(valuesById);
+      }
+
       const viewIdsWithNewVersions = cache.viewIdsWithNewVersions;
       cache.viewIdsWithNewVersions = [];
       Object.keys(cache.newViewVersionCallbacks).forEach(key => {
