@@ -23,14 +23,16 @@ const DatapointCache = require("../../datapoint-cache");
     path: __dirname,
     moduleName: "Datapoint Cache",
     verbose: args.verbose
-  }, rig => {
+  }, async function (rig) {
     rig.startTask("constructor")
     const datapointCache = new DatapointCache(rig)
 
     rig.startTask("getExistingDatapoint (does not exist)")
-    datapointCache.getExistingDatapoint({
-      datapointId: "app__1__name"
-    })
+    let datapointId = "app__1__name"
+    await rig.assert(`datapoint ${datapointId} doesn't exist in the cache yet`, !datapointCache.getExistingDatapoint({
+      datapointId
+    }))
+
     rig.endTask()
   })
 })();
