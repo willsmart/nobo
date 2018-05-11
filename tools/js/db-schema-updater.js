@@ -28,8 +28,10 @@ class DbSchemaUpdater {
 
   constructor({
     connection = undefined,
-    path = "db"
+    path = "db",
+    verbose
   } = {}) {
+    this.verbose = verbose
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
     if (fs.existsSync(`${path}/layout`)) {
@@ -111,8 +113,11 @@ class DbSchemaUpdater {
   }
 
   async layoutWas() {
-    let layoutWas = await this.connection.getCurrentLayoutFromDB({
-      allowEmpty: true
+    const updater = this;
+
+    let layoutWas = await updater.connection.getCurrentLayoutFromDB({
+      allowEmpty: true,
+      quiet: !updater.verbose
     });
     if (!(layoutWas && Array.isArray(layoutWas.source))) return;
     return layoutWas;
@@ -184,7 +189,6 @@ class DbSchemaUpdater {
   }
 
   async performUpdate({
-    quiet,
     dryRun
   }) {
     const updater = this;
@@ -196,25 +200,27 @@ class DbSchemaUpdater {
       connection = updater.connection;
 
     if (!sql) {
-      if (!quiet)
+      if (updater.verbose)
         console.log(
           `Database structure is already up to date. Nothing to do. (I'll still update the DB layout info which may have changed)`
         );
       if (!dryRun) {
         await connection.saveLayoutToDB({
           source: schema.source,
-          version: "1"
+          version: "1",
+          quiet: !updater.verbose
         });
       }
     } else if (!dryRun) {
-      if (!quiet) console.log(`Adjusting the DB schema to match the provided layout files...`);
+      if (updater.verbose) console.log(`Adjusting the DB schema to match the provided layout files...`);
       await connection.saveLayoutToDB({
         sql: sql,
         source: schema.source,
-        version: "1"
+        version: "1",
+        quiet: !updater.verbose
       });
-      if (!quiet) console.log("All done!");
-    } else if (!quiet) {
+      if (updater.verbose) console.log("All done!");
+    } else if (updater.verbose) {
       console.log(`SQL:
     ${sql}
         

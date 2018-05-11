@@ -21,8 +21,10 @@ class DbSeeder {
 
   constructor({
     connection = undefined,
-    path = "db"
+    path = "db",
+    verbose
   } = {}) {
+    this.verbose = verbose
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
     if (fs.existsSync(`${path}/seeds`)) {
@@ -48,7 +50,8 @@ class DbSeeder {
     if (seeder._schema) return seeder._schema;
 
     let layout = await this.connection.getCurrentLayoutFromDB({
-      allowEmpty: true
+      allowEmpty: true,
+      quiet: !seeder.verbose
     });
     if (!(layout && Array.isArray(layout.source))) throw new Error("Could not get layout from db");
 

@@ -3,9 +3,12 @@
 
 // This is a simple testing rig
 
+const Readline = require('readline');
+
 const PublicApi = require("./public-api");
 const DbSchemaUpdater = require("./db-schema-updater");
 const DbSeeder = require("./db-seeder");
+const isEqual = require('./is-equal')
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -18,200 +21,29 @@ class TestRig {
   constructor({
     path,
     verbose,
-    moduleName
+    verboseDb,
+    moduleName,
+    tearDownAfter
   }) {
     Object.assign(this, {
       path,
       verbose,
-      moduleName
+      verboseDb,
+      moduleName,
+      tearDownAfter
     })
-  }
-
-
-  static isEqual(v1, v2, options = {}) {
-    if (typeof (v1) != typeof (v2) || Array.isArray(v1) != Array.isArray(v2)) {
-      return false
-    }
-    if (typeof (v1) == 'number' || typeof (v1) == 'boolean' || typeof (v1) == 'string') return v1 == v2
-    if (Array.isArray(v1)) {
-      const {
-        looseArrays
-      } = options
-      if (v1.length != v2.length) return false;
-      if (!v1.length) return true;
-      if (!looseArrays) {
-        let index = 0
-        for (const c1 of v1)
-          if (!TestRig.isEqual(c1, v2[index], options)) return false;
-        return true
-      } else {
-        const unusedC1Indexes = Object.assign({}, v1.map(() => true))
-        for (const c2 of v2) {
-          let found = false
-          for (const c1Index in unusedC1Indexes)
-            if (unusedC1Indexes.hasOwnProperty(c1Index)) {
-              const c1 = v1[c1Index]
-              if (TestRig.isEqual(c1, c2, options)) {
-                delete unusedC1Indexes[c1Index]
-                found = true
-                break;
-              }
-            }
-          if (!found) return false
-        }
-        return true
-      }
-    }
-    if (typeof (v1) == 'object') {
-      const v1Keys = Object.keys(v1),
-        v2Keys = Object.keys(v2)
-      if (v1Keys.length != v2Keys.length) return false;
-      for (const v1Key of v1Keys) {
-        if (!TestRig.isEqual(v1[v1Key], v2[v1Key], options)) {
-          return false
-        }
-      }
-      return true
-    }
-    return v1 === v2
-  }
-
-  static isSupersetOrEqual(v1, v2, options) {
-    if (typeof (v1) != typeof (v2) || Array.isArray(v1) != Array.isArray(v2)) {
-      return false
-    }
-    if (typeof (v1) == 'number' || typeof (v1) == 'boolean' || typeof (v1) == 'string') {
-      return v1 == v2 ? '=' : false
-    }
-    if (Array.isArray(v1)) {
-      const {
-        looseArrays
-      } = options
-
-      if (v1.length < v2.length) return false;
-      if (!v1.length) return '=';
-
-      let supersetMatch = v1.length > v2.length
-
-      if (!looseArrays) {
-        let index = 0
-        for (const c2 of v2) {
-          const res = TestRig.isSupersetOrEqual(v1[index], c2, options)
-          if (!res) return false;
-          if (res == '>') supersetMatch = true;
-        }
-        return supersetMatch ? '>' : '='
-      } else {
-        const unusedC1Indexes = Object.assign({}, v1.map(() => true))
-        const unusedC2Indexes = {}
-        let c2Index = 0
-        for (const c2 of v2) {
-          let found = false
-          for (const c1Index in unusedC1Indexes) {
-            if (unusedC1Indexes.hasOwnProperty(c1Index)) {
-              const c1 = v1[c1Index]
-              if (TestRig.isEqual(c1, c2, options)) {
-                delete unusedC1Indexes[c1Index]
-                found = true
-                break;
-              }
-            }
-          }
-          if (!found) unusedC2Indexes[c2Index] = []
-          c2Index++
-        }
-        if (!Object.keys(unusedC1Indexes).length) return '='
-
-        for (const [c2Index, supersetsC1Indexes] of Object.entries(unusedC2Indexes)) {
-          for (const c1Index of unusedC1Indexes) {
-            if (TestRig.isSupersetOrEqual(v1[c1Index], v2[c2Index], options)) {
-              supersetsC1Indexes.push(c1Index)
-            }
-          }
-          if (!supersetsC1Indexes.length) return false
-        }
-        const c2IndexesInOrder = Object.keys(unusedC2Indexes).sort((a, b) => Object.keys(unusedC2Indexes[a]).length - Object.keys(unusedC2Indexes[b]).length)
-
-        function findMapping(c2IndexIndex) {
-          if (c2IndexIndex == c2IndexesInOrder.length) return true
-          const c2Index = c2IndexesInOrder[c2IndexIndex]
-          const supersetsC1Indexes = unusedC2Indexes[c2Index]
-          for (const c1Index of supersetsC1Indexes)
-            if (unusedC1Indexes[c1Index]) {
-              delete unusedC1Indexes[c1Index]
-              if (findMapping(c2IndexIndex)) return true
-              unusedC1Indexes[c1Index] = true
-            }
-          return false
-        }
-
-        return findMapping(0) ? '>' : false
-      }
-    }
-    if (typeof (v1) == 'object') {
-      const v1Keys = Object.keys(v1),
-        v2Keys = Object.keys(v2)
-      if (v1Keys.length < v2Keys.length) return false;
-      let supersetMatch = v1Keys.length > v2Keys.length
-      for (const v2Key of v2Keys) {
-        const res = TestRig.isSupersetOrEqual(v1[v1Key], v2[v1Key], options)
-        if (!res) return false
-        if (res == '>') supersetMatch = true
-      }
-      return supersetMatch ? '>' : '='
-    }
-    return v1 === v2 ? '=' : false
-  }
-
-  static verboseCompare(v1, v2, options) {
-    const {
-      exact
-    } = options
-
-    if (typeof (v1) != typeof (v2) || Array.isArray(v1) != Array.isArray(v2)) {
-      if (!exact && v1 == v2) {
-        return {
-          result: true
-        }
-      }
-      return {
-        msg: `types differ: ${Array.isArray(v1) ? 'array' : typeof(v1)} vs ${Array.isArray(v2) ? 'array' : typeof(v2)}`
-      }
-    }
-
-    if (typeof (v1) == 'number') return {
-      result: exact ? v1 == v2 : v1 - v2,
-      msg: (v1 == v2 ? undefined : `numbers differ: ${v1} vs ${v2}`)
-    }
-    if (typeof (v1) == 'boolean') return {
-      result: v1 == v2,
-      msg: (v1 == v2 ? undefined : `booleans differ: ${v1} vs ${v2}`)
-    }
-    if (typeof (v1) == 'string') return {
-      result: v1 == v2,
-      msg: (v1 == v2 ? undefined : `strings differ: "${v1}" vs "${v2}"`)
-    }
-    if (typeof (v1) == 'object') {
-      const res = exact ? TestRig.isEqual(v1, v2, options) : TestRig.isSupersetOrEqual(v1, v2, options)
-      return {
-        result: res == '=' ? true : res,
-        msg: (res ? undefined : `${Array.isArray(v1)?'Arrays':'Objects'} differ:
-    ${JSON.stringify(v1)} 
-      vs 
-    ${JSON.stringify(v2)}`)
-      }
-    }
-    return {
-      result: v1 === v2,
-      msg: (v1 === v2 ? undefined : `values differ: "${v1}" vs "${v2}"`)
-    }
+    this.taskResults = []
   }
 
   async assert(thisShouldHappen, value, options = {
     equals: true
   }) {
+    const rig = this
+
     const {
       equals,
+      unsortedEquals,
+      exactly,
       includes,
       includedBy
     } = options
@@ -221,41 +53,81 @@ class TestRig {
       throw new Error(`Failed assert where ${thisShouldHappen}:
           Threw while getting value: $[err.stack}`)
     }
-    if (options.hasOwnProperty('equals')) {
-      const res = TestRig.verboseCompare(value, equals, {
-        exact: true
+    if (options.hasOwnProperty('exactly')) {
+      const res = isEqual(value, exactly, {
+        exact: true,
+        verboseFail: true
       })
-      if (res.msg) {
+      if (res !== true && res !== '>') {
         throw new Error(`Failed assert where ${thisShouldHappen}:
           ${res.msg}`)
       }
     }
-    if (options.hasOwnProperty('includes')) {
-      const res = TestRig.verboseCompare(value, includes)
-      if (res.msg) {
+    if (options.hasOwnProperty('equals')) {
+      const res = isEqual(value, equals, {
+        verboseFail: true
+      })
+      if (res !== true && res !== '>') {
         throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res.msg}
+          ${res}`)
+      }
+    }
+    if (options.hasOwnProperty('unsortedEquals')) {
+      const res = isEqual(value, unsortedEquals, {
+        unordered: true,
+        verboseFail: true
+      })
+      if (res !== true && res !== '>') {
+        throw new Error(`Failed assert where ${thisShouldHappen}:
+          ${res}`)
+      }
+    }
+    if (options.hasOwnProperty('includes')) {
+      const res = isEqual(value, includes, {
+        allowSuperset: true,
+        verboseFail: true,
+        unordered: true
+      })
+      if (res !== true && res !== '>') {
+        throw new Error(`Failed assert where ${thisShouldHappen}:
+          ${res}
           (Expected value is to right. I would have allowed it to be a subset)`)
       }
     }
     if (options.hasOwnProperty('includedBy')) {
-      const res = TestRig.verboseCompare(includedBy, value)
-      if (res.msg) {
+      const res = isEqual(includedBy, value, {
+        allowSuperset: true,
+        verboseFail: true,
+        unordered: true
+      })
+      if (res !== true && res !== '>') {
         throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res.msg}
+          ${res}
           (Expected value is to left. I would have allowed it to be a superset)`)
       }
     }
 
-    console.log(`Successful in asserting that ${thisShouldHappen}`)
+    rig.taskResults[rig.taskResults.length - 1].asserts.push({
+      thisShouldHappen,
+      ok: true
+    })
+    if (rig.verbose || !(rig.quiet || rig.lowNoise)) console.log(`    ---> Successful in asserting that ${thisShouldHappen}`)
+    else if (!rig.quiet) {
+      Readline.clearLine(process.stdout); // clear current text
+      Readline.cursorTo(process.stdout, 0); // move cursor to beginning of line
+      process.stdout.write(`       > ${rig.taskSummary()}`);
+    }
   }
 
-  static async go({
-    path,
-    verbose,
-    moduleName = "main"
-  }, code) {
-    const rig = new TestRig(arguments[0])
+  taskSummary(index) {
+    const rig = this
+
+    if (index === undefined) index = rig.taskResults.length - 1
+    return rig.taskResults[index].asserts.map(res => res.ok ? '.' : 'x').join("");
+  }
+
+  static async go(options, code) {
+    const rig = new TestRig(options)
 
     await rig.start()
     await code.call(rig, rig)
@@ -265,31 +137,39 @@ class TestRig {
   async start() {
     const rig = this
 
-    console.log(`
-========================================
+    if (rig.verbose) {
+      console.log(`
+  ======================================================
   Test the ${rig.moduleName} component
-========================================
-`);
-    await rig.task("Set up db", async function () {
-      await rig.setupDb()
-    })
-    await rig.task("Seed db", async function () {
-      await rig.seedDb()
-    })
+  - - - - - - - - - - - - - - - - - - - - - - - - - - -`);
+    } else if (!rig.quiet) console.log(`===> Test the ${rig.moduleName} component`)
+
+    if (rig.path) {
+      await rig.task("Set up db", async function () {
+        await rig.setupDb()
+      })
+      await rig.task("Seed db", async function () {
+        await rig.seedDb()
+      })
+    }
   }
 
   async end() {
     const rig = this
 
-    // await rig.task("Tear down db", async function () {
-    //   await rig.tearDownDB()
-    // })
+    if (rig.path && rig.tearDownAfter) {
+      await rig.task("Tear down db", async function () {
+        await rig.tearDownDB()
+      })
+    }
 
-    console.log(`
-
-    Done testing the ${rig.moduleName} component
+    if (rig.verbose) {
+      console.log(`  - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Done testing the ${rig.moduleName} component
+  =====================================================
 
 `);
+    } else if (!rig.quiet) console.log(`---< Done testing the ${rig.moduleName} component`)
   }
 
   async task(name, code) {
@@ -316,20 +196,30 @@ class TestRig {
     }
     if (name === undefined) return
 
-    this.taskName = name
-    console.log(`
-----------------------------------------
+    rig.taskName = name
+    rig.taskResults.push({
+      taskName: name,
+      asserts: []
+    })
+
+    if (rig.verbose) {
+      console.log(`
+    -------------------------------------------------
     ${name}
-----------------------------------------
-`)
+    - - - - - - - - - - - - - - - - - - - - - - - - -`)
+    } else if (!rig.quiet) console.log(`  ---> ${rig.taskName}`)
   }
 
   endTask() {
-    console.log(`
-    Done ${this.taskName}
+    const rig = this
 
+    if (rig.verbose) {
+      console.log(`    - - - - - - - - - - - - - - - - - - - - - - - - -
+    Done ${rig.taskName}
+    -------------------------------------------------
 `)
-    delete this.taskName
+    }
+    delete rig.taskName
   }
 
   async setupDb() {
@@ -340,8 +230,7 @@ class TestRig {
       schema
     } = await updater.performUpdate({
       dryRun: false,
-      renew: true,
-      quiet: !rig.verbose
+      renew: true
     });
 
     rig.schema = schema
@@ -353,7 +242,7 @@ class TestRig {
       seeder = rig.dbSeeder;
 
     await seeder.insertSeeds({
-      quiet: !rig.verbose
+      quiet: !rig.verboseDb
     })
   }
 
@@ -363,20 +252,27 @@ class TestRig {
 
     await updater.performUpdate({
       dryRun: false,
-      drop: true,
-      quiet: !rig.verbose
+      drop: true
     });
   }
 
   get dbSchemaUpdater() {
-    return this._updater ? this._updater : (this._updater = new DbSchemaUpdater({
-      path: `${this.path}/db`
+    const rig = this
+
+    if (!rig.path) return
+    return rig._updater ? rig._updater : (rig._updater = new DbSchemaUpdater({
+      path: `${rig.path}/db`,
+      verbose: rig.verboseDb
     }))
   }
 
   get dbSeeder() {
-    return this._seeder ? this._seeder : (this._seeder = new DbSeeder({
-      path: `${this.path}/db`
+    const rig = this
+
+    if (!rig.path) return
+    return rig._seeder ? rig._seeder : (rig._seeder = new DbSeeder({
+      path: `${rig.path}/db`,
+      verbose: rig.verboseDb
     }))
   }
 

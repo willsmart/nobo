@@ -24,14 +24,29 @@ const DatapointCache = require("../../datapoint-cache");
     moduleName: "Datapoint Cache",
     verbose: args.verbose
   }, async function (rig) {
-    rig.startTask("constructor")
+    rig.startTask("Creating and reading datapoints")
     const datapointCache = new DatapointCache(rig)
 
-    rig.startTask("getExistingDatapoint (does not exist)")
-    let datapointId = "app__1__name"
+    let datapoint, value, datapointId = "app__1__#name"
     await rig.assert(`datapoint ${datapointId} doesn't exist in the cache yet`, !datapointCache.getExistingDatapoint({
       datapointId
     }))
+    await rig.assert(`datapoint ${datapointId} created ok`, datapoint = await datapointCache.getOrCreateDatapoint({
+      datapointId
+    }))
+    await rig.assert(`datapoint ${datapointId} value correct`, value = await datapoint.value, {
+      equals: "1 app name"
+    })
+    datapointId = "app__1__#users"
+    await rig.assert(`datapoint ${datapointId} doesn't exist in the cache yet`, !datapointCache.getExistingDatapoint({
+      datapointId
+    }))
+    await rig.assert(`datapoint ${datapointId} created ok`, datapoint = await datapointCache.getOrCreateDatapoint({
+      datapointId
+    }))
+    await rig.assert(`datapoint ${datapointId} value correct`, value = await datapoint.value, {
+      unsortedEquals: ["user__1", "user__2"]
+    })
 
     rig.endTask()
   })

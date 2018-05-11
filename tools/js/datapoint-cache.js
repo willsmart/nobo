@@ -63,7 +63,9 @@ class Datapoint {
     const ret = new Promise(resolve => {
       datapoint.watchingOneShotResolvers = datapoint.watchingOneShotResolvers || [];
       datapoint.watchingOneShotResolvers.push(resolve);
-    }).then(datapoint => datapoint.value);
+    }).then(theDatapoint => {
+      return theDatapoint.value
+    });
 
     datapoint.cache.validateNewlyInvalidDatapoints();
 
@@ -157,7 +159,7 @@ class Datapoint {
     datapoint._value = clone(value);
 
     delete datapoint.invalid;
-    cache.newlyValidDatapoints.push(datapointId);
+    cache.newlyValidDatapoints.push(datapoint.datapointId);
 
     if (datapoint.dependentDatapointsById) {
       for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
@@ -171,10 +173,7 @@ class Datapoint {
           }
         }
         if (!--dependentDatapoint.invalidDependencyDatapointCount) {
-          cache.validateDatapoint({
-            datapointId: dependentDatapoint.datapointId,
-            useGetter: true
-          });
+          dependentDatapoint.validate()
         }
       }
     }
@@ -191,12 +190,10 @@ class Datapoint {
       const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
       delete datapoint.watchingOneShotResolvers;
       for (let resolve of watchingOneShotResolvers) {
-        resolve(datapoint.publicValue);
+        resolve(datapoint);
       }
       datapoint.deleteIfUnwatched();
     }
-
-    return ret;
   }
 
   updateValue({
@@ -526,25 +523,28 @@ class DatapointCache {
           })
           .then(row => {
             fields.forEach(field => {
-              cache.validateDatapoint({
+              const datapoint = cache.getExistingDatapoint({
                 datapointId: field.getDatapointId({
                   dbRowId
-                }),
+                })
+              })
+              if (datapoint) datapoint.validate({
                 value: row[field.name]
               });
             });
-          })
-        );
+          }));
       });
     });
 
     return Promise.all(promises).then(() => {
       const newlyValidDatapoints = cache.newlyValidDatapoints;
       cache.newlyValidDatapoints = [];
-      for (let {
-          onvalid
-        } of cache.listeners) {
-        if (onvalid) onvalid(newlyValidDatapoints);
+      if (cache.listeners) {
+        for (let {
+            onvalid
+          } of cache.listeners) {
+          if (onvalid) onvalid(newlyValidDatapoints);
+        }
       }
     });
   }

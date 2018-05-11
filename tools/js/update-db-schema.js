@@ -27,9 +27,10 @@ const writeFile_p = promisify(fs.writeFile);
 
   try {
     let updater = new DbSchemaUpdater({
-      path: args.path
+      path: args.path,
+      verbose: !args.quiet
     });
-    // note implicit optional flag arguments: dryRun, retrigger, renew, renewAll, drop, quiet
+    // note implicit optional flag arguments: dryRun, retrigger, renew, renewAll, drop
     let {
       sql
     } = await updater.performUpdate(args);
