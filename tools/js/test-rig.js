@@ -42,10 +42,12 @@ class TestRig {
 
     const {
       equals,
-      unsortedEquals,
-      exactly,
+      unsorted,
+      exact,
+      sameObject,
       includes,
-      includedBy
+      includedBy,
+      essential
     } = options
     try {
       value = await value;
@@ -53,65 +55,53 @@ class TestRig {
       throw new Error(`Failed assert where ${thisShouldHappen}:
           Threw while getting value: $[err.stack}`)
     }
-    if (options.hasOwnProperty('exactly')) {
-      const res = isEqual(value, exactly, {
-        exact: true,
-        verboseFail: true
-      })
-      if (res !== true && res !== '>') {
-        throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res.msg}`)
-      }
-    }
-    if (options.hasOwnProperty('equals')) {
-      const res = isEqual(value, equals, {
-        verboseFail: true
-      })
-      if (res !== true && res !== '>') {
-        throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res}`)
-      }
-    }
-    if (options.hasOwnProperty('unsortedEquals')) {
-      const res = isEqual(value, unsortedEquals, {
-        unordered: true,
-        verboseFail: true
-      })
-      if (res !== true && res !== '>') {
-        throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res}`)
-      }
-    }
-    if (options.hasOwnProperty('includes')) {
-      const res = isEqual(value, includes, {
+    let res = `No comparison options chosen. Please use one of: equals, sameObject, includes, includedBy`
+
+    if (options.hasOwnProperty('sameObject')) {
+      res = (value === options.sameObject) || `Values are different objects: ${value} vs ${options.sameObject}`
+    } else if (options.hasOwnProperty('includes')) {
+      res = isEqual(value, includes, {
         allowSuperset: true,
         verboseFail: true,
         unordered: true
       })
       if (res !== true && res !== '>') {
-        throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res}
-          (Expected value is to right. I would have allowed it to be a subset)`)
+        res = `${res}
+          (Expected value is to right. I would have allowed it to be a subset)`
       }
-    }
-    if (options.hasOwnProperty('includedBy')) {
-      const res = isEqual(includedBy, value, {
+    } else if (options.hasOwnProperty('includedBy')) {
+      res = isEqual(includedBy, value, {
         allowSuperset: true,
         verboseFail: true,
         unordered: true
       })
       if (res !== true && res !== '>') {
-        throw new Error(`Failed assert where ${thisShouldHappen}:
-          ${res}
-          (Expected value is to left. I would have allowed it to be a superset)`)
+        res = `${res}
+          (Expected value is to left. I would have allowed it to be a superset)`
       }
+    } else {
+      res = isEqual(value, equals, {
+        verboseFail: true,
+        unsorted,
+        exact
+      })
     }
+
+    const ok = res === true || res === '>'
 
     rig.taskResults[rig.taskResults.length - 1].asserts.push({
       thisShouldHappen,
-      ok: true
+      ok: false
     })
-    if (rig.verbose || !(rig.quiet || rig.lowNoise)) console.log(`    ---> Successful in asserting that ${thisShouldHappen}`)
+
+    if (!ok) {
+      console.log(`    ---X Failed to assert that ${thisShouldHappen}:
+        ${res.replace('\n','\n        ')}`)
+
+      if (essential) {
+        throw new Error(res)
+      }
+    } else if (rig.verbose || !(rig.quiet || rig.lowNoise)) console.log(`    ---> Successful in asserting that ${thisShouldHappen}`)
     else if (!rig.quiet) {
       Readline.clearLine(process.stdout); // clear current text
       Readline.cursorTo(process.stdout, 0); // move cursor to beginning of line

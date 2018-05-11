@@ -11,8 +11,11 @@ const DatapointCache = require("../../datapoint-cache");
   console.log("   args: " + JSON.stringify(args));
 
   // api: 
+  // DatapointCache
   // "getExistingDatapoint",
   // "getOrCreateDatapoint",
+  // datapoint exists
+  // datapoint didn't exist
   // "validateNewlyInvalidDatapoints",
   // "commitNewlyUpdatedDatapoints",
 
@@ -27,6 +30,15 @@ const DatapointCache = require("../../datapoint-cache");
     rig.startTask("Creating and reading datapoints")
     const datapointCache = new DatapointCache(rig)
 
+    rig.assert(`the cache schema is the one passed to it`, datapointCache.schema, {
+      essential: true,
+      sameObject: rig.schema
+    })
+    rig.assert(`the cache connection is the one passed to it`, datapointCache.connection, {
+      essential: true,
+      sameObject: rig.connection
+    })
+
     let datapoint, value, datapointId = "app__1__#name"
     await rig.assert(`datapoint ${datapointId} doesn't exist in the cache yet`, !datapointCache.getExistingDatapoint({
       datapointId
@@ -34,6 +46,17 @@ const DatapointCache = require("../../datapoint-cache");
     await rig.assert(`datapoint ${datapointId} created ok`, datapoint = await datapointCache.getOrCreateDatapoint({
       datapointId
     }))
+    await rig.assert(`created datapoint ${datapointId} returned by getExistingDatapoint`, datapointCache.getExistingDatapoint({
+      datapointId
+    }), {
+      sameObject: datapoint
+    })
+    await rig.assert(`created datapoint ${datapointId} returned by getOrCreateDatapoint`, await datapointCache.getOrCreateDatapoint({
+      datapointId
+    }), {
+      sameObject: datapoint
+    })
+
     await rig.assert(`datapoint ${datapointId} value correct`, value = await datapoint.value, {
       equals: "1 app name"
     })
@@ -45,7 +68,8 @@ const DatapointCache = require("../../datapoint-cache");
       datapointId
     }))
     await rig.assert(`datapoint ${datapointId} value correct`, value = await datapoint.value, {
-      unsortedEquals: ["user__1", "user__2"]
+      equals: ["user__1", "user__2"],
+      unsorted: true
     })
 
     rig.endTask()
