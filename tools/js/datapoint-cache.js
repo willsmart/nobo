@@ -14,7 +14,7 @@ const mapValues = require("./map-values");
 var g_nextUniqueCallbackIndex = 1;
 
 function uniqueCallbackKey() {
-  return `callback__${g_uniqueCallbackIndex++}`;
+  return `callback__${g_nextUniqueCallbackIndex++}`;
 }
 
 // API is auto-generated at the bottom from the public interface of the DatapointCache class
@@ -245,11 +245,12 @@ class Datapoint {
   setupDependencyFields() {
     const datapoint = this;
 
+    const field = datapoint.fieldIfAny;
     Object.assign(this, {
       dependenciesByDatapointId: {},
       dependencyDatapointCountsById: {},
       invalidDependencyDatapointCount: 0,
-      dependencies: (function dependencyTreeFromNames(names) {
+      dependencies: !field ? {} : (function dependencyTreeFromNames(names) {
         return mapValues(names, subNames => {
           const children = dependencyTreeFromNames(subNames);
           return Object.keys(children).length ? {
@@ -282,7 +283,8 @@ class Datapoint {
       datapoint.updateDependency({
         name,
         dependency,
-        parentRowId
+        parentRowId,
+        parentType
       });
     }
   }

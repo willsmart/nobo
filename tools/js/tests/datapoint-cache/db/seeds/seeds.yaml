@@ -2,18 +2,7 @@
     -   id: 1
         name: "1 app name"
         users:
-        -   id: 2
-            name: "2 user name"
-            bio: "2 user bio"
         -   id: 1
             name: "1 user name"
-            bio: "1 user bio"
-            posts:
-            -   id: 1
-                title: "1 post title"
-                body: "1 post body"
-                replies:
-                -   id: 2
-                    title: "2 reply title"
-                    body: "2 reply body"
-                    user: 2
+        -   id: 2
+            name: "2 user name"
