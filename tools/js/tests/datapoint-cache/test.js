@@ -82,7 +82,7 @@ const DatapointCache = require("../../datapoint-cache");
   await TestRig.go({
     path: __dirname,
     moduleName: "Datapoint Cache",
-    verbosity: 2,
+    verbosity: 3,
     failVerbosity: 3
   }, async function (rig) {
     rig.startTask("DatapointCache tests")
@@ -115,17 +115,18 @@ const DatapointCache = require("../../datapoint-cache");
       dpWithGetterAndDependencyId = "user__1__#uppercase_bio",
 
       dpWithGetterId = "user__1__#type",
+      dpWithGetterUsingParentId = "user__1__#app_name",
 
-      datapointIds = [simpleDatapointId, dpWithDependentWithDependentId, dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithDependentId, dpWithGetterAndDependencyId, dpWithGetterId],
-      datapointsWithGetterIds = [dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithGetterAndDependencyId, dpWithGetterId],
+      datapointIds = [simpleDatapointId, dpWithDependentWithDependentId, dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithDependentId, dpWithGetterAndDependencyId, dpWithGetterId, dpWithGetterUsingParentId],
+      datapointsWithGetterIds = [dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithGetterAndDependencyId, dpWithGetterId, dpWithGetterUsingParentId],
       datapointsWithDependencyIds = [dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithGetterAndDependencyId],
       datapointsWithDependentIds = [dpWithDependentWithDependentId, dpWithGetterAndDependencyAndDependentId, dpWithDependentId],
-      datapointsWithoutDependentIds = [simpleDatapointId, dpWithGetterAndDependencyWithDependencyId, dpWithGetterAndDependencyId, dpWithGetterId],
-      datapointsWithoutDependencyIds = [simpleDatapointId, dpWithDependentWithDependentId, dpWithDependentId, dpWithGetterId],
+      datapointsWithoutDependentIds = [simpleDatapointId, dpWithGetterAndDependencyWithDependencyId, dpWithGetterAndDependencyId, dpWithGetterId, dpWithGetterUsingParentId],
+      datapointsWithoutDependencyIds = [simpleDatapointId, dpWithDependentWithDependentId, dpWithDependentId, dpWithGetterId, dpWithGetterUsingParentId],
 
       datapoints = {},
       expectedValues = {
-        "app__1__#name": "1 app namee",
+        "app__1__#name": "1 app name",
 
         "user__1__#name": "1 user name",
         "user__1__#uppercase_name": "1 USER NAME",
@@ -134,7 +135,8 @@ const DatapointCache = require("../../datapoint-cache");
         "user__1__#bio": "1 user bio",
         "user__1__#uppercase_bio": "1 USER BIO",
 
-        "user__1__#type": "?"
+        "user__1__#type": "?",
+        "user__1__#app_name": "app is 1 app name"
       },
       baseCallbackKey = "a",
       callbackKeys = {},
@@ -391,15 +393,18 @@ const DatapointCache = require("../../datapoint-cache");
       }
     })
 
-    const newValue = "app 1 new name"
+    const newValues = {
+      "app__1__#name": "1 app new name",
+      "user__1__#app_name": "app is 1 app new name"
+    }
 
     //     "updateValue", 
     //         DG
-    await rig.assert(`updating value of datapoint ${dpWithDependentId} set the new value correctly`, datapoints[datapointId].updateValue({
-      newValue
+    await rig.assert(`updating value of datapoint ${datapointId} set the new value correctly`, datapoints[datapointId].updateValue({
+      newValue: newValues[datapointId]
     }), {
       includes: {
-        newValue
+        newValue: newValues[datapointId]
       }
     })
 
@@ -412,7 +417,10 @@ const DatapointCache = require("../../datapoint-cache");
     datapoints[datapointId].invalidate()
 
     await rig.assert(`the new value of datapoint ${datapointId} is correctly read back`, await datapoints[datapointId].value, {
-      equals: newValue
+      equals: newValues[datapointId]
+    })
+    await rig.assert(`the new value of datapoint ${dpWithGetterUsingParentId} is correctly read back`, await datapoints[dpWithGetterUsingParentId].value, {
+      equals: newValues[dpWithGetterUsingParentId]
     })
 
 

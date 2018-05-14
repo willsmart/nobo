@@ -169,6 +169,7 @@ class Datapoint {
         if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
           for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
             dependentDatapoint.updateDependencies({
+              parentRowId: datapoint.valueAsDecomposedRowId,
               dependencies: dependency.children
             });
           }
@@ -223,23 +224,26 @@ class Datapoint {
   get valueAsRowId() {
     const datapoint = this;
 
-    const field = datapoint.fieldIfAny;
+    const field = datapoint.fieldIfAny,
+      value = datapoint.valueIfAny;
     if (!field ||
       !field.isId ||
       field.isMultiple ||
       datapoint.invalid ||
-      !Array.isArray(datapoint.value) ||
-      datapoint.value.length != 1
+      !Array.isArray(value) ||
+      value.length != 1
     )
       return;
 
-    return datapoint.value[0];
+    return value[0];
   }
 
   get valueAsDecomposedRowId() {
+    const rowId = this.valueAsRowId
+    if (!rowId) return
     try {
       return ConvertIds.decomposeId({
-        rowId: this.valueAsRowId
+        rowId
       });
     } catch (err) {
       console.log(err);
