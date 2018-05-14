@@ -7,4 +7,4 @@
         type(string):  {get: "a.hello()"}
         uppercaseName(string):  {get: "name.toUpperCase()"}
         uppercaseBio(string):  {get: "bio.toUpperCase()"}
-        quotedUppercaseName(string):  {get: "'\"'+name+'\"'"}
+        quotedUppercaseName(string):  {get: "'\"'+uppercaseName+'\"'"}

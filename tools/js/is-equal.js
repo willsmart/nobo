@@ -7,6 +7,13 @@
 // API is the multi-function isEqual function
 module.exports = isEqual
 
+function description(value) {
+  try {
+    return JSON.stringify(value)
+  } catch (err) {
+    return `${value}`
+  }
+}
 
 // isEqual(v1,v2,options) -- return as a boolean whether v1 and v2 are the same
 //    v1: any value
@@ -27,17 +34,17 @@ function isEqual(v1, v2, options = {}) {
 
   if (typeof (v1) != typeof (v2) || Array.isArray(v1) != Array.isArray(v2)) {
     if (exact) {
-      return (verboseFail ? `Types differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+      return (verboseFail ? `Types differ: ${description(v1)} vs ${description(v2)}` : false)
     }
     if (v1 === true ? v2 : (v1 === false ? !v2 : (v2 === true ? v1 : (v2 === false ? !v1 : (v1 == v2))))) {
       return true
     }
-    return (verboseFail ? `Values are not equal: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+    return (verboseFail ? `Values are not equal: ${description(v1)} vs ${description(v2)}` : false)
   }
 
   if (typeof (v1) == 'number' || typeof (v1) == 'boolean' || typeof (v1) == 'string') {
     return v1 == v2 ? true :
-      (verboseFail ? `${typeof (v1)}s differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+      (verboseFail ? `${typeof (v1)}s differ: ${description(v1)} vs ${description(v2)}` : false)
   }
 
   if (Array.isArray(v1)) {
@@ -49,7 +56,7 @@ function isEqual(v1, v2, options = {}) {
   }
 
   return v1 === v2 ? true :
-    (verboseFail ? `${typeof (v1)}s differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+    (verboseFail ? `${typeof (v1)}s differ: ${description(v1)} vs ${description(v2)}` : false)
 }
 
 
@@ -61,7 +68,7 @@ function arrayIsEqual(v1, v2, options) {
   } = options
 
   if (v1.length != v2.length) {
-    return (verboseFail ? `Array lengths differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+    return (verboseFail ? `Array lengths differ: ${description(v1)} vs ${description(v2)}` : false)
   }
   if (!v1.length) return true;
 
@@ -70,7 +77,7 @@ function arrayIsEqual(v1, v2, options) {
     for (const c1 of v1) {
       const res = isEqual(c1, v2[index], options)
       if (res !== true) {
-        return (verboseFail ? `${res}\n > Array values at index ${index} differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+        return (verboseFail ? `${res}\n > Array values at index ${index} differ: ${description(v1)} vs ${description(v2)}` : false)
       }
       index++
     }
@@ -91,7 +98,7 @@ function arrayIsEqual(v1, v2, options) {
           }
         }
       if (!found) {
-        return (verboseFail ? `Value ${JSON.stringify(c2)} from the second array was not found in the first: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+        return (verboseFail ? `Value ${description(c2)} from the second array was not found in the first: ${description(v1)} vs ${description(v2)}` : false)
       }
     }
   }
@@ -106,12 +113,12 @@ function objectIsEqual(v1, v2, options) {
   const v1Keys = Object.keys(v1),
     v2Keys = Object.keys(v2)
   if (v1Keys.length != v2Keys.length) {
-    return (verboseFail ? `Object sizes differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+    return (verboseFail ? `Object sizes differ: ${description(v1)} vs ${description(v2)}` : false)
   }
   for (const v1Key of v1Keys) {
     const res = isEqual(v1[v1Key], v2[v1Key], options)
     if (res !== true) {
-      return (verboseFail ? `${res}\n > Values for key ${v1Key} differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+      return (verboseFail ? `${res}\n > Values for key ${v1Key} differ: ${description(v1)} vs ${description(v2)}` : false)
     }
   }
   return true
@@ -124,7 +131,7 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
     verboseFail
   } = options
 
-  if (v1.length < v2.length) return (verboseFail ? `First array is smaller than second: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false);
+  if (v1.length < v2.length) return (verboseFail ? `First array is smaller than second: ${description(v1)} vs ${description(v2)}` : false);
   if (!v1.length) return true;
 
   let supersetMatch = v1.length > v2.length
@@ -134,7 +141,7 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
     for (const c2 of v2) {
       const res = isEqual(v1[index], c2, options)
       if (res == '>') supersetMatch = true;
-      else if (res !== true) return (verboseFail ? `${res}\n > Array values at index ${index} differ: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+      else if (res !== true) return (verboseFail ? `${res}\n > Array values at index ${index} differ: ${description(v1)} vs ${description(v2)}` : false)
       index++
     }
     return supersetMatch ? '>' : true
@@ -172,7 +179,7 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
           supersetsC1Indexes.push(c1Index)
         }
       }
-      if (!supersetsC1Indexes.length) return (verboseFail ? `Member ${JSON.stringify(v2[c2Index])} of second array has no equivalent superset in the first, or all such supersets are already matched with an exact match in the second array: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+      if (!supersetsC1Indexes.length) return (verboseFail ? `Member ${description(v2[c2Index])} of second array has no equivalent superset in the first, or all such supersets are already matched with an exact match in the second array: ${description(v1)} vs ${description(v2)}` : false)
     }
     const c2IndexesInOrder = Object.keys(unusedC2Indexes).sort((a, b) => Object.keys(unusedC2Indexes[a]).length - Object.keys(unusedC2Indexes[b]).length)
 
@@ -194,14 +201,18 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
 }
 
 function objectIsEqualOrSuperset(v1, v2, options) {
+  const {
+    verboseFail
+  } = options
+
   const v1Keys = Object.keys(v1),
     v2Keys = Object.keys(v2)
-  if (v1Keys.length < v2Keys.length) return (verboseFail ? `First object has fewer keys than second: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false);
+  if (v1Keys.length < v2Keys.length) return (verboseFail ? `First object has fewer keys than second: ${description(v1)} vs ${description(v2)}` : false);
   let supersetMatch = v1Keys.length > v2Keys.length
   for (const v2Key of v2Keys) {
-    const res = isEqual(v1[v1Key], v2[v1Key], options)
+    const res = isEqual(v1[v2Key], v2[v2Key], options)
     if (res == '>') supersetMatch = true
-    else if (res !== true) return (verboseFail ? `${res}\n > Values for key ${v1Key} are not equal or superset/subset: ${JSON.stringify(v1)} vs ${JSON.stringify(v2)}` : false)
+    else if (res !== true) return (verboseFail ? `${res}\n > Values for key ${v2Key} are not equal or superset/subset: ${description(v1)} vs ${description(v2)}` : false)
   }
   return supersetMatch ? '>' : true
 }

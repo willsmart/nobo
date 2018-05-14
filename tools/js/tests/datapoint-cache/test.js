@@ -82,7 +82,8 @@ const DatapointCache = require("../../datapoint-cache");
   await TestRig.go({
     path: __dirname,
     moduleName: "Datapoint Cache",
-    verbose: args.verbose
+    verbosity: 2,
+    failVerbosity: 3
   }, async function (rig) {
     rig.startTask("DatapointCache tests")
     const datapointCache = new DatapointCache(rig)
@@ -124,14 +125,14 @@ const DatapointCache = require("../../datapoint-cache");
 
       datapoints = {},
       expectedValues = {
-        "app__1__#name": "1 app name",
+        "app__1__#name": "1 app namee",
 
         "user__1__#name": "1 user name",
-        "user__1__#uppercaseName": "1 USER NAME",
-        "user__1__#quotedUppercaseName": "\"1 USER NAME\"",
+        "user__1__#uppercase_name": "1 USER NAME",
+        "user__1__#quoted_uppercase_name": "\"1 USER NAME\"",
 
         "user__1__#bio": "1 user bio",
-        "user__1__#uppercaseBio": "1 USER BIO",
+        "user__1__#uppercase_bio": "1 USER BIO",
 
         "user__1__#type": "?"
       },
@@ -143,7 +144,9 @@ const DatapointCache = require("../../datapoint-cache");
 
     datapointId = simpleDatapointId
 
-    await rig.assert(`datapoint ${datapointId} doesn't exist in the cache yet`, !datapointCache.getExistingDatapoint({
+    //     "getExistingDatapoint",
+    //         CA2: datapoint didn't exist
+    await rig.assert(`the datapoint ${datapointId} doesn't exist in the cache yet`, !datapointCache.getExistingDatapoint({
       simpleDatapointId
     }))
     //     "getOrCreateDatapoint",
@@ -155,15 +158,21 @@ const DatapointCache = require("../../datapoint-cache");
     //         DA2: has getter with no dependencies
     //  +
     //         DA3: has getter with dependencies
+    //  +
+    //     "getOrCreateDatapoint",
+    //         CB2: datapoint didn't exist
     for (const datapointId of datapointsWithoutDependentIds) {
-      await rig.assert(`datapoint ${datapointId} created ok`, datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
+      await rig.assert(`the datapoint ${datapointId} was created ok`, datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
         datapointId
       }))
     }
     //     "getExistingDatapoint",
     //         CA1: datapoint existed beforehand
+    //  +
+    //     "getExistingDatapoint",
+    //         CA1: datapoint existed beforehand
     for (const datapointId of datapointsWithoutDependentIds) {
-      await rig.assert(`created datapoint ${datapointId} returned by getExistingDatapoint`, datapointCache.getExistingDatapoint({
+      await rig.assert(`the recently created datapoint ${datapointId} is returned by getExistingDatapoint`, datapointCache.getExistingDatapoint({
         datapointId
       }), {
         sameObject: datapoints[datapointId]
@@ -171,7 +180,7 @@ const DatapointCache = require("../../datapoint-cache");
     }
     // the dependencies should have been created alongside
     for (const datapointId of datapointsWithDependentIds) {
-      await rig.assert(`created datapoint ${datapointId} returned by getExistingDatapoint`, datapoints[datapointId] = datapointCache.getExistingDatapoint({
+      await rig.assert(`the dependency datapoint ${datapointId} was created ok and is returned by getExistingDatapoint`, datapoints[datapointId] = datapointCache.getExistingDatapoint({
         datapointId
       }))
     }
@@ -180,14 +189,11 @@ const DatapointCache = require("../../datapoint-cache");
     await rig.assert(`a watch was started on datapoint ${datapointId} with listeners and without a callbackKey specified`, callbackKeys[datapointId] = datapoints[datapointId].watch({
       onvalid: (datapoint) => onvalidCalls[datapointId] = {
         value: datapoint.value
-      },
-      oninvalid: (datapoint) => oninvalidCalls[datapointId] = {
-        value: datapoint.value
-      },
+      }
     }))
     //     "watch", 
     //         DD1: callbackKey specified
-    for (const datapointId of datapointsWithoutDependencyIds) {
+    for (const datapointId of datapointsWithoutDependentIds) {
       await rig.assert(`a watch was started on datapoint ${datapointId} with a callbackKey specified and without listeners`, datapoints[datapointId].watch({
         callbackKey: baseCallbackKey,
       }), {
@@ -196,13 +202,14 @@ const DatapointCache = require("../../datapoint-cache");
     }
     //     "getOrCreateDatapoint",
     //         CB1: datapoint existed beforehand
-    for (const datapointId of datapointIds) {
-      await rig.assert(`created datapoint ${datapointId} returned by getOrCreateDatapoint`, await datapointCache.getOrCreateDatapoint({
-        datapointId
-      }), {
-        sameObject: datapoints[datapointId]
-      })
-    }
+    //  +
+    //     "getOrCreateDatapoint",
+    //         CB1: datapoint existed beforehand
+    await rig.assert(`the already created datapoint ${datapointId} returned by getOrCreateDatapoint`, await datapointCache.getOrCreateDatapoint({
+      datapointId
+    }), {
+      sameObject: datapoints[datapointId]
+    })
 
     //     "value",
     //         DC2: was not valid 
@@ -245,54 +252,176 @@ const DatapointCache = require("../../datapoint-cache");
     //        DL4: has invalid dependency that itself has no dependencies
     //  +
     //        DL5: has dependency that itself has dependencies
-    await rig.assert(` value of datapoint ${datapointId} is correct`, await datapoints[datapointId].value, {
+    //  +
+    //     "validateNewlyInvalidDatapoints",
+    //         CC:  (also entry point for validate tests)
+
+    await rig.assert(`the value of datapoint ${datapointId} is correct`, await datapoints[datapointId].value, {
       equals: expectedValues[datapointId]
     })
-    await rig.assert(` datapoint ${datapointId} called its onvalid listener`, onvalidCalls[datapointId])
+    await rig.assert(`the datapoint ${datapointId} called its onvalid listener`, onvalidCalls[datapointId])
     //     "valueIfAny"
     //         DB
-    await rig.assert(` datapoint ${datapointId} is valid and its value is correctly returned by valueIfAny`, datapoints[datapointId].valueIfAny, {
+    await rig.assert(`the datapoint ${datapointId} is valid and its value is correctly returned by valueIfAny`, datapoints[datapointId].valueIfAny, {
       equals: expectedValues[datapointId]
     })
     //         DC1: already valid
     for (const datapointId of datapointIds) {
-      await rig.assert(` value of already valid datapoint ${datapointId} is correctly returned by value`, await datapoints[datapointId].value, {
+      await rig.assert(`the value of already valid datapoint ${datapointId} is correctly returned by value`, await datapoints[datapointId].value, {
         equals: expectedValues[datapointId]
       })
     }
-
-    //     "commitNewlyUpdatedDatapoints",
-    //         CD
-
-    // Datapoint
-    //     constructor
-    //         DA1: no getter
-    //         DA2: has getter with no dependencies
-    //         DA3: has getter with dependencies
     //     "stopWatching", 
     //         DE1: was not last listener
+    await rig.assert(`the first watch was stopped on datapoint ${datapointId}`, await datapoints[datapointId].stopWatching({
+      callbackKey: callbackKeys[datapointId]
+    }), {
+      includes: {
+        callbackKey: callbackKeys[datapointId]
+      }
+    })
+    await rig.assert(`the datapoint ${datapointId} still exists after removing one of the listeners`, datapointCache.getExistingDatapoint({
+      datapointId
+    }), {
+      sameObject: datapoints[datapointId]
+    })
+    //     "stopWatching", 
     //         DE2: was last listener
+    //  +
+    //      "deleteIfUnwatched" (via validate)
+    //        DI1: has no listeners, watchingOneShotResolvers or dependents
+    for (const datapointId of datapointsWithoutDependentIds) {
+      await rig.assert(`the last watch was stopped on datapoint ${datapointId}`, datapoints[datapointId].stopWatching({
+        callbackKey: baseCallbackKey
+      }), {
+        includes: {
+          callbackKey: baseCallbackKey
+        }
+      })
+    }
+    for (const datapointId of datapointIds) {
+      await rig.assert(`the datapoint ${datapointId} no longer exists after removing the last listener`, datapointCache.getExistingDatapoint({
+        datapointId
+      }), {
+        equals: false
+      })
+    }
+
+    //      "deleteIfUnwatched" (via validate)
+    //        DI3: has watchingOneShotResolver
+    datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
+      datapointId
+    })
+    await datapoints[datapointId].value
+    await rig.assert(`the recreated datapoint ${datapointId} no longer exists after removing the last watchingOneShotResolver`, datapointCache.getExistingDatapoint({
+      datapointId
+    }), {
+      equals: false
+    })
+
+    for (const datapointId of datapointIds) {
+      datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
+        datapointId
+      })
+      datapoints[datapointId].watch({
+        callbackKey: baseCallbackKey
+      })
+    }
+    callbackKeys[datapointId] = datapoints[datapointId].watch({
+      oninvalid: (datapoint) => oninvalidCalls[datapointId] = {
+        value: datapoint.value
+      }
+    })
+
     //     "invalidate", 
     //         DF1: was already invalid
+    await rig.assert(`invalidate is idempotent on already invalid datapoint ${datapointId}`, datapoints[datapointId].invalidate(), {
+      includes: {
+        _value: false,
+        invalid: true
+      }
+    })
+    for (const datapointId of datapointIds) {
+      await rig.assert(`the value of recreated datapoint ${datapointId} is correct`, await datapoints[datapointId].value, {
+        equals: expectedValues[datapointId]
+      })
+    }
+    //     "invalidate", 
     //         DF2: no dependent datapoints
+    //         DF4: has dependent datapoint that was previously valid and has no dependent datapoints itself
+    //         DF6: has dependent datapoint that was previously valid and has a dependent datapoint itself
+    //         DF7: listener has no oninvalid
+    for (const datapointId of datapointsWithoutDependencyIds) {
+      await rig.assert(`invalidate clears value on datapoint ${datapointId}`, datapoints[datapointId].invalidate(), {
+        includes: {
+          _value: false,
+          invalid: true
+        }
+      })
+    }
+    //     "invalidate", 
+    //         DF8: listener has oninvalid
+    await rig.assert(`invalidate of ${datapointId} called listener`, oninvalidCalls[datapointId])
+    //     "invalidate", 
     //         DF3: has dependent datapoint that was previously invalid and has no dependent datapoints itself
     //         DF4: has dependent datapoint that was previously valid and has no dependent datapoints itself
     //         DF5: has dependent datapoint that was previously invalid and has a dependent datapoint itself
     //         DF6: has dependent datapoint that was previously valid and has a dependent datapoint itself
-    //         DF7: listener has no oninvalid
-    //         DF8: listener has oninvalid
+    for (const datapointId of datapointsWithDependencyIds) {
+      await rig.assert(`invalidate of dependency cleared value on datapoint ${datapointId}`, datapoints[datapointId], {
+        includes: {
+          _value: false,
+          invalid: true
+        }
+      })
+    }
+
+    datapoints[dpWithDependentWithDependentId].value
+    await rig.assert(`invalidate of datapoint ${dpWithDependentWithDependentId} that has an invalid dependent clears value`, datapoints[dpWithDependentWithDependentId].invalidate(), {
+      includes: {
+        _value: false,
+        invalid: true
+      }
+    })
+    datapoints[dpWithDependentId].value
+    await rig.assert(`invalidate of datapoint ${dpWithDependentId} that has an invalid dependent clears value`, datapoints[dpWithDependentId].invalidate(), {
+      includes: {
+        _value: false,
+        invalid: true
+      }
+    })
+
+    const newValue = "app 1 new name"
+
     //     "updateValue", 
     //         DG
-    //
+    await rig.assert(`updating value of datapoint ${dpWithDependentId} set the new value correctly`, datapoints[datapointId].updateValue({
+      newValue
+    }), {
+      includes: {
+        newValue
+      }
+    })
+
+    //     "commitNewlyUpdatedDatapoints",
+    //         CD
+    await rig.assert(`commitNewlyUpdatedDatapoints doesn't throw`, await datapointCache.commitNewlyUpdatedDatapoints(), {
+      throws: false
+    })
+
+    datapoints[datapointId].invalidate()
+
+    await rig.assert(`the new value of datapoint ${datapointId} is correctly read back`, await datapoints[datapointId].value, {
+      equals: newValue
+    })
+
+
+    // Datapoint
     //     "validate" (via validateNewlyInvalidDatapoints)
     //         DH1: datapoint was already valid
     //              There is no path to this through the public api
     //
-    //      "deleteIfUnwatched" (via validate)
-    //        DI1: has no listeners, watchingOneShotResolvers or dependents
-    //        DI3: has watchingOneShotResolver
     //
-
 
     rig.endTask()
   })

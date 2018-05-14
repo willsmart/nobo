@@ -41,14 +41,10 @@ class Datapoint {
 
     const field = datapoint.fieldIfAny;
 
-    if (field) {
-      if (field.get) {
-        datapoint.setupDependencyFields();
-        if (datapoint.invalidDependencyDatapointCount) {
-          datapoint.invalidate();
-        }
-      } else datapoint.invalidate();
+    if (field && field.get) {
+      datapoint.setupDependencyFields();
     }
+    datapoint.invalidate();
   }
 
   get valueIfAny() {
@@ -81,11 +77,11 @@ class Datapoint {
       callbackKey
     } = listener;
 
-    datapoint.listeners = datapoint.listeners || {};
-    datapoint.listeners[callbackKey] = {
+    datapoint.listeners.push({
+      callbackKey,
       oninvalid,
       onvalid
-    };
+    });
 
     return callbackKey;
   }
@@ -95,10 +91,14 @@ class Datapoint {
   }) {
     const datapoint = this;
 
-    delete datapoint.listeners[callbackKey];
-    if (!Object.keys(datapoint.listeners).length) {
-      delete datapoint.listeners;
-      datapoint.deleteIfUnwatched();
+    let index = 0
+    for (const listener of datapoint.listeners) {
+      if (listener.callbackKey == callbackKey) {
+        datapoint.listeners.splice(index, 1)
+        datapoint.deleteIfUnwatched();
+        return listener
+      }
+      index++
     }
   }
 
@@ -108,9 +108,10 @@ class Datapoint {
         cache
       } = datapoint;
 
-    if (datapoint.invalid) return;
+    if (datapoint.invalid) return datapoint;
 
     datapoint.invalid = true;
+    delete datapoint._value
     cache.newlyInvalidDatapointIds.push(datapoint.datapointId);
 
     if (datapoint.dependentDatapointsById) {
@@ -136,11 +137,13 @@ class Datapoint {
         datapoint
       });
     }
+
+    return datapoint
   }
 
   validate({
     value
-  }) {
+  } = {}) {
     const datapoint = this,
       {
         cache
@@ -165,9 +168,7 @@ class Datapoint {
       for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
         if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
           for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-            cache.updateDependencies({
-              datapoint: dependentDatapoint,
-              parentRowId: datapoint.valueAsDecomposedRowId,
+            dependentDatapoint.updateDependencies({
               dependencies: dependency.children
             });
           }
@@ -192,8 +193,9 @@ class Datapoint {
       for (let resolve of watchingOneShotResolvers) {
         resolve(datapoint);
       }
-      datapoint.deleteIfUnwatched();
     }
+
+    datapoint.deleteIfUnwatched();
   }
 
   updateValue({
@@ -207,7 +209,9 @@ class Datapoint {
     datapoint.newValue = clone(newValue);
     datapoint.updated = true;
 
-    cache.newlyUpdatedDatapointIds.push(datapointId);
+    cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
+
+    return datapoint
   }
 
   get fieldIfAny() {
@@ -351,18 +355,41 @@ class Datapoint {
   }
 
   deleteIfUnwatched() {
-    const datapoint = this,
-      {
-        cache
-      } = datapoint;
+    const datapoint = this;
 
-    if (
-      datapoint.listeners ||
+    if (datapoint.listeners.length ||
       datapoint.watchingOneShotResolvers ||
       (datapoint.dependentDatapointsById && Object.keys(datapoint.dependentDatapointsById).length)
     ) {
       return;
     }
+
+    datapoint.forget()
+  }
+
+  forget() {
+    const datapoint = this,
+      {
+        cache
+      } = datapoint;
+
+    if (datapoint.dependenciesByDatapointId) {
+      for (const dependencyDatapointId of Object.keys(datapoint.dependenciesByDatapointId)) {
+        const dependencyDatapoint = cache.getExistingDatapoint({
+          datapointId: dependencyDatapointId
+        })
+        delete dependencyDatapoint.dependentDatapointsById[datapoint.datapointId]
+        if (!Object.keys(dependencyDatapoint.dependentDatapointsById).length) {
+          delete dependencyDatapoint.dependentDatapointsById
+          dependencyDatapoint.deleteIfUnwatched()
+        }
+      }
+    }
+
+    delete datapoint.dependenciesByDatapointId
+    delete datapoint.dependencyDatapointCountsById
+    delete datapoint.invalidDependencyDatapointCount
+    delete datapoint.dependencies
 
     cache.forgetDatapoint(datapoint);
   }
@@ -381,7 +408,7 @@ class Datapoint {
             to[name] = {};
             addDependencyValues(dependency.children, to[name]);
           } else if (dependency.datapoint && !dependency.datapoint.invalid) {
-            to[name] = dependency.datapoint.value;
+            to[name] = dependency.datapoint.valueIfAny;
           } else {
             to[name] = "...";
           }
@@ -501,7 +528,12 @@ class DatapointCache {
     datapoints.forEach(datapoint => {
       if (!datapoint.invalid) return;
       const field = datapoint.fieldIfAny;
-      if (!field || field.get) return;
+      if (!field || field.get) {
+        if (!datapoint.invalidDependencyDatapointCount) {
+          datapoint.validate()
+        }
+        return;
+      }
 
       const fieldsByRow = fieldsByRowByType[datapoint.typeName] || (fieldsByRowByType[datapoint.typeName] = {});
       const fields = fieldsByRow[datapoint.dbRowId] || (fieldsByRow[datapoint.dbRowId] = []);

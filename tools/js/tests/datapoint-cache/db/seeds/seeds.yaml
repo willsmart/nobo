@@ -4,5 +4,7 @@
         users:
         -   id: 1
             name: "1 user name"
+            bio: "1 user bio"
         -   id: 2
             name: "2 user name"
+            bio: "2 user bio"

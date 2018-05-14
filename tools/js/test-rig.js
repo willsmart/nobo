@@ -20,19 +20,22 @@ class TestRig {
 
   constructor({
     path,
-    verbose,
+    verbosity,
+    failVerbosity,
     verboseDb,
     moduleName,
     tearDownAfter
   }) {
     Object.assign(this, {
       path,
-      verbose,
+      verbosity,
+      failVerbosity,
       verboseDb,
       moduleName,
       tearDownAfter
     })
     this.taskResults = []
+    this.failCount = 0
   }
 
   async assert(thisShouldHappen, value, options = {
@@ -47,17 +50,22 @@ class TestRig {
       sameObject,
       includes,
       includedBy,
-      essential
+      essential,
+      throws
     } = options
+    let didThrow = false
     try {
       value = await value;
     } catch (err) {
-      throw new Error(`Failed assert where ${thisShouldHappen}:
+      didThrow = true
+      if (!options.throws) throw new Error(`Failed assert where ${thisShouldHappen}:
           Threw while getting value: $[err.stack}`)
     }
-    let res = `No comparison options chosen. Please use one of: equals, sameObject, includes, includedBy`
+    let res = `No comparison options chosen. Please use one of: equals, sameObject, includes, includedBy, throws`
 
-    if (options.hasOwnProperty('sameObject')) {
+    if (options.hasOwnProperty('throws')) {
+      res = !didThrow && options.throws ? "Expected a throw" : true
+    } else if (options.hasOwnProperty('sameObject')) {
       res = (value === options.sameObject) || `Values are different objects: ${value} vs ${options.sameObject}`
     } else if (options.hasOwnProperty('includes')) {
       res = isEqual(value, includes, {
@@ -89,20 +97,25 @@ class TestRig {
 
     const ok = res === true || res === '>'
 
+    if (!ok) rig.taskResults[rig.taskResults.length - 1].failCount++;
+
     rig.taskResults[rig.taskResults.length - 1].asserts.push({
       thisShouldHappen,
-      ok: false
+      ok
     })
 
-    if (!ok) {
-      console.log(`    ---X Failed to assert that ${thisShouldHappen}:
-        ${res.replace('\n','\n        ')}`)
-
-      if (essential) {
-        throw new Error(res)
+    if (!ok && essential) {
+      throw new Error(res)
+    } else if ((ok ? rig.verbosity : rig.failVerbosity) >= 3) {
+      if (ok) {
+        console.log(`    ---> Successful in asserting that ${thisShouldHappen}`)
+      } else {
+        console.log(`    ---X Failed to assert that ${thisShouldHappen}:
+      ${res.replace('\n','\n        ')}`)
       }
-    } else if (rig.verbose || !(rig.quiet || rig.lowNoise)) console.log(`    ---> Successful in asserting that ${thisShouldHappen}`)
-    else if (!rig.quiet) {
+    } else if ((ok ? rig.verbosity : rig.failVerbosity) >= 2) {
+      console.log(`       > ${rig.taskSummary()}`);
+    } else if ((ok ? rig.verbosity : rig.failVerbosity) >= 1) {
       Readline.clearLine(process.stdout); // clear current text
       Readline.cursorTo(process.stdout, 0); // move cursor to beginning of line
       process.stdout.write(`       > ${rig.taskSummary()}`);
@@ -127,12 +140,12 @@ class TestRig {
   async start() {
     const rig = this
 
-    if (rig.verbose) {
+    if (rig.verbosity >= 4) {
       console.log(`
   ======================================================
   Test the ${rig.moduleName} component
   - - - - - - - - - - - - - - - - - - - - - - - - - - -`);
-    } else if (!rig.quiet) console.log(`===> Test the ${rig.moduleName} component`)
+    } else if (rig.verbosity >= 1) console.log(`===> Test the ${rig.moduleName} component`)
 
     if (rig.path) {
       await rig.task("Set up db", async function () {
@@ -153,13 +166,13 @@ class TestRig {
       })
     }
 
-    if (rig.verbose) {
+    if (rig.verbosity >= 4) {
       console.log(`  - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Done testing the ${rig.moduleName} component
   =====================================================
 
 `);
-    } else if (!rig.quiet) console.log(`---< Done testing the ${rig.moduleName} component`)
+    } else if (rig.verbosity >= 1) console.log(`---< Done testing the ${rig.moduleName} component`)
   }
 
   async task(name, code) {
@@ -189,26 +202,33 @@ class TestRig {
     rig.taskName = name
     rig.taskResults.push({
       taskName: name,
-      asserts: []
+      asserts: [],
+      failCount: 0
     })
 
-    if (rig.verbose) {
+    if (rig.verbosity >= 4) {
       console.log(`
     -------------------------------------------------
     ${name}
     - - - - - - - - - - - - - - - - - - - - - - - - -`)
-    } else if (!rig.quiet) console.log(`  ---> ${rig.taskName}`)
+    } else if (rig.verbosity >= 1) console.log(`  ---> ${rig.taskName}`)
   }
 
   endTask() {
     const rig = this
 
-    if (rig.verbose) {
+    rig.failCount += rig.taskResults[rig.taskResults.length - 1].failCount
+
+    if (rig.verbosity >= 4) {
       console.log(`    - - - - - - - - - - - - - - - - - - - - - - - - -
-    Done ${rig.taskName}
-    -------------------------------------------------
+Done ${rig.taskName}
+   < [${rig.taskSummary()}]
+-------------------------------------------------
 `)
+    } else if (rig.verbosity >= 1) {
+      console.log(`    Results: [${rig.taskSummary()}]`)
     }
+
     delete rig.taskName
   }
 
