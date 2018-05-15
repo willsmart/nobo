@@ -1,5 +1,5 @@
 const ConvertIds = require("./convert-ids");
-const PublicApi = require("./public-api");
+const PublicApi = require("./general/public-api");
 
 // API is auto-generated at the bottom from the public interface of this class
 

@@ -1,7 +1,7 @@
 const WebSocket = require("ws");
 const ConvertIds = require("./convert-ids");
 const SchemaDefn = require("./schema");
-const PublicApi = require("../general/public-api");
+const PublicApi = require("./general/public-api");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -11,7 +11,9 @@ class WebSocketServer {
     return ["start", "newVersionAvailableForViews"];
   }
 
-  constructor({ cache }) {
+  constructor({
+    cache
+  }) {
     const wsserver = this;
 
     if ((wsserver.cache = cache)) cache.wsserver = wsserver;
@@ -19,16 +21,20 @@ class WebSocketServer {
     wsserver.proxiesByRowId = {};
     wsserver.cache.addNewViewVersionCallback({
       key: "wsserver",
-      callback: function(viewIds) {
+      callback: function (viewIds) {
         wsserver.newVersionAvailableForViews(viewIds);
       }
     });
   }
 
-  start({ port = 3100 } = {}) {
+  start({
+    port = 3100
+  } = {}) {
     const server = this;
 
-    this.serverParams = { port: port };
+    this.serverParams = {
+      port: port
+    };
     server.wss = new WebSocket.Server({
       port: port
     });
@@ -40,7 +46,11 @@ class WebSocketServer {
 
       console.log(req.headers);
 
-      var client = new WebSocketClient({ server: server, ws: ws, index: nextWsIndex++ });
+      var client = new WebSocketClient({
+        server: server,
+        ws: ws,
+        index: nextWsIndex++
+      });
 
       ws.on("pong", heartbeat);
 
@@ -119,7 +129,9 @@ class WebSocketServer {
     };
 
     viewIds.forEach(viewId => {
-      const viewIdInfo = ConvertIds.decomposeId({ viewId: viewId });
+      const viewIdInfo = ConvertIds.decomposeId({
+        viewId: viewId
+      });
       handleNewViewVersionThroughProxy(viewIdInfo, viewIdInfo);
       const proxiesByClientIndex = server.proxiesByRowId[viewIdInfo.rowId];
       if (proxiesByClientIndex) {
@@ -149,15 +161,25 @@ class WebSocketServer {
 }
 
 class WebSocketClient {
-  constructor({ server, ws, index }) {
+  constructor({
+    server,
+    ws,
+    index
+  }) {
     this.server = server;
     this.ws = ws;
     this.index = index;
     this.proxyByProxyRowId = {};
     this.subscriptions = {};
     this.mapProxyRowId(
-      ConvertIds.recomposeId({ typeName: "App", proxyKey: "default" }).proxyableRowId,
-      ConvertIds.recomposeId({ typeName: "App", dbRowId: 1 }).rowId
+      ConvertIds.recomposeId({
+        typeName: "App",
+        proxyKey: "default"
+      }).proxyableRowId,
+      ConvertIds.recomposeId({
+        typeName: "App",
+        dbRowId: 1
+      }).rowId
     );
     this.login(1);
   }
@@ -165,21 +187,45 @@ class WebSocketClient {
   login(userId) {
     if (userId) {
       this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "me" }).proxyableRowId,
-        ConvertIds.recomposeId({ typeName: "User", dbRowId: userId }).rowId
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "me"
+        }).proxyableRowId,
+        ConvertIds.recomposeId({
+          typeName: "User",
+          dbRowId: userId
+        }).rowId
       );
       this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "default" }).proxyableRowId,
-        ConvertIds.recomposeId({ typeName: "User", dbRowId: userId }).rowId
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "default"
+        }).proxyableRowId,
+        ConvertIds.recomposeId({
+          typeName: "User",
+          dbRowId: userId
+        }).rowId
       );
     } else {
       this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "me" }).proxyableproxyableRowIdViewId,
-        ConvertIds.recomposeId({ typeName: "App", dbRowId: 1 }).rowId
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "me"
+        }).proxyableproxyableRowIdViewId,
+        ConvertIds.recomposeId({
+          typeName: "App",
+          dbRowId: 1
+        }).rowId
       );
       this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "default" }).proxyableRowId,
-        ConvertIds.recomposeId({ typeName: "App", dbRowId: 1 }).rowId
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "default"
+        }).proxyableRowId,
+        ConvertIds.recomposeId({
+          typeName: "App",
+          dbRowId: 1
+        }).rowId
       );
     }
   }
@@ -198,9 +244,13 @@ class WebSocketClient {
     const proxy = {
       client: client,
       proxyRowId: proxyRowId,
-      proxyRowIdInfo: ConvertIds.decomposeId({ proxyableRowId: proxyRowId }),
+      proxyRowIdInfo: ConvertIds.decomposeId({
+        proxyableRowId: proxyRowId
+      }),
       rowId: rowId,
-      rowIdInfo: ConvertIds.decomposeId({ rowId: rowId })
+      rowIdInfo: ConvertIds.decomposeId({
+        rowId: rowId
+      })
     };
     client.proxyByProxyRowId[proxyRowId] = proxy;
     const proxiesByClientIndex = server.proxiesByRowId[proxy.rowId] || (server.proxiesByRowId[proxy.rowId] = {});
@@ -270,7 +320,9 @@ class WebSocketClient {
 
     const viewId = obj.modelId;
     if (!viewId) return;
-    let proxyableViewIdInfo = ConvertIds.decomposeId({ proxyableViewId: viewId });
+    let proxyableViewIdInfo = ConvertIds.decomposeId({
+      proxyableViewId: viewId
+    });
     const proxy = client.proxyByProxyRowId[proxyableViewIdInfo.proxyableRowId];
 
     if (!(proxy || proxyableViewIdInfo.dbRowId > 0)) {
@@ -300,8 +352,13 @@ class WebSocketClient {
           }
 
           const newValue = form[fieldName];
-          const datapointId = field.getDatapointId({ dbRowId: rowIdInfo.dbRowId });
-          cache.updateDatapointValue({ datapointId, newValue });
+          const datapointId = field.getDatapointId({
+            dbRowId: rowIdInfo.dbRowId
+          });
+          cache.updateDatapointValue({
+            datapointId,
+            newValue
+          });
         });
         break;
       case "add":
@@ -330,7 +387,9 @@ class WebSocketClient {
         var version = obj.subscribe[proxyableViewId];
         console.log(`View: ${proxyableViewId}[${version}]`);
 
-        let proxyableViewIdInfo = ConvertIds.decomposeId({ proxyableViewId: proxyableViewId });
+        let proxyableViewIdInfo = ConvertIds.decomposeId({
+          proxyableViewId: proxyableViewId
+        });
         if (!proxyableViewIdInfo) {
           payload[proxyableViewId] = {
             from: version,
@@ -428,4 +487,7 @@ class WebSocketClient {
 }
 
 // API is the public facing class
-module.exports = PublicApi({ fromClass: WebSocketServer, hasExposedBackDoor: true });
+module.exports = PublicApi({
+  fromClass: WebSocketServer,
+  hasExposedBackDoor: true
+});

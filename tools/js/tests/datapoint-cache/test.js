@@ -1,8 +1,8 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const TestRig = require("../../test-rig");
-const processArgs = require("../../process-args");
+const TestRig = require("../../general/test-rig");
+const processArgs = require("../../general/process-args");
 const DatapointCache = require("../../datapoint-cache");
 
 (async function () {

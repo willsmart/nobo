@@ -1,10 +1,10 @@
 // db-schema-updater
 // © Will Smart 2018. Licence: MIT
 
-const PublicApi = require("./public-api");
-const SchemaDefn = require("./schema");
-const Connection = require("./postgresql-connection");
-const SchemaToSQL = require("./postgresql-schema.js");
+const PublicApi = require("../general/public-api");
+const SchemaDefn = require("../schema");
+const Connection = require("../db/postgresql-connection");
+const SchemaToSQL = require("../db/postgresql-schema.js");
 const fs = require("fs");
 const {
   promisify
@@ -31,13 +31,13 @@ class DbSchemaUpdater {
     path = "db",
     verbose
   } = {}) {
-    this.verbose = verbose
+    this.verbose = verbose;
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
     if (fs.existsSync(`${path}/layout`)) {
       this.layoutDir = fs.realpathSync(`${path}/layout`);
     }
-    if (fs.existsSync('db/layout')) {
+    if (fs.existsSync("db/layout")) {
       this.rootLayoutDir = fs.realpathSync(`db/layout`);
     }
   }
@@ -54,7 +54,7 @@ class DbSchemaUpdater {
   get layoutFiles() {
     const updater = this;
 
-    let layoutFiles
+    let layoutFiles;
     if (updater.rootLayoutDir == updater.layoutDir) {
       return fs
         .readdirSync(updater.layoutDir)
@@ -71,11 +71,12 @@ class DbSchemaUpdater {
           .filter(filename => layoutFileRegex.test(filename) && baseLayoutFileRegex.test(filename))
           .map(filename => `${updater.rootLayoutDir}/${filename}`);
       }
-      return baseFiles.concat(fs
+      return baseFiles.concat(
+        fs
         .readdirSync(updater.layoutDir)
         .filter(filename => layoutFileRegex.test(filename) && !baseLayoutFileRegex.test(filename))
         .map(filename => `${updater.layoutDir}/${filename}`)
-      )
+      );
     }
   }
 
@@ -84,9 +85,12 @@ class DbSchemaUpdater {
   }
 
   get baseSchema() {
-    return this._baseSchema || (this._baseSchema = this.getSchema({
-      onlyBase: true
-    }));
+    return (
+      this._baseSchema ||
+      (this._baseSchema = this.getSchema({
+        onlyBase: true
+      }))
+    );
   }
 
   getSchema({
@@ -112,30 +116,6 @@ class DbSchemaUpdater {
     return schema;
   }
 
-  async layoutWas() {
-    const updater = this;
-
-    let layoutWas = await updater.connection.getCurrentLayoutFromDB({
-      allowEmpty: true,
-      quiet: !updater.verbose
-    });
-    if (!(layoutWas && Array.isArray(layoutWas.source))) return;
-    return layoutWas;
-  }
-
-  async schemaWas() {
-    const updater = this;
-
-    let layoutWas = await updater.layoutWas();
-
-    if (layoutWas === undefined) return;
-
-    var schemaWas = new SchemaDefn();
-    schemaWas.loadSource(layoutWas.source);
-
-    return schemaWas;
-  }
-
   async sqlForUpdate({
     drop,
     renew,
@@ -145,7 +125,7 @@ class DbSchemaUpdater {
     const updater = this;
 
     const schema = drop ? updater.baseSchema : updater.schema,
-      schemaWas = await updater.schemaWas();
+      schemaWas = await updater.connection.schemaLayoutConnection.currentSchema;
 
     let sql;
     if (!schemaWas) {
@@ -163,7 +143,6 @@ class DbSchemaUpdater {
         });
     } else if (renew) {
       sql =
-
         SchemaToSQL.getDiffSql({
           schema: updater.baseSchema,
           fromSchema: schemaWas,
@@ -173,7 +152,7 @@ class DbSchemaUpdater {
           schema: schema,
           fromSchema: updater.baseSchema,
           retrigger: retrigger
-        })
+        });
     } else {
       sql = SchemaToSQL.getDiffSql({
         schema: schema,
@@ -205,7 +184,7 @@ class DbSchemaUpdater {
           `Database structure is already up to date. Nothing to do. (I'll still update the DB layout info which may have changed)`
         );
       if (!dryRun) {
-        await connection.saveLayoutToDB({
+        await connection.schemaLayoutConnection.saveLayout({
           source: schema.source,
           version: "1",
           quiet: !updater.verbose
@@ -213,7 +192,7 @@ class DbSchemaUpdater {
       }
     } else if (!dryRun) {
       if (updater.verbose) console.log(`Adjusting the DB schema to match the provided layout files...`);
-      await connection.saveLayoutToDB({
+      await connection.schemaLayoutConnection.saveLayout({
         sql: sql,
         source: schema.source,
         version: "1",

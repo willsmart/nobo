@@ -6,10 +6,10 @@
 //   This should be called in response to a signal from the db
 // They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
 
-const clone = require("./clone");
+const clone = require("./general/clone");
 const ConvertIds = require("./convert-ids");
-const PublicApi = require("./public-api");
-const mapValues = require("./map-values");
+const PublicApi = require("./general/public-api");
+const mapValues = require("./general/map-values");
 
 var g_nextUniqueCallbackIndex = 1;
 
@@ -443,8 +443,9 @@ class DatapointCache {
       "validateNewlyInvalidDatapoints",
       "commitNewlyUpdatedDatapoints",
 
-      "schema",
-      "connection",
+      "watch", "stopWatching",
+
+      "schema", "connection",
     ];
   }
 
@@ -554,10 +555,10 @@ class DatapointCache {
 
         promises.push(
           connection
-          .getViewFields({
-            type: type,
-            id: dbRowId,
-            fields: fields
+          .getRowFields({
+            type,
+            dbRowId,
+            fields
           })
           .then(row => {
             fields.forEach(field => {
@@ -628,9 +629,9 @@ class DatapointCache {
 
         promises.push(
           connection
-          .updateViewFields({
+          .updateRowFields({
             type: type,
-            id: dbRowId,
+            dbRowId,
             fields: fieldInfos
           })
           .then(() => {
@@ -646,6 +647,40 @@ class DatapointCache {
 
     return Promise.all(promises);
   }
+
+  watch(listener) {
+    const cache = this;
+    if (!listener.callbackKey) listener.callbackKey = uniqueCallbackKey();
+    const {
+      oninvalid,
+      onvalid,
+      callbackKey
+    } = listener;
+
+    cache.listeners.push({
+      callbackKey,
+      oninvalid,
+      onvalid
+    });
+
+    return callbackKey;
+  }
+
+  stopWatching({
+    callbackKey
+  }) {
+    const cache = this;
+
+    let index = 0
+    for (const listener of cache.listeners) {
+      if (listener.callbackKey == callbackKey) {
+        cache.listeners.splice(index, 1)
+        return listener
+      }
+      index++
+    }
+  }
+
 }
 
 // API is the public facing class

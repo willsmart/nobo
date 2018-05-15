@@ -2,10 +2,10 @@
 // © Will Smart 2018. Licence: MIT
 
 const ChangeCase = require("change-case");
-const PublicApi = require("./public-api");
-const SchemaDefn = require("./schema");
-const Connection = require("./postgresql-connection");
-const SchemaToSQL = require("./postgresql-schema.js");
+const PublicApi = require("../general/public-api");
+const SchemaDefn = require("../schema");
+const Connection = require("../db/postgresql-connection");
+const SchemaToSQL = require("../db/postgresql-schema.js");
 const fs = require("fs");
 const YAML = require("yamljs");
 
@@ -16,7 +16,7 @@ const seedsFileRegex = /\.(?:yaml|yml|YAML|YML|json)$/;
 class DbSeeder {
   // public methods
   static publicMethods() {
-    return ["insertSeeds", "schema", "seeds", "connection", "seedFiles", "seeds", "seedRows"];
+    return ["insertSeeds", "seeds", "connection", "seedFiles", "seeds", "seedRows"];
   }
 
   constructor({
@@ -24,14 +24,14 @@ class DbSeeder {
     path = "db",
     verbose
   } = {}) {
-    this.verbose = verbose
+    this.verbose = verbose;
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
     if (fs.existsSync(`${path}/seeds`)) {
       this.seedsDir = fs.realpathSync(`${path}/seeds`);
     }
-    if (fs.existsSync('db/seeds')) {
-      this.rootSeedsDir = fs.realpathSync('db/seeds');
+    if (fs.existsSync("db/seeds")) {
+      this.rootSeedsDir = fs.realpathSync("db/seeds");
     }
   }
 
@@ -42,23 +42,6 @@ class DbSeeder {
 
     const connectionInfo = JSON.parse(fs.readFileSync(seeder.connectionFilename));
     return (seeder._connection = new Connection(connectionInfo));
-  }
-
-  async schema() {
-    const seeder = this;
-
-    if (seeder._schema) return seeder._schema;
-
-    let layout = await this.connection.getCurrentLayoutFromDB({
-      allowEmpty: true,
-      quiet: !seeder.verbose
-    });
-    if (!(layout && Array.isArray(layout.source))) throw new Error("Could not get layout from db");
-
-    seeder._schema = new SchemaDefn();
-    seeder._schema.loadSource(layout.source);
-
-    return seeder._schema;
   }
 
   get seedFiles() {
@@ -97,7 +80,7 @@ class DbSeeder {
   } = {}) {
     const seeder = this;
 
-    const schema = await seeder.schema();
+    const schema = await seeder.connection.schemaLayoutConnection.currentSchema;
 
     seeds = seeds || seeder.seeds;
 
@@ -106,7 +89,8 @@ class DbSeeder {
       seeds,
       context: {
         rowsById,
-        nextPlaceholderId: 1
+        nextPlaceholderId: 1,
+        schema
       }
     });
 
@@ -138,8 +122,11 @@ class DbSeeder {
     fieldInParent,
     context
   }) {
-    const seeder = this,
-      schema = seeder._schema;
+    const seeder = this;
+
+    const {
+      schema
+    } = context;
 
     if (Array.isArray(seed)) {
       seeder.addSeedRows({
@@ -148,31 +135,28 @@ class DbSeeder {
         parentRowId,
         fieldInParent,
         context
-      })
-      return
+      });
+      return;
     }
 
-    let row,
-      rowId,
-      dbRowId,
-      findBy;
+    let row, rowId, dbRowId, findBy;
 
-    if (typeof (seed.id) == 'number') {
-      dbRowId = seed.id
+    if (typeof seed.id == "number") {
+      dbRowId = seed.id;
     }
-    if (typeof (seed.id) == 'string') seed.id = [seed.id]
+    if (typeof seed.id == "string") seed.id = [seed.id];
     if (Array.isArray(seed.id)) {
-      findBy = {}
+      findBy = {};
       for (const fieldName of seed.id) {
         if (type.fields[fieldName]) {
-          findBy[fieldName] = []
+          findBy[fieldName] = [];
         }
       }
-    } else if (typeof (seed.id) == 'object') {
-      findBy = {}
+    } else if (typeof seed.id == "object") {
+      findBy = {};
       for (const [fieldName, value] of Object.entries(seed.id)) {
         if (type.fields[fieldName]) {
-          findBy[fieldName] = value
+          findBy[fieldName] = value;
         }
       }
     }
@@ -209,13 +193,13 @@ class DbSeeder {
             } else {
               parentRow.fields[fieldInParent.name] = rowId;
             }
-            if (rowId.includes('__?')) {
+            if (rowId.includes("__?")) {
               const dbRowIdDependents = (row.dbRowIdDependents = row.dbRowIdDependents || {});
               let fields = (dbRowIdDependents[parentRowId] = dbRowIdDependents[parentRowId] || {});
               fields[fieldInParent.name] = true;
 
               const dbRowIdDependencies = (parentRow.dbRowIdDependencies = parentRow.dbRowIdDependencies || {});
-              fields = (dbRowIdDependencies[rowId] = dbRowIdDependencies[rowId] || {});
+              fields = dbRowIdDependencies[rowId] = dbRowIdDependencies[rowId] || {};
               fields[fieldForParent.name] = true;
             }
           }
@@ -227,22 +211,21 @@ class DbSeeder {
             } else {
               row.fields[fieldForParent.name] = parentRowId;
             }
-            if (parentRowId.includes('__?')) {
+            if (parentRowId.includes("__?")) {
               const dbRowIdDependents = (parentRow.dbRowIdDependents = parentRow.dbRowIdDependents || {});
               let fields = (dbRowIdDependents[rowId] = dbRowIdDependents[rowId] || {});
               fields[fieldForParent.name] = true;
 
               const dbRowIdDependencies = (row.dbRowIdDependencies = row.dbRowIdDependencies || {});
-              fields = (dbRowIdDependencies[parentRowId] = dbRowIdDependencies[parentRowId] || {});
+              fields = dbRowIdDependencies[parentRowId] = dbRowIdDependencies[parentRowId] || {};
               fields[fieldInParent.name] = true;
             }
           }
         }
       }
-    };
+    }
 
     for (let [key, value] of Object.entries(seed)) {
-
       if (/^[A-Z]/.test(key)) {
         const type = schema.allTypes[key];
         if (!type) {
@@ -288,10 +271,10 @@ class DbSeeder {
         continue;
       }
 
-      if (typeof value == 'number') {
+      if (typeof value == "number") {
         value = {
           id: value
-        }
+        };
       }
 
       if (typeof value != "object") {
@@ -335,13 +318,13 @@ class DbSeeder {
       if (row.dbRowIdDependents) {
         for (const dependentRowId of Object.keys(row.dbRowIdDependents)) {
           dependencyCounts[dependentRowId]--;
-          dependentCounts[rowId]--
+          dependentCounts[rowId]--;
         }
       }
       if (row.dbRowIdDependencies) {
         for (const dependencyRowId of Object.keys(row.dbRowIdDependencies)) {
           dependentCounts[dependencyRowId]--;
-          dependencyCounts[rowId]--
+          dependencyCounts[rowId]--;
         }
       }
     }
@@ -383,19 +366,19 @@ class DbSeeder {
       connection = seeder.connection;
 
     function log() {
-      if (!quiet) console.log.apply(console, arguments)
+      if (!quiet) console.log.apply(console, arguments);
     }
 
     rowsById = rowsById || (await seeder.seedRows());
     const rowIds = seeder.bestSortingForSeedRows({
       rowsById
-    })
+    });
 
     let sqlPromises = [],
-      sqlRowIds = {}
+      sqlRowIds = {};
 
     for (const rowId of rowIds) {
-      const row = rowsById[rowId]
+      const row = rowsById[rowId];
       const {
         type,
         fields,
@@ -409,146 +392,149 @@ class DbSeeder {
       if (dbRowIdDependencies && Object.keys(dbRowIdDependencies).length) {
         for (const dependencyRowId of Object.keys(dbRowIdDependencies)) {
           if (sqlRowIds[dependencyRowId]) {
-            await Promise.all(sqlPromises)
-            sqlPromises = []
-            sqlRowIds = {}
-            break
+            await Promise.all(sqlPromises);
+            sqlPromises = [];
+            sqlRowIds = {};
+            break;
           }
         }
       }
 
-      let secondAttemptFields
+      let secondAttemptFields;
       if (dbRowIdDependencies && Object.keys(dbRowIdDependencies).length) {
-        secondAttemptFields = {}
+        secondAttemptFields = {};
         for (const fields of Object.values(dbRowIdDependencies)) {
-          Object.assign(secondAttemptFields, fields)
+          Object.assign(secondAttemptFields, fields);
         }
 
         for (const fieldName of Object.keys(secondAttemptFields)) {
-          delete fields[fieldName]
+          delete fields[fieldName];
         }
       }
 
-      delete fields.id
+      delete fields.id;
 
       const fieldNames = [],
         templates = [],
-        values = []
+        values = [];
       for (let [fieldName, value] of Object.entries(fields)) {
-        const field = type.fields[fieldName]
-        fieldNames.push(`"${SchemaToSQL.sqlFieldForField(field).sqlName}"`)
+        const field = type.fields[fieldName];
+        fieldNames.push(`"${SchemaToSQL.sqlFieldForField(field).sqlName}"`);
         if (field.isId) {
-          if (field.isMultiple) continue
-          templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, 'integer'))
+          if (field.isMultiple) continue;
+          templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, "integer"));
           if (value) {
-            if (typeof (value) != 'number') {
-              value = rowsById[value].dbRowId || null
+            if (typeof value != "number") {
+              value = rowsById[value].dbRowId || null;
             }
-          } else value = null
-          values.push(value)
+          } else value = null;
+          values.push(value);
         } else {
-          templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, field.dataType.name))
-          values.push(value)
+          templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, field.dataType.name));
+          values.push(value);
         }
       }
 
       function performInsertOrUpdate(dbRowId) {
         if (dbRowId) {
           if (Object.keys(fields).length) {
-            const fieldSettings = fieldNames.map((fieldName, index) => `${fieldName}=${templates[index]}`)
+            const fieldSettings = fieldNames.map((fieldName, index) => `${fieldName}=${templates[index]}`);
 
-            const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(", ")} WHERE "${tableName}"."id" = ${dbRowId} RETURNING id;`
-            log(sql, values)
+            const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(
+              ", "
+            )} WHERE "${tableName}"."id" = ${dbRowId} RETURNING id;`;
+            log(sql, values);
             return connection.query(sql, values).then(({
               rows
             }) => {
               if (rows.length) return;
-              fieldNames.push('id')
-              templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, 'integer'))
-              values.push(dbRowId)
-              return performInsertOrUpdate()
-            })
+              fieldNames.push("id");
+              templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, "integer"));
+              values.push(dbRowId);
+              return performInsertOrUpdate();
+            });
           }
         } else {
-          let sql
+          let sql;
           if (!fieldNames.length) {
             sql = `INSERT INTO "${tableName}" DEFAULT VALUES RETURNING id;`;
           } else {
-            sql = `INSERT INTO "${tableName}" (${fieldNames.join(',')}) VALUES (${templates.join(", ")}) RETURNING id;`;
+            sql = `INSERT INTO "${tableName}" (${fieldNames.join(",")}) VALUES (${templates.join(", ")}) RETURNING id;`;
           }
 
-          log(sql, values)
+          log(sql, values);
           return connection.query(sql, values).then(({
             rows
           }) => {
-            const dbRowId = row.dbRowId = rows[0].id
+            const dbRowId = (row.dbRowId = rows[0].id);
 
             if (dbRowIdDependents && Object.keys(dbRowIdDependents).length) {
               for (const [dependentRowId, fields] of Object.entries(dbRowIdDependents)) {
-                const dependentRow = rowsById[dependentRowId]
-                delete dependentRow.dbRowIdDependencies[rowId]
+                const dependentRow = rowsById[dependentRowId];
+                delete dependentRow.dbRowIdDependencies[rowId];
               }
             }
-          })
+          });
         }
       }
 
-      sqlRowIds[rowId] = true
+      sqlRowIds[rowId] = true;
       if (dbRowId || !findBy) {
-        sqlPromises.push(performInsertOrUpdate(dbRowId))
+        sqlPromises.push(performInsertOrUpdate(dbRowId));
       } else {
         const fieldConditions = [],
-          values = []
+          values = [];
         for (let [fieldName, value] of Object.entries(findBy)) {
-          if (Array.isArray(value)) value = fields[fieldName]
-          const field = type.fields[fieldName]
-          fieldName = `"${SchemaToSQL.sqlFieldForField(field).sqlName}"`
+          if (Array.isArray(value)) value = fields[fieldName];
+          const field = type.fields[fieldName];
+          fieldName = `"${SchemaToSQL.sqlFieldForField(field).sqlName}"`;
           if (field.isId) {
-            if (field.isMultiple) continue
+            if (field.isMultiple) continue;
             if (value) {
-              if (typeof (value) != 'number') {
-                value = rowsById[value].dbRowId || null
+              if (typeof value != "number") {
+                value = rowsById[value].dbRowId || null;
               }
-            } else value = null
+            } else value = null;
           }
 
           if (value === undefined || value === null) {
-            fieldConditions.push(`${fieldName} IS NULL`)
-            continue
+            fieldConditions.push(`${fieldName} IS NULL`);
+            continue;
           }
 
-          const dataTypeName = field.isId ? 'integer' : field.dataType.name
-          const template = SchemaToSQL.sqlArgTemplateForValue(values.length, dataTypeName)
-          fieldConditions.push(`${fieldName} = ${template}`)
-          values.push(value)
+          const dataTypeName = field.isId ? "integer" : field.dataType.name;
+          const template = SchemaToSQL.sqlArgTemplateForValue(values.length, dataTypeName);
+          fieldConditions.push(`${fieldName} = ${template}`);
+          values.push(value);
         }
 
-        const sql = `SELECT id FROM "${tableName}" WHERE ${fieldConditions.join(' AND ')} LIMIT 1;`
-        log(sql, values)
-        sqlPromises.push(connection.query(sql, values).then(({
-          rows
-        }) => {
-          const dbRowId = row.dbRowId = rows.length ? rows[0].id : undefined
+        const sql = `SELECT id FROM "${tableName}" WHERE ${fieldConditions.join(" AND ")} LIMIT 1;`;
+        log(sql, values);
+        sqlPromises.push(
+          connection.query(sql, values).then(({
+            rows
+          }) => {
+            const dbRowId = (row.dbRowId = rows.length ? rows[0].id : undefined);
 
-          if (dbRowId && dbRowIdDependents && Object.keys(dbRowIdDependents).length) {
-            for (const [dependentRowId, fields] of Object.entries(dbRowIdDependents)) {
-              const dependentRow = rowsById[dependentRowId]
-              delete dependentRow.dbRowIdDependencies[rowId]
+            if (dbRowId && dbRowIdDependents && Object.keys(dbRowIdDependents).length) {
+              for (const [dependentRowId, fields] of Object.entries(dbRowIdDependents)) {
+                const dependentRow = rowsById[dependentRowId];
+                delete dependentRow.dbRowIdDependencies[rowId];
+              }
             }
-          }
 
-          return performInsertOrUpdate(dbRowId)
-        }))
-
+            return performInsertOrUpdate(dbRowId);
+          })
+        );
 
         if (secondAttemptFields) {
-          rowsById[rowId].fields = secondAttemptFields
-          rowIds.push(rowId)
+          rowsById[rowId].fields = secondAttemptFields;
+          rowIds.push(rowId);
         }
       }
     }
 
-    await Promise.all(sqlPromises)
+    await Promise.all(sqlPromises);
   }
 }
 

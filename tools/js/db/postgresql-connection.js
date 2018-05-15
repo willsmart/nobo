@@ -10,9 +10,11 @@ const {
   Pool,
   Client
 } = require("pg");
-const SchemaToPostgresql = require("./postgresql-schema");
-const PublicApi = require("./public-api");
-const ConvertIds = require("./convert-ids");
+const SchemaToPostgresql = require("../db/postgresql-schema");
+const PostgresqlListener = require("../db/postgresql-listener");
+const SchemaLayoutConnection = require("../db/schema-layout-connection");
+const PublicApi = require("../general/public-api");
+const ConvertIds = require("../convert-ids");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -20,16 +22,13 @@ class PostgresqlConnection {
   // public methods
   static publicMethods() {
     return [
-      "getCurrentLayoutFromDB",
-      "saveLayoutToDB",
-      "getRowFromDB",
       "getRowsFromDB",
-      "listenForViewChanges",
-      "startDBChangeNotificationPrompter",
-      "getViewFields",
-      "updateViewFields",
-      "connectionString",
-      "query"
+      "getRowFields",
+      "updateRowFields",
+      "query",
+      "newClient",
+      "schemaLayoutConnection",
+      "pgListener"
     ];
   }
 
@@ -58,90 +57,45 @@ class PostgresqlConnection {
       5432}/${database}`;
   }
 
-  // Public methods
-
-  /// Methods to load and save schema layouts
-
-  /// the DB stores its layout information in the schema_history table
-  /// This call gets that information (as the source layout json) if any
-
-  async getCurrentLayoutFromDB({
-    allowEmpty,
-    quiet
-  } = {}) {
-    try {
-      const res = await this.query(
-        "SELECT model_layout, layout_to_schema_version FROM schema_history ORDER BY at DESC LIMIT 1"
-      );
-
-      if (res.rows.length == 0) {
-        if (!quiet) console.log("DB currently has no model layout");
-        return;
-      }
-
-      return {
-        source: JSON.parse(res.rows[0].model_layout),
-        converterVersion: res.rows[0].layout_to_schema_version
-      };
-    } catch (err) {
-      if (!allowEmpty) throw err;
-      return;
-    }
+  newConnectedClient() {
+    const client = new Client({
+      connectionString: this.connectionString
+    });
+    client.connect();
+    return client;
   }
 
-  /// Stores a layout source into the schema_history table
-  async saveLayoutToDB({
-    sql,
-    source,
-    version,
-    quiet
-  }) {
-    const connection = this;
+  get dbListener() {
+    return this._dbListener ?
+      this._dbListener :
+      (this._dbListener = new PostgresqlListener({
+        connection: this
+      }));
+  }
 
-    source = JSON.stringify(source, null, 2);
-    if (!quiet) console.log("Saving layout:\n" + source);
+  get schemaLayoutConnection() {
+    return this._schemaLayoutConnection ?
+      this._schemaLayoutConnection :
+      (this._schemaLayoutConnection = new SchemaLayoutConnection({
+        connection: this
+      }));
+  }
 
-    if (sql) {
-      if (!quiet) console.log("Running SQL:\n" + sql);
-      return connection
-        .query("BEGIN;\n" + sql)
-        .then((err, res) => {
-          return connection.query(
-            "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());", [source, version]
-          );
-        })
-        .then((err, res) => {
-          return connection.query("END;");
-        });
-    } else {
-      return connection.query(
-        "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());", [source, version]
-      );
-    }
+  async query(sql, argArray) {
+    //console.log(sql);
+    return this.pool.query(sql, argArray);
   }
 
   // methods to load rows and views
 
-  /// Gets a single row from a given table
-  async getRowFromDB({
-    tableName,
-    tableAlias,
-    fields,
-    id
-  }) {
-    return this.getRowsFromDB(arguments[0]).then(rows => rows[0]);
-  }
-
   /// Gets multiple rows from a given table with optional joins and table alias
   async getRowsFromDB({
     tableName,
-    tableAlias,
     fields,
-    id
+    dbRowId
   }) {
     const connection = this;
 
-    if (!tableAlias) tableAlias = tableName;
     const fieldNames = fields.map(fieldInfo => {
       return typeof fieldInfo == "string" ? fieldInfo : `${fieldInfo.sqlName} AS "${fieldInfo.outputKey}"`;
     });
@@ -151,8 +105,8 @@ class PostgresqlConnection {
       })
       .map(fieldInfo => " " + fieldInfo.sqlJoin);
 
-    const sql = `SELECT ${fieldNames.join(", ")} FROM "${tableName}" "${tableAlias}"${joins.join("")}${
-      id === undefined ? "" : ` WHERE "${tableAlias}"."id" = ${id}`
+    const sql = `SELECT ${fieldNames.join(", ")} FROM "${tableName}" "${tableName}__base"${joins.join("")}${
+      dbRowId === undefined ? "" : ` WHERE "${tableName}__base"."id" = ${dbRowId}`
     }`;
 
     return connection.query(sql).then(res => {
@@ -160,68 +114,19 @@ class PostgresqlConnection {
     });
   }
 
-  async listenForViewChanges({
-    cache
-  }) {
-    return this.listenToDB({
-      channel: "modelchanges",
-      callbackKey: "modelchanges",
-      callback: changes => {
-        changes = JSON.parse(changes);
-        if (Array.isArray(changes)) {
-          changes.forEach(datapointId => {
-            cache.invalidateDatapoint({
-              datapointId: datapointId
-            });
-          });
-          cache.validateNewlyInvalidDatapoints(); //TODO
-        }
-      }
-    });
-  }
-
-  async startDBChangeNotificationPrompter({
-    cache,
-    delay = 500
-  }) {
-    const connection = this;
-
-    await connection.listenToDB({
-      channel: "modelchanges",
-      callbackKey: "dbcnp",
-      callback: changes => {
-        if (connection.dbcnpTimeout === undefined) return;
-        clearTimeout(tconnectionhis.dbcnpTimeout);
-      }
-    });
-    await connection.listenToDB({
-      channel: "prompterscript",
-      callbackKey: "dbcnp",
-      callback: changes => {
-        if (connection.dbcnpTimeout !== undefined) return;
-        connection.dbcnpTimeout = setTimeout(() => {
-          delete connection.dbcnpTimeout;
-          console.log("Telling the db to notify others of the outstanding change");
-          connection.query("UPDATE model_change_notify_request SET model_change_id = 0 WHERE name = 'modelchanges';");
-        }, delay);
-      }
-    });
-  }
-
-  async getViewFields({
+  async getRowFields({
     type,
-    id,
+    dbRowId,
     fields
   }) {
     const connection = this;
 
     const sqlTypeTable = ChangeCase.snakeCase(type.name);
-    const sqlTypeAlias = `${sqlTypeTable}__base`;
 
     const fieldInfos = [];
 
     fields.forEach(field => {
-      const fieldInfo = connection.processFieldInfo(type, id, field.name, field.name, sqlTypeTable, sqlTypeAlias);
+      const fieldInfo = connection.processFieldInfo(type, dbRowId, field.name, field.name, sqlTypeTable);
       if (fieldInfo) fieldInfos.push(fieldInfo);
     });
 
@@ -231,14 +136,14 @@ class PostgresqlConnection {
     if (fields.length) {
       promises.push(
         connection
-        .getRowFromDB({
+        .getRowsFromDB({
           tableName: sqlTypeTable,
-          tableAlias: sqlTypeAlias,
           fields: fields,
-          id: id
+          dbRowId
         })
-        .then(model => {
-          if (!model) return;
+        .then(models => {
+          if (!models.length) return;
+          const model = models[0];
 
           let ret = {};
           for (const i in fields) {
@@ -272,9 +177,9 @@ class PostgresqlConnection {
     });
   }
 
-  async updateViewFields({
+  async updateRowFields({
     type,
-    id,
+    dbRowId,
     fields
   }) {
     const connection = this;
@@ -284,7 +189,13 @@ class PostgresqlConnection {
     const fieldInfos = [];
 
     fields.forEach(field => {
-      const fieldInfo = PostgresqlConnection.processFieldInfoForSave(type, id, field.name, field.value, sqlTypeTable);
+      const fieldInfo = PostgresqlConnection.processFieldInfoForSave(
+        type,
+        dbRowId,
+        field.name,
+        field.value,
+        sqlTypeTable
+      );
       if (fieldInfo) fieldInfos.push(fieldInfo);
     });
 
@@ -292,26 +203,19 @@ class PostgresqlConnection {
     return connection.updateRowInDB({
       tableName: sqlTypeTable,
       fields: fieldInfos,
-      id: id
+      dbRowId
     });
-  }
-
-  // private methods
-
-  async query(sql, argArray) {
-    //console.log(sql);
-    return this.pool.query(sql, argArray);
   }
 
   /// Sets values in one row of a given table
   updateRowInDB({
     tableName,
     fields,
-    id
+    dbRowId
   }) {
     const connection = this;
 
-    if (!id) return;
+    if (!dbRowId) return;
     const fieldSettings = fields.map((fieldInfo, index) => {
       return `${fieldInfo.sqlName} = ${SchemaToPostgresql.sqlArgTemplateForValue(index, fieldInfo.dataTypeName)}`;
     });
@@ -319,53 +223,14 @@ class PostgresqlConnection {
       return fieldInfo.value;
     });
 
-    const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(", ")} WHERE "${tableName}"."id" = ${id}`;
+    const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(", ")} WHERE "${tableName}"."id" = ${dbRowId}`;
 
     return connection.query(sql, fieldValues);
   }
 
-  async listenToDB({
-    channel,
-    callback,
-    callbackKey,
-    quiet
-  }) {
-    const connection = this;
-
-    if (!channel) throw new Error("Please supply a channel");
-
-    if (!connection.listeningClient) {
-      connection.listeningChannels = {};
-
-      connection.listeningClient = new Client({
-        connectionString: this.connectionString
-      });
-      connection.listeningClient.connect();
-      connection.listeningClient.on("notification", msg => {
-        if (!quiet) console.log(`Received message from db on ${msg.channel}: "${msg.payload}"`);
-        const callbacks = connection.listeningChannels[msg.channel];
-        if (callbacks)
-          Object.keys(callbacks).forEach(key => {
-            callbacks[key](msg.payload);
-          });
-      });
-    }
-
-    if (!connection.listeningChannels[channel]) {
-      const sql = `LISTEN ${channel};`;
-      if (!quiet) console.log(sql);
-      await connection.listeningClient.query(sql);
-      connection.listeningChannels[channel] = {};
-    }
-
-    if (typeof callback == "function") {
-      connection.listeningChannels[channel][callbackKey || "default"] = callback;
-    }
-  }
-
   /// Takes the name and variant of a field, returns all the info required to SELECT it
   /// or a promise to get the field value if it refers to a multiple linkage
-  processFieldInfo(type, id, fieldName, outputKey, sqlTypeTable, sqlTypeAlias) {
+  processFieldInfo(type, dbRowId, fieldName, outputKey, sqlTypeTable) {
     const connection = this;
 
     const field = type.fields[fieldName];
@@ -374,7 +239,7 @@ class PostgresqlConnection {
 
     if (!sqlField.isVirtual) {
       return {
-        sqlName: `"${sqlTypeAlias}"."${sqlField.sqlName}"`,
+        sqlName: `"${sqlTypeTable}__base"."${sqlField.sqlName}"`,
         outputKey: outputKey,
         field: field,
         sqlField: sqlField
@@ -391,7 +256,7 @@ class PostgresqlConnection {
         sqlName: `"${sqlLinkedFieldAlias}"."id"`,
         sqlJoin: `LEFT OUTER JOIN "${sqlLinkedTypeTable}" "${sqlLinkedFieldAlias}" ON "${sqlLinkedFieldAlias}"."${
           sqlLinkedField.sqlName
-        }" = "${sqlTypeAlias}"."id"`,
+        }" = "${sqlTypeName}__base"."id"`,
         outputKey: outputKey,
         field: field,
         sqlField: sqlField
@@ -403,9 +268,8 @@ class PostgresqlConnection {
         return connection
           .getRowsFromDB({
             tableName: sqlTypeTable,
-            tableAlias: sqlTypeAlias,
             fields: [fieldInfo],
-            id: id
+            dbRowId
           })
           .then(models => {
             if (!models) return;
@@ -432,7 +296,7 @@ class PostgresqlConnection {
 
   /// Takes the name and variant of a field, returns all the info required to SELECT it
   /// or a promise to get the field value if it refers to a multiple linkage
-  static processFieldInfoForSave(type, id, fieldName, newValue, sqlTypeTable) {
+  static processFieldInfoForSave(type, dbRowId, fieldName, newValue, sqlTypeTable) {
     const field = type.fields[fieldName];
     if (!field) return;
     const sqlField = SchemaToPostgresql.sqlFieldForField(field);

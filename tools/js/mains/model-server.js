@@ -1,15 +1,15 @@
 // model_server
 // © Will Smart 2018. Licence: MIT
 
-const SchemaDefn = require("./schema");
-const WebSocketServer = require("./web-socket-server");
-const ModelCache = require("./model-cache");
-const Templates = require("./templates");
-const Connection = require("./postgresql-connection");
+const SchemaDefn = require("../schema");
+const WebSocketServer = require("../web-socket-server");
+const ModelCache = require("../model-cache");
+const Templates = require("../templates");
+const Connection = require("../db/postgresql-connection");
 const fs = require("fs");
-const processArgs = require("./process-args");
+const processArgs = require("../general/process-args");
 
-(async function() {
+(async function () {
   var args = processArgs();
 
   console.log("Load a model from the db");
@@ -38,28 +38,36 @@ const processArgs = require("./process-args");
 
   await cache.start();
 
-  const layout = await connection.getCurrentLayoutFromDB();
+  const layout = await connection.schemaLayoutConnection.currentLayout;
   if (!layout && layout.source) throw new Error("No layout");
 
   schema.clear();
   schema.loadSource(layout.source);
 
   if (args.model) {
-    const model = await cache.getLatestViewVersion({ proxyableViewId: args.model });
+    const model = await cache.getLatestViewVersion({
+      proxyableViewId: args.model
+    });
     console.log("Model: " + JSON.stringify(model));
   }
 
-  await connection.listenForViewChanges({ cache });
+  await connection.listenForViewChanges({
+    cache
+  });
   console.log("Listening for DB model changes");
 
   if (args["--prompter"]) {
-    await connection.startDBChangeNotificationPrompter({ cache });
+    await connection.startDBChangeNotificationPrompter({
+      cache
+    });
     console.log("Listening and responding as the DB change notification prompter");
   } else {
     console.log(
       "This server hasn't been started as the DB change notification prompter (there must be, but can only be one). To start as the DBCNP use the '--prompter' command line flag"
     );
   }
-  const wsserver = new WebSocketServer({ cache });
+  const wsserver = new WebSocketServer({
+    cache
+  });
   wsserver.start();
 })();

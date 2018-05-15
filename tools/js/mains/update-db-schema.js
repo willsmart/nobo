@@ -1,15 +1,13 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DbSchemaUpdater = require("./db-schema-updater");
-const processArgs = require("./process-args");
+const DbSchemaUpdater = require("../db/db-schema-updater");
+const processArgs = require("../general/process-args");
 const fs = require("fs");
-const {
-  promisify
-} = require("util");
+const { promisify } = require("util");
 const writeFile_p = promisify(fs.writeFile);
 
-(async function () {
+(async function() {
   var args = processArgs();
 
   if (args.dryRun === undefined) args.dryRun = true;
@@ -31,9 +29,7 @@ const writeFile_p = promisify(fs.writeFile);
       verbose: !args.quiet
     });
     // note implicit optional flag arguments: dryRun, retrigger, renew, renewAll, drop
-    let {
-      sql
-    } = await updater.performUpdate(args);
+    let { sql } = await updater.performUpdate(args);
 
     if (args.sqlfile) {
       await writeFile_p(args.sqlfile, sql);

@@ -11,10 +11,10 @@
 // A new version is created whenever one of the view's datapoints is retrieved from the db resulting in a different value
 // use addNewViewVersionCallback to be notified when this happens
 
-const clone = require("./clone");
+const clone = require("./general/clone");
 const ConvertIds = require("./convert-ids");
-const PublicApi = require("./public-api");
-const mapValues = require("./map-values");
+const PublicApi = require("./general/public-api");
+const mapValues = require("./general/map-values");
 const TemplateLocator = require("./template-locator");
 
 // API is auto-generated at the bottom from the public interface of this class
