@@ -74,13 +74,15 @@ class Datapoint {
     const {
       oninvalid,
       onvalid,
-      callbackKey
+      onvalid_prioritized,
+      callbackKey,
     } = listener;
 
     datapoint.listeners.push({
       callbackKey,
       oninvalid,
-      onvalid
+      onvalid,
+      onvalid_prioritized,
     });
 
     return callbackKey;
@@ -180,6 +182,13 @@ class Datapoint {
       }
     }
 
+    for (let {
+        onvalid_prioritized
+      } of datapoint.listeners) {
+      if (onvalid_prioritized) onvalid_prioritized({
+        datapoint
+      });
+    }
     for (let {
         onvalid
       } of datapoint.listeners) {
@@ -440,7 +449,7 @@ class DatapointCache {
     return [
       "getExistingDatapoint",
       "getOrCreateDatapoint",
-      "validateNewlyInvalidDatapoints",
+      "validateNewlyInvalidDatapoints", "queueValidationJob",
       "commitNewlyUpdatedDatapoints",
 
       "watch", "stopWatching",
@@ -477,8 +486,48 @@ class DatapointCache {
     delete cache.datapointsById[datapointId];
   }
 
-  validateNewlyInvalidDatapoints() {
+  queueValidationJob({
+    delay = 100
+  } = {}) {
     const cache = this;
+
+    if (delay <= 0) {
+      cache.validateNewlyInvalidDatapoints()
+      return
+    }
+
+    if (cache._validateTimeout) return;
+    cache._validateTimeout = setTimeout(() => {
+      delete cache._validateTimeout
+      cache.validateNewlyInvalidDatapoints()
+    }, delay)
+  }
+
+
+  validateNewlyInvalidDatapoints({
+    delay
+  } = {}) {
+    const cache = this;
+
+    if (cache._validateTimeout) {
+      clearTimeout(cache._validateTimeout)
+      delete cache._validateTimeout
+    }
+
+    if (delay > 0) {
+      delay = delay === true ? 100 : +delay
+
+      if (cache._validateTimeout) return;
+      cache._validateTimeout = setTimeout(() => {
+        delete cache._validateTimeout
+        cache.validateNewlyInvalidDatapoints()
+      }, delay)
+    }
+
+    if (cache._validateTimeout) {
+      clearTimeout(cache._validateTimeout)
+      delete cache._validateTimeout
+    }
 
     const datapoints = cache.newlyInvalidDatapointIds
       .map(datapointId => cache.datapointsById[datapointId])

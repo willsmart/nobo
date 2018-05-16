@@ -43,7 +43,10 @@ class SchemaDefn {
     });
   }
 
-  fieldForDatapoint({ typeName, fieldName }) {
+  fieldForDatapoint({
+    typeName,
+    fieldName
+  }) {
     return this.allTypes[typeName].fields[fieldName];
   }
 
@@ -54,17 +57,17 @@ class SchemaDefn {
       this._allTypes[name] ||
       (this._allTypes[name] = {
         _: "Type",
-        stripped: function() {
+        stripped: function () {
           let ret = {};
           if (Object.keys(this.fields).length) ret.fields = strippedValues(this.fields);
           return ret;
         },
         name: name,
         fields: {},
-        getEnclosingType: function() {
+        getEnclosingType: function () {
           return this;
         },
-        getField: function(name, dataType, isVirtual, isMultiple) {
+        getField: function (name, dataType, isVirtual, isMultiple) {
           if (name == undefined) {
             return;
           }
@@ -74,7 +77,7 @@ class SchemaDefn {
             type.fields[name] ||
             (type.fields[name] = {
               _: "Field",
-              stripped: function() {
+              stripped: function () {
                 let ret = {
                   dataType: this.dataType.name
                 };
@@ -93,33 +96,35 @@ class SchemaDefn {
               enclosingType: type,
               links: {},
               fullName: type.name + "::" + name,
-              getEnclosingType: function() {
+              getEnclosingType: function () {
                 return type;
               },
-              getField: function(name, dataType, isVirtual, isMultiple) {
+              getField: function (name, dataType, isVirtual, isMultiple) {
                 if (name == undefined) return this;
                 return this.dataType.getField(name, dataType, isVirtual, isMultiple);
               },
-              getDatapointId: function({ dbRowId }) {
+              getDatapointId: function ({
+                dbRowId
+              }) {
                 return ConvertIds.recomposeId({
                   typeName: this.enclosingType.name,
                   dbRowId: dbRowId,
                   fieldName: this.name
                 }).datapointId;
               },
-              getLinkedToField: function() {
+              getLinkedToField: function () {
                 const linkKeys = Object.keys(this.links);
                 if (!linkKeys.length) return;
                 const link = this.links[linkKeys[0]];
                 return link.left === this ? link.right : link.left;
               },
-              getLink: function(toField, linkType) {
+              getLink: function (toField, linkType) {
                 const field = this;
                 return (
                   field.links[toField.fullName] ||
                   (field.links[toField.fullName] = toField.links[field.fullName] = {
                     _: "Link",
-                    stripped: function() {
+                    stripped: function () {
                       return {
                         left: this.left.fullName,
                         right: this.right.fullName,
@@ -207,14 +212,14 @@ class SchemaDefn {
                 childTypeName = match[3] ? match[3] : match[2];
               const linkTypeInfo = linkType ? linkTypes[linkType] : undefined;
               const childField =
-                me && childFieldName
-                  ? me.getField(
-                      childFieldName,
-                      childTypeName,
-                      linkTypeInfo ? linkTypeInfo.rightIsVirtual : false,
-                      linkTypeInfo ? linkTypeInfo.rightIsMultiple : false
-                    )
-                  : schema.getType(childTypeName);
+                me && childFieldName ?
+                me.getField(
+                  childFieldName,
+                  childTypeName,
+                  linkTypeInfo ? linkTypeInfo.rightIsVirtual : false,
+                  linkTypeInfo ? linkTypeInfo.rightIsMultiple : false
+                ) :
+                schema.getType(childTypeName);
 
               const myLocalFieldName = schema._addLayout(val, childField, childFieldName, myFieldName, depth + 1);
 
