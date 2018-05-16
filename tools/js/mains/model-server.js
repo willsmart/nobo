@@ -3,7 +3,7 @@
 
 const SchemaDefn = require("../schema");
 const WebSocketServer = require("../web-socket-server");
-const ModelCache = require("../model-cache");
+const DatapointCache = require("../datapoint-cache");
 const Templates = require("../templates");
 const Connection = require("../db/postgresql-connection");
 const fs = require("fs");
@@ -30,34 +30,20 @@ const processArgs = require("../general/process-args");
     return;
   }
 
-  const schema = new SchemaDefn();
-  const cache = new ModelCache({
-    schema: schema,
-    connection: connection
+  const schema = connection.schemaLayoutConnection.currentSchema;
+
+  const cache = new DatapointCache({
+    schema,
+    connection
   });
 
-  await cache.start();
-
-  const layout = await connection.schemaLayoutConnection.currentLayout;
-  if (!layout && layout.source) throw new Error("No layout");
-
-  schema.clear();
-  schema.loadSource(layout.source);
-
-  if (args.model) {
-    const model = await cache.getLatestViewVersion({
-      proxyableViewId: args.model
-    });
-    console.log("Model: " + JSON.stringify(model));
-  }
-
-  await connection.listenForViewChanges({
+  await connection.dbListener.listenForDatapointChanges({
     cache
   });
   console.log("Listening for DB model changes");
 
   if (args["--prompter"]) {
-    await connection.startDBChangeNotificationPrompter({
+    await connection.dbListener.startDBChangeNotificationPrompter({
       cache
     });
     console.log("Listening and responding as the DB change notification prompter");

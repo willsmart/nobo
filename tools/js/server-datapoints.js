@@ -1,4 +1,4 @@
-const PublicApi = require("../general/public-api");
+const PublicApi = require("./general/public-api");
 
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
 
@@ -28,8 +28,8 @@ class WSClientDatapoints {
 
     client.watch({
       callbackKey,
-      ondisconnected: () => clientDatapoints.close(),
-      onpayload: (payload) => clientDatapoints.handlePayload(payload),
+      onclose: () => clientDatapoints.close(),
+      onpayload: (args) => clientDatapoints.handlePayload(args),
     })
   }
 
@@ -130,6 +130,7 @@ class WSClientDatapoints {
   }
 
   handlePayload({
+    messageIndex,
     payloadObject,
   }) {
     const clientDatapoints = this
@@ -185,12 +186,11 @@ class WSServerDatapoints {
   }
 
   constructor({
-    wsserver,
-    cache
+    wsserver
   }) {
     const serverDatapoints = this
 
-    serverDatapoints._cache = cache
+    serverDatapoints._cache = wsserver.cache
     serverDatapoints.clientsWithPayloads = {}
     serverDatapoints.nextClientIndex = 1
     serverDatapoints.payloadByFromVersionByDatapointId = {}
@@ -198,14 +198,14 @@ class WSServerDatapoints {
 
     wsserver.watch({
       callbackKey,
-      onclientConnected: (client) => client.datapoints = new ClientDatapoints({
+      onclientConnected: (client) => client.datapoints = new WSClientDatapoints({
         serverDatapoints,
         client,
         index: serverDatapoints.nextClientIndex++
       })
     })
 
-    cache.watch({
+    serverDatapoints.cache.watch({
       callbackKey,
       onvalid: () => serverDatapoints.sendPayloadsToClients()
     })

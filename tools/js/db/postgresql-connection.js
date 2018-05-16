@@ -28,7 +28,7 @@ class PostgresqlConnection {
       "query",
       "newClient",
       "schemaLayoutConnection",
-      "pgListener"
+      "dbListener"
     ];
   }
 

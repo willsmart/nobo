@@ -14,9 +14,12 @@ class PostgresqlListener {
     return ["listenForDatapointChanges", "startDBChangeNotificationPrompter", "listen", "connection"];
   }
 
-  constructor({ connection, verbose }) {
+  constructor({
+    connection,
+    verbose
+  }) {
     Object.assign(this, {
-      connection,
+      _connection: connection,
       verbose,
       listeningChannels: {}
     });
@@ -26,7 +29,9 @@ class PostgresqlListener {
     return this._connection;
   }
 
-  async listenForDatapointChanges({ cache }) {
+  async listenForDatapointChanges({
+    cache
+  }) {
     return this.listen({
       channel: "modelchanges",
       callbackKey: "listenForDatapointChanges",
@@ -44,7 +49,9 @@ class PostgresqlListener {
     });
   }
 
-  async startDBChangeNotificationPrompter({ delay = 500 }) {
+  async startDBChangeNotificationPrompter({
+    delay = 500
+  }) {
     const pgListener = this,
       connection = pgListener.connection;
 
@@ -89,7 +96,11 @@ class PostgresqlListener {
     return pgListener._listeningClient;
   }
 
-  async listen({ channel, callback, callbackKey }) {
+  async listen({
+    channel,
+    callback,
+    callbackKey
+  }) {
     const pgListener = this;
 
     if (!channel) throw new Error("Please supply a channel");

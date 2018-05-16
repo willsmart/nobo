@@ -10,12 +10,9 @@ const clone = require("./general/clone");
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./general/public-api");
 const mapValues = require("./general/map-values");
+const makeClassWatchable = require("./general/watchable");
 
 var g_nextUniqueCallbackIndex = 1;
-
-function uniqueCallbackKey() {
-  return `callback__${g_nextUniqueCallbackIndex++}`;
-}
 
 // API is auto-generated at the bottom from the public interface of the DatapointCache class
 
@@ -36,7 +33,6 @@ class Datapoint {
     Object.assign(datapoint, ConvertIds.decomposeId({
       datapointId
     }));
-    datapoint.listeners = [];
     datapoint.cache = cache;
 
     const field = datapoint.fieldIfAny;
@@ -68,42 +64,6 @@ class Datapoint {
     return ret;
   }
 
-  watch(listener) {
-    const datapoint = this;
-    if (!listener.callbackKey) listener.callbackKey = uniqueCallbackKey();
-    const {
-      oninvalid,
-      onvalid,
-      onvalid_prioritized,
-      callbackKey,
-    } = listener;
-
-    datapoint.listeners.push({
-      callbackKey,
-      oninvalid,
-      onvalid,
-      onvalid_prioritized,
-    });
-
-    return callbackKey;
-  }
-
-  stopWatching({
-    callbackKey
-  }) {
-    const datapoint = this;
-
-    let index = 0
-    for (const listener of datapoint.listeners) {
-      if (listener.callbackKey == callbackKey) {
-        datapoint.listeners.splice(index, 1)
-        datapoint.deleteIfUnwatched();
-        return listener
-      }
-      index++
-    }
-  }
-
   invalidate() {
     const datapoint = this,
       {
@@ -132,13 +92,9 @@ class Datapoint {
       }
     }
 
-    for (const {
-        oninvalid
-      } of datapoint.listeners) {
-      if (oninvalid) oninvalid({
-        datapoint
-      });
-    }
+    datapoint.notifyListeners('oninvalid', {
+      datapoint
+    });
 
     return datapoint
   }
@@ -182,20 +138,12 @@ class Datapoint {
       }
     }
 
-    for (let {
-        onvalid_prioritized
-      } of datapoint.listeners) {
-      if (onvalid_prioritized) onvalid_prioritized({
-        datapoint
-      });
-    }
-    for (let {
-        onvalid
-      } of datapoint.listeners) {
-      if (onvalid) onvalid({
-        datapoint
-      });
-    }
+    datapoint.notifyListeners('onvalid_prioritized', {
+      datapoint
+    });
+    datapoint.notifyListeners('onvalid', {
+      datapoint
+    });
 
     if (datapoint.watchingOneShotResolvers) {
       const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
@@ -367,10 +315,14 @@ class Datapoint {
     }
   }
 
+  lastListenerRemoved() {
+    this.deleteIfUnwatched();
+  }
+
   deleteIfUnwatched() {
     const datapoint = this;
 
-    if (datapoint.listeners.length ||
+    if ((datapoint.listeners && datapoint.listeners.length) ||
       datapoint.watchingOneShotResolvers ||
       (datapoint.dependentDatapointsById && Object.keys(datapoint.dependentDatapointsById).length)
     ) {
@@ -627,13 +579,9 @@ class DatapointCache {
     return Promise.all(promises).then(() => {
       const newlyValidDatapoints = cache.newlyValidDatapoints;
       cache.newlyValidDatapoints = [];
-      if (cache.listeners) {
-        for (let {
-            onvalid
-          } of cache.listeners) {
-          if (onvalid) onvalid(newlyValidDatapoints);
-        }
-      }
+      cache.notifyListeners('onvalid', {
+        newlyValidDatapoints
+      });
     });
   }
 
@@ -697,40 +645,10 @@ class DatapointCache {
     return Promise.all(promises);
   }
 
-  watch(listener) {
-    const cache = this;
-    if (!listener.callbackKey) listener.callbackKey = uniqueCallbackKey();
-    const {
-      oninvalid,
-      onvalid,
-      callbackKey
-    } = listener;
-
-    cache.listeners.push({
-      callbackKey,
-      oninvalid,
-      onvalid
-    });
-
-    return callbackKey;
-  }
-
-  stopWatching({
-    callbackKey
-  }) {
-    const cache = this;
-
-    let index = 0
-    for (const listener of cache.listeners) {
-      if (listener.callbackKey == callbackKey) {
-        cache.listeners.splice(index, 1)
-        return listener
-      }
-      index++
-    }
-  }
-
 }
+
+makeClassWatchable(Datapoint)
+makeClassWatchable(DatapointCache)
 
 // API is the public facing class
 module.exports = PublicApi({
