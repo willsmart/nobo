@@ -6,11 +6,13 @@
 //   This should be called in response to a signal from the db
 // They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
 
+const ChangeCase = require("change-case");
 const clone = require("./general/clone");
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./general/public-api");
 const mapValues = require("./general/map-values");
 const makeClassWatchable = require("./general/watchable");
+const Templates = require("./templates");
 
 var g_nextUniqueCallbackIndex = 1;
 
@@ -64,7 +66,9 @@ class Datapoint {
     return ret;
   }
 
-  invalidate() {
+  invalidate({
+    queueValidationJob = false
+  } = {}) {
     const datapoint = this,
       {
         cache
@@ -92,10 +96,9 @@ class Datapoint {
       }
     }
 
-    datapoint.notifyListeners('oninvalid', {
-      datapoint
-    });
+    datapoint.notifyListeners('oninvalid', datapoint);
 
+    if (queueValidationJob) cache.queueValidationJob()
     return datapoint
   }
 
@@ -138,12 +141,8 @@ class Datapoint {
       }
     }
 
-    datapoint.notifyListeners('onvalid_prioritized', {
-      datapoint
-    });
-    datapoint.notifyListeners('onvalid', {
-      datapoint
-    });
+    datapoint.notifyListeners('onvalid_prioritized', datapoint);
+    datapoint.notifyListeners('onvalid', datapoint);
 
     if (datapoint.watchingOneShotResolvers) {
       const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
@@ -173,9 +172,81 @@ class Datapoint {
   }
 
   get fieldIfAny() {
+    const datapoint = this
+
+    if (datapoint._field) return datapoint._field
     try {
-      return this.cache.schema.fieldForDatapoint(this);
+      datapoint._field = datapoint.cache.schema.fieldForDatapoint(datapoint);
     } catch (err) {}
+    if (datapoint._field) return datapoint._field
+
+    return datapoint._field = datapoint.virtualFieldIfAny
+  }
+
+  get virtualFieldIfAny() {
+    const datapoint = this,
+      cache = datapoint.cache,
+      templates = cache.templates
+
+    const match = /^dom(\w*)$/.exec(datapoint.fieldName)
+    if (templates && match) {
+      const variant = ChangeCase.camelCase(match[1])
+      return datapoint.makeVirtualField({
+        isId: true,
+        isMultiple: false,
+        names: {
+          'template': {
+            datapointId: templates.getTemplateReferencingDatapoint({
+              variant,
+              classFilter: datapoint.typeName,
+              ownerOnly: false
+            }).datapointId,
+            dom: {}
+          }
+        },
+        getterFunction: (args) => {
+          return args.template.dom
+        }
+      })
+    }
+  }
+
+  setVirtualField({
+    getterFunction,
+    names = {},
+    isId,
+    isMultiple
+  }) {
+    this._field = this.makeVirtualField(arguments[0])
+  }
+
+  makeVirtualField({
+    getterFunction,
+    names = {},
+    isId,
+    isMultiple
+  }) {
+    const datapoint = this,
+      field = {
+        isId,
+        isMultiple,
+        name: datapoint.fieldName,
+        getDatapointId: ({
+          dbRowId
+        }) => ConvertIds.recomposeId({
+          typeName: datapoint.typeName,
+          dbRowId,
+          fieldName: datapoint.fieldName
+        })
+      }
+    if (getterFunction) {
+      field.get = {
+        getterFunction,
+        names,
+        resultKey: "___result___",
+      }
+    }
+    return field
   }
 
   get valueAsRowId() {
@@ -211,16 +282,21 @@ class Datapoint {
     const datapoint = this;
 
     const field = datapoint.fieldIfAny;
-    Object.assign(this, {
+    Object.assign(datapoint, {
       dependenciesByDatapointId: {},
       dependencyDatapointCountsById: {},
       invalidDependencyDatapointCount: 0,
       dependencies: !field ? {} : (function dependencyTreeFromNames(names) {
-        return mapValues(names, subNames => {
+        return mapValues(names, (subNames, name) => {
+          if (name == 'datapointId') return undefined
+          const ret = {}
+          if (subNames.datapointId && typeof (subNames.datapointId) == 'string') {
+            ret.datapointId = subNames.datapointId;
+          }
           const children = dependencyTreeFromNames(subNames);
-          return Object.keys(children).length ? {
-            children
-          } : {};
+          delete children.datapointId;
+          if (Object.keys(children).length) ret.children = children;
+          return ret;
         });
       })(field.get.names)
     });
@@ -265,12 +341,18 @@ class Datapoint {
         cache
       } = datapoint;
 
-    const dependencyField = parentType ? parentType.fields[name] : undefined;
-    let valueRowId, dependencyDatapoint;
-    if (dependencyField) {
+    let dependencyDatapoint;
+    if (dependency.datapointId) {
       dependencyDatapoint = cache.getOrCreateDatapoint({
-        datapointId: dependencyField.getDatapointId(parentRowId)
-      });
+        datapointId: dependency.datapointId
+      })
+    } else {
+      const dependencyField = parentType ? parentType.fields[name] : undefined;
+      if (dependencyField) {
+        dependencyDatapoint = cache.getOrCreateDatapoint({
+          datapointId: dependencyField.getDatapointId(parentRowId)
+        });
+      }
     }
 
     if (dependency.datapoint) {
@@ -307,7 +389,7 @@ class Datapoint {
       if (dependencyDatapoint.invalid) datapoint.invalidDependencyDatapointCount++;
     }
 
-    if (dependency.children) {
+    if (dependency.children && dependencyDatapoint) {
       datapoint.updateDependencies({
         parentRowId: dependencyDatapoint.valueAsDecomposedRowId,
         dependencies: dependency.children
@@ -381,7 +463,7 @@ class Datapoint {
       })(dependencies, sandbox);
     }
 
-    try {
+    if (getter.script) try {
       getter.script.runInNewContext(sandbox, {
         displayErrors: true,
         timeout: 1000
@@ -391,6 +473,11 @@ class Datapoint {
       ${err}
 `);
     }
+
+    if (getter.getterFunction) {
+      sandbox[getter.resultKey] = getter.getterFunction(sandbox)
+    }
+
     return sandbox[getter.resultKey];
   }
 }
@@ -412,14 +499,20 @@ class DatapointCache {
 
   constructor({
     schema,
-    connection
+    connection,
   }) {
-    this._schema = schema;
-    this._connection = connection;
-    this.datapointsById = {};
-    this.newlyInvalidDatapointIds = [];
-    this.newlyUpdatedDatapointIds = [];
-    this.newlyValidDatapoints = [];
+    const cache = this
+
+    cache._schema = schema;
+    cache._connection = connection;
+    cache.datapointsById = {};
+    cache.newlyInvalidDatapointIds = [];
+    cache.newlyUpdatedDatapointIds = [];
+    cache.newlyValidDatapoints = [];
+
+    cache.templates = new Templates({
+      cache
+    })
   }
 
   get schema() {

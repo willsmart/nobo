@@ -18,7 +18,14 @@ class TestRig {
     return ["go", "task", "startTask", "endTask"];
   }
 
-  constructor({ path, verbosity, failVerbosity, verboseDb, moduleName, tearDownAfter }) {
+  constructor({
+    path,
+    verbosity,
+    failVerbosity,
+    verboseDb,
+    moduleName,
+    tearDownAfter
+  }) {
     Object.assign(this, {
       path,
       verbosity,
@@ -40,15 +47,25 @@ class TestRig {
   ) {
     const rig = this;
 
-    const { equals, unsorted, exact, sameObject, includes, includedBy, essential, throws } = options;
+    const {
+      equals,
+      unsorted,
+      exact,
+      sameObject,
+      includes,
+      includedBy,
+      essential,
+      throws
+    } = options;
     let didThrow = false;
     try {
+      if (typeof (value) == 'function') value = value()
       value = await value;
     } catch (err) {
       didThrow = true;
       if (!options.throws)
         throw new Error(`Failed assert where ${thisShouldHappen}:
-          Threw while getting value: $[err.stack}`);
+          Threw while getting value: ${err.stack}`);
     }
     let res = `No comparison options chosen. Please use one of: equals, sameObject, includes, includedBy, throws`;
 
@@ -137,10 +154,10 @@ class TestRig {
     } else if (rig.verbosity >= 1) console.log(`===> Test the ${rig.moduleName} component`);
 
     if (rig.path) {
-      await rig.task("Set up db", async function() {
+      await rig.task("Set up db", async function () {
         await rig.setupDb();
       });
-      await rig.task("Seed db", async function() {
+      await rig.task("Seed db", async function () {
         await rig.seedDb();
       });
     }
@@ -150,7 +167,7 @@ class TestRig {
     const rig = this;
 
     if (rig.path && rig.tearDownAfter) {
-      await rig.task("Tear down db", async function() {
+      await rig.task("Tear down db", async function () {
         await rig.tearDownDB();
       });
     }
@@ -172,7 +189,18 @@ class TestRig {
     rig.startTask({
       name
     });
-    await code();
+    try {
+      await code();
+    } catch (err) {
+      rig.assert(
+        name,
+        () => {
+          throw new Error(`${err.stack}\n\nRethrown`)
+        }, {
+          throws: false
+        }
+      )
+    }
     rig.endTask({
       name
     });
@@ -225,7 +253,9 @@ Done ${rig.taskName}
     const rig = this,
       updater = rig.dbSchemaUpdater;
 
-    const { schema } = await updater.performUpdate({
+    const {
+      schema
+    } = await updater.performUpdate({
       dryRun: false,
       renew: true
     });
@@ -257,24 +287,24 @@ Done ${rig.taskName}
     const rig = this;
 
     if (!rig.path) return;
-    return rig._updater
-      ? rig._updater
-      : (rig._updater = new DbSchemaUpdater({
-          path: `${rig.path}/db`,
-          verbose: rig.verboseDb
-        }));
+    return rig._updater ?
+      rig._updater :
+      (rig._updater = new DbSchemaUpdater({
+        path: `${rig.path}/db`,
+        verbose: rig.verboseDb
+      }));
   }
 
   get dbSeeder() {
     const rig = this;
 
     if (!rig.path) return;
-    return rig._seeder
-      ? rig._seeder
-      : (rig._seeder = new DbSeeder({
-          path: `${rig.path}/db`,
-          verbose: rig.verboseDb
-        }));
+    return rig._seeder ?
+      rig._seeder :
+      (rig._seeder = new DbSeeder({
+        path: `${rig.path}/db`,
+        verbose: rig.verboseDb
+      }));
   }
 }
 

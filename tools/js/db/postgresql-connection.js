@@ -256,7 +256,7 @@ class PostgresqlConnection {
         sqlName: `"${sqlLinkedFieldAlias}"."id"`,
         sqlJoin: `LEFT OUTER JOIN "${sqlLinkedTypeTable}" "${sqlLinkedFieldAlias}" ON "${sqlLinkedFieldAlias}"."${
           sqlLinkedField.sqlName
-        }" = "${sqlTypeName}__base"."id"`,
+        }" = "${sqlTypeTable}__base"."id"`,
         outputKey: outputKey,
         field: field,
         sqlField: sqlField

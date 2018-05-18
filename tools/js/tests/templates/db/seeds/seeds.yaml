@@ -1,0 +1,6 @@
+-   App:
+    -   id: 1
+        name: "1 app name"
+        templates:
+            -   id: 1
+                dom: "1 template dom"

@@ -148,6 +148,7 @@ function ensureDecomposed({
 }
 
 // reconstructs string ids from their component parts or throws if not possible
+// you can provide more than one argument, in which case they are combined with the last taking precidence
 function recomposeId({
   typeName,
   dbRowId,
@@ -261,12 +262,10 @@ function stringToProxyableRow(rowId) {
       proxyableRowId: rowId,
       typeName: ChangeCase.pascalCase(match[1])
     },
-    match[2] ?
-    {
+    match[2] ? {
       rowId: rowId,
       dbRowId: +match[2]
-    } :
-    {
+    } : {
       proxyRowId: rowId,
       proxyKey: match[3]
     }
@@ -285,13 +284,11 @@ function stringToProxyableView(viewId) {
       typeName: ChangeCase.pascalCase(match[2]),
       variant: ChangeCase.camelCase(match[5])
     },
-    match[3] ?
-    {
+    match[3] ? {
       viewId: viewId,
       rowId: match[1],
       dbRowId: +match[3]
-    } :
-    {
+    } : {
       proxyViewId: viewId,
       proxyRowId: match[1],
       proxyKey: match[4]

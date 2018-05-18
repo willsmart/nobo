@@ -1,259 +1,374 @@
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./general/public-api");
+const mapValues = require("./general/map-values");
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class Templates {
   // public methods
   static publicMethods() {
-    return ["load", "findForView", "completeOutputKeysForView", "outputKeysForView"];
+    return ["load", "getTemplateReferencingDatapoint", "cache"];
   }
 
-  async load({ cache }) {
-    this.cache = cache;
-    cache.setTemplates(this.publicApi);
-    const schema = cache.schema;
+  constructor({
+    cache,
+    appDbRowId = 1
+  }) {
+    const templates = this
 
-    this.templatesByVariantClassOwnership = {};
-    this.templatesById = {};
-    this.subtemplatesById = {};
-    this.templateChildrenById = {};
-    this.templateDisplayedFieldsById = {};
+    templates._cache = cache
+    templates.appDbRowId = appDbRowId
+    templates.templatesByRowId = {}
+    templates.templatesByVariantClassOwnership = {}
+    templates.bubbledTemplatesByVariantClassOwnership = {}
 
-    if (!(this.Template = schema.allTypes["Template"])) throw new Error("No Template type found");
-    if (!(this.Subtemplate = schema.allTypes["Subtemplate"])) throw new Error("No Subtemplate type found");
-    if (!(this.TemplateChild = schema.allTypes["TemplateChild"])) throw new Error("No TemplateChild type found");
-    if (!(this.TemplateDisplayedField = schema.allTypes["TemplateDisplayedField"]))
-      throw new Error("No TemplateDisplayedField type found");
-
-    const rows = await cache.connection.getRowsFromDB({
-      tableName: "template",
-      fields: ["id"]
-    });
-    return Promise.all(rows.map(row => this.loadTemplatewithId(row.id)));
-  }
-
-  async loadTemplatewithId(templateId) {
-    const thisTemplates = this;
-
-    if (thisTemplates.templatesById[templateId]) return Promise(() => thisTemplates.templatesById[templateId]);
-
-    let template = await thisTemplates.cache.getLatestViewVersion(
-      ConvertIds.recomposeId({ typeName: "Template", dbRowId: templateId, variant: "complete" }),
-      {
-        outputKeyProvider(idInfo) {
-          return Object.assign(
-            {
-              meForClients: { value: ConvertIds.recomposeId(Object.assign(idInfo, { variant: "default" })).viewId }
-            },
-            thisTemplates.completeOutputKeysForView(idInfo)
-          );
+    this.callbackKey = cache.getOrCreateDatapoint({
+      datapointId: this.appTemplatesDatapointId
+    }).watch({
+      onvalid: (datapoint) => {
+        if (Array.isArray(datapoint.valueIfAny)) {
+          templates.setTemplateRowIds({
+            rowIds: datapoint.valueIfAny
+          })
         }
       }
-    );
+    })
+  }
 
-    const variant = template.variant || "default";
-    const classFilter = template.classFilter || "any";
-    const ownership = template.ownerOnly || false ? "private" : "public";
-    const templatesByClassOwnership =
-      thisTemplates.templatesByVariantClassOwnership[variant] ||
-      (thisTemplates.templatesByVariantClassOwnership[variant] = {});
-    const templatesByOwnership =
-      templatesByClassOwnership[classFilter] || (templatesByClassOwnership[classFilter] = {});
-    template = templatesByOwnership[ownership] || (templatesByOwnership[ownership] = template);
+  get appTemplatesDatapointId() {
+    return ConvertIds.recomposeId({
+      typeName: 'App',
+      dbRowId: this.appDbRowId,
+      fieldName: 'templates'
+    }).datapointId
+  }
 
-    thisTemplates.templatesById[templateId] = template;
+  appTemplateDatapointId({
+    variant,
+    classFilter,
+    ownerOnly
+  }) {
+    return ConvertIds.recomposeId({
+      typeName: 'App',
+      dbRowId: this.appDbRowId,
+      fieldName: `template_${variant?`V_${variant}_`:''}${classFilter?`C_${classFilter}_`:''}${ownerOnly?'_private':''}`
+    }).datapointId
+  }
 
-    let promises = [];
+  get cache() {
+    return this._cache
+  }
 
-    //console.log("\n\n\nTemplate "+templateId+"\n")
-    const subtemplateViewIds = template.subtemplates;
-    template.subtemplates = [];
-    template.subtemplatesByVariant = {};
+  setTemplateRowIds({
+    rowIds
+  }) {
+    const templates = this
 
-    //console.log(subtemplateViewIds)
-    if (subtemplateViewIds) {
-      subtemplateViewIds.forEach(id => {
-        promises.push(
-          thisTemplates.loadSubtemplateWithViewId(id).then(subtemplate => {
-            template.subtemplates.push(subtemplate);
-            template.subtemplatesByVariant[subtemplate.variant || "default"] = subtemplate;
-          })
-        );
-      });
+    const missing = mapValues(templates.templatesByRowId, () => true)
+    for (const rowId of rowIds) {
+      if (templates.templatesByRowId[rowId]) {
+        delete missing[rowId];
+        continue
+      }
+      templates.templatesByRowId[rowId] = new Template({
+        templates,
+        rowId
+      })
     }
 
-    const templateChildViewIds = template.templateChildren;
-    template.templateChildren = [];
-    template.templateChildrenByVariantClassOwnership = {};
+    for (const rowId of Object.keys(missing)) {
+      templates.templatesByRowId[rowId].delete()
+      delete templates.templatesByRowId[rowId]
+    }
+  }
 
-    //console.log(templateChildViewIds)
-    if (templateChildViewIds) {
-      templateChildViewIds.forEach(id => {
-        promises.push(
-          thisTemplates.loadTemplateChildWithViewId(id).then(child => {
-            template.templateChildren.push(child);
-            const variant = child.variant || "default";
-            const classFilter = child.classFilter || "any";
-            const ownership = child.ownerOnly || false ? "private" : "public";
-            const childrenByClassOwnership =
-              template.templateChildrenByVariantClassOwnership[variant] ||
-              (template.templateChildrenByVariantClassOwnership[variant] = {});
-            const childrenByOwnership =
-              childrenByClassOwnership[classFilter] || (childrenByClassOwnership[classFilter] = {});
-            if (!childrenByOwnership[ownership]) childrenByOwnership[ownership] = child;
+  getTemplateReferencingDatapoint({
+    variant,
+    classFilter,
+    ownerOnly
+  }) {
+    return this.treeNode({
+      canCreate: true,
+      variant,
+      classFilter,
+      ownerOnly
+    }).datapoint
+  }
+
+  removeFromTemplatesTree({
+    variant,
+    classFilter,
+    ownerOnly
+  }) {
+    this.addToTemplatesTree({
+      variant,
+      classFilter,
+      ownerOnly
+    })
+  }
+
+  addToTemplatesTree({
+    template,
+    variant,
+    classFilter,
+    ownerOnly
+  }) {
+    const templates = this,
+      node = templates.treeNode({
+        canCreate: true,
+        variant,
+        classFilter,
+        ownerOnly
+      }),
+      templateWas = node.template
+    if (templateWas === template) return
+
+    for (const child of node.subtree) {
+      if (child.template === templateWas) {
+        if (template) {
+          child.template = template
+          child.datapoint.invalidate({
+            queueValidationJob: true
           })
-        );
-      });
+        } else {
+          const useParent = child.parents.find((parent) => parent.template),
+            useTemplate = (useParent ? useParent.template : undefined)
+
+          if (child.template !== useTemplate) {
+            child.template = useTemplate
+            child.datapoint.invalidate({
+              queueValidationJob: true
+            })
+          }
+        }
+      }
+    }
+  }
+
+  treeNode({
+    canCreate = false,
+    variant,
+    classFilter,
+    ownerOnly
+  }) {
+    const templates = this
+
+    function newTreeNode({
+      variant,
+      classFilter,
+      ownerOnly,
+      parents
+    }) {
+      const node = {
+        variant,
+        classFilter,
+        ownerOnly,
+        parents
+      }
+      node.subtree = [node]
+      for (const parent of parents) parent.subtree.push(node)
+      node.datapoint = templates.cache.getOrCreateDatapoint({
+        datapointId: templates.appTemplateDatapointId({
+          variant,
+          classFilter,
+          ownerOnly
+        })
+      })
+      node.datapoint.setVirtualField({
+        isId: true,
+        isMultiple: false,
+        getterFunction: () => node.template ? [node.template.rowId] : []
+      })
+      return node
     }
 
-    const displayedFieldViewIds = template.displayedFields;
-    template.displayedFields = [];
-    template.displayedFieldsByField = {};
 
-    //console.log(displayedFieldViewIds)
-    if (displayedFieldViewIds) {
-      displayedFieldViewIds.forEach(id => {
-        promises.push(
-          thisTemplates.loadTemplateDisplayedFieldWithViewId(id).then(field => {
-            if (!field.field) return;
-            template.displayedFields.push(field);
-            template.displayedFields[field.field] = field;
+    let tree = templates.tree
+    if (!tree) {
+      if (!canCreate) return;
+      tree = templates.tree = newTreeNode({
+        parents: []
+      })
+    }
+    if (ownerOnly) {
+      if (!tree.private) {
+        if (canCreate) {
+          tree.private = newTreeNode({
+            ownerOnly,
+            parents: [tree]
           })
-        );
-      });
+        } else return
+      }
+      tree = tree.private
     }
 
-    return Promise.all(promises).then(() => template);
+    function withClassFilter({
+      node,
+      classFilter
+    }) {
+      if (!classFilter) return node;
+      if (node.classFilters && node.classFilters[classFilter]) return node.classFilters[classFilter]
+      if (!canCreate) return
+
+      const parents = node.parents.slice()
+      for (const parent of node.parents) {
+        parents.unshift(withClassFilter({
+          node: parent,
+          classFilter
+        }))
+      }
+      parents.unshift(node)
+
+      if (!node.classFilters) node.classFilters = {}
+      return node.classFilters[classFilter] = newTreeNode({
+        classFilter,
+        variant: node.variant,
+        ownerOnly: node.ownerOnly,
+        parents
+      })
+    }
+
+    function withVariant({
+      node,
+      variant
+    }) {
+      if (!variant) return node;
+      if (node.variants && node.variants[variant]) return node.variants[variant]
+      if (!canCreate) return
+
+      const parents = node.parents.slice()
+      for (const parent of node.parents) {
+        parents.unshift(withVariant({
+          node: parent,
+          variant
+        }))
+      }
+      parents.unshift(node)
+
+      if (!node.variants) node.variants = {}
+      return node.variants[variant] = newTreeNode({
+        classFilter: classFilter,
+        variant,
+        ownerOnly: node.ownerOnly,
+        parents
+      })
+    }
+
+    return withVariant({
+      variant,
+      node: withClassFilter({
+        classFilter,
+        node: tree
+      })
+    })
   }
 
-  async loadSubtemplateWithViewId(subtemplateViewId) {
-    const thisTemplates = this;
+}
 
-    if (thisTemplates.subtemplatesById[subtemplateViewId]) return thisTemplates.subtemplatesById[subtemplateViewId];
+class Template {
+  constructor({
+    templates,
+    rowId
+  }) {
+    const template = this,
+      cache = templates.cache
 
-    const subtemplate = await thisTemplates.cache.getLatestViewVersion({ viewId: subtemplateViewId });
-    thisTemplates.subtemplatesById[subtemplateViewId] = subtemplate;
-    return subtemplate;
+    template.templates = templates
+    template.datapoints = {}
+    const callbackKey = template.callbackKey = `${templates.callbackKey}:${rowId}`
+
+    Object.assign(template, ConvertIds.decomposeId({
+      rowId
+    }))
+
+    for (const fieldName of ['classFilter', 'ownerOnly', 'variant']) {
+      const datapoint = template.datapoints[fieldName] = cache.getOrCreateDatapoint(ConvertIds.recomposeId(template, {
+        fieldName
+      }))
+      const callbackProperty = `${fieldName}Changed`
+      datapoint.watch({
+        callbackKey,
+        onvalid: () => {
+          template.refreshInTemplatesTree()
+        },
+        oninvalid: () => {
+          template.refreshInTemplatesTree()
+        }
+      })
+    }
+
+    template.refreshInTemplatesTree()
   }
 
-  async loadTemplateChildWithViewId(childViewId) {
-    const thisTemplates = this;
+  refreshInTemplatesTree() {
+    const template = this,
+      templates = template.templates
 
-    if (thisTemplates.templateChildrenById[childViewId]) return thisTemplates.templateChildrenById[childViewId];
+    const vcoWas = template._variantClassFilterOwnership,
+      vco = template.variantClassFilterOwnership
+    if (vco) vco.template = template
 
-    const child = await thisTemplates.cache.getLatestViewVersion({ viewId: childViewId });
-    thisTemplates.templateChildrenById[childViewId] = child;
-    return child;
-  }
-
-  async loadTemplateDisplayedFieldWithViewId(fieldViewId) {
-    const thisTemplates = this;
-
-    if (thisTemplates.templateDisplayedFieldsById[fieldViewId])
-      return thisTemplates.templateDisplayedFieldsById[fieldViewId];
-
-    const field = await thisTemplates.cache.getLatestViewVersion({ viewId: fieldViewId });
-    thisTemplates.templateDisplayedFieldsById[fieldViewId] = field;
-    return field;
-  }
-
-  findForView(viewIdInfo) {
-    const givenVariantClass = function(viewIdInfo, templatesByOwnership) {
-      if (!templatesByOwnership) return;
-      return templatesByOwnership["private"] || templatesByOwnership["public"];
-    };
-
-    const givenVariant = function(viewIdInfo, templatesByClassOwnership) {
-      if (!templatesByClassOwnership) return;
-      return (
-        givenVariantClass(viewIdInfo, templatesByClassOwnership[viewIdInfo.typeName]) ||
-        givenVariantClass(viewIdInfo, templatesByClassOwnership["any"])
-      );
-    };
-
-    if (viewIdInfo.variant && viewIdInfo.variant != "default") {
-      return (
-        givenVariant(viewIdInfo, this.templatesByVariantClassOwnership[viewIdInfo.variant]) ||
-        givenVariant(viewIdInfo, this.templatesByVariantClassOwnership["default"])
-      );
+    if (vco) {
+      if (vcoWas) {
+        if (vco.variant == vcoWas.variant && vco.classFilter == vcoWas.classFilter && vco.ownerOnly == vcoWas.ownerOnly) {
+          return
+        }
+        templates.removeFromTemplatesTree(vcoWas)
+      }
+      templates.addToTemplatesTree(vco)
+      template._variantClassFilterOwnership = vco
     } else {
-      return givenVariant(viewIdInfo, this.templatesByVariantClassOwnership["default"]);
+      if (vcoWas) templates.removeFromTemplatesTree(vcoWas)
+      delete template._variantClassFilterOwnership
     }
   }
 
-  _addViewSubtemplates(viewIdInfo, template, prefix, addTo) {
-    const thisTemplates = this;
-
-    template.subtemplates.forEach(subtemplate => {
-      if (subtemplate.modelView) return;
-      const subviewIdInfo = ConvertIds.recomposeId({
-        typeName: viewIdInfo.typeName,
-        dbRowId: viewIdInfo.dbRowId,
-        variant: subtemplate.variant
-      });
-
-      const subtemplateTemplate = thisTemplates.findForView(subviewIdInfo);
-      if (!subtemplateTemplate) {
-        console.log(
-          `Could not find appropriate template for the ${subtemplate.domField} subtemplate of view ${viewIdInfo.viewId}`
-        );
-        return;
-      }
-
-      const key = prefix + subtemplate.domField;
-      addTo[key] = subtemplateTemplate.meForClients;
-
-      thisTemplates._addViewSubtemplates(subviewIdInfo, subtemplateTemplate, key + " ", addTo);
-    });
+  get variantClassFilterOwnership() {
+    return this.valuesOfDatapoints({
+      fieldNames: ['variant', 'classFilter', 'ownerOnly'],
+      allOrNothing: true
+    })
   }
 
-  _addTemplateViewSubtemplates(viewIdInfo, addToOutputKeys) {
-    const thisTemplates = this;
+  valuesOfDatapoints({
+    fieldNames,
+    allOrNothing = false
+  }) {
+    const template = this
+    const ret = {}
+    let hasInvalid = false
+    for (const fieldName of fieldNames) {
+      const datapoint = template.datapoints[fieldName]
 
-    const template = thisTemplates.templatesById[viewIdInfo.dbRowId];
-    if (!template) {
-      throw new Error(`Could not find template with row ${viewIdInfo.dbRowId}`);
+      if (!datapoint || datapoint.invalid) hasInvalid = true;
+      else ret[fieldName] = datapoint.valueIfAny
+    }
+    if (hasInvalid) {
+      template.templates.cache.queueValidationJob()
+      if (allOrNothing) return
     }
 
-    template.subtemplates.forEach(subtemplate => {
-      if (!subtemplate.modelView) return;
-
-      let subviewIdInfo = ConvertIds.decomposeId({ proxyableViewId: subtemplate.modelView, relaxed: true });
-      if (!subviewIdInfo) {
-        console.log(
-          `Could not parse the modelView '${subtemplate.modelView}' for the ${
-            subtemplate.domField
-          } subtemplate of view ${viewIdInfo.viewId}`
-        );
-        return;
-      }
-
-      subviewIdInfo.variant = subtemplate.variant || "default";
-      subviewIdInfo = ConvertIds.recomposeId(subviewIdInfo);
-
-      addToOutputKeys[subtemplate.domField] = { value: [subviewIdInfo.proxyableViewId] };
-    });
+    return ret
   }
 
-  completeOutputKeysForView({ typeName, dbRowId }) {
-    const thisTemplates = this;
+  delete() {
+    const template = this,
+      templates = template.templates,
+      callbackKey = template.callbackKey
 
-    const type = thisTemplates.cache.schema.allTypes[typeName];
-    const outputKeys = {};
-    Object.keys(type.fields).forEach(fieldName => {
-      const field = type.fields[fieldName];
-      outputKeys[fieldName] = {
-        datapointId: field.getDatapointId({ dbRowId: dbRowId })
-      };
-      if (field.isId) {
-        outputKeys[fieldName].variant = "complete";
-      }
-    });
-
-    return outputKeys;
+    for (const datapoint of Object.values(template.datapoints)) {
+      datapoint.stopWatching({
+        callbackKey
+      })
+    }
+    template.datapoints = {}
+    templates.removeFromTemplatesTree(vcoWas)
   }
+
 }
 
 // API is the public facing class
-module.exports = PublicApi({ fromClass: Templates, hasExposedBackDoor: true });
+module.exports = PublicApi({
+  fromClass: Templates,
+  hasExposedBackDoor: true
+});
