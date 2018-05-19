@@ -15,12 +15,12 @@ class WebSocketServer {
   constructor({
     cache
   }) {
-    const wsserver = this;
+    const server = this;
 
-    wsserver._cache = cache;
+    server._cache = cache;
 
-    wsserver.serverDatapoints = new ServerDatapoints({
-      wsserver
+    server.serverDatapoints = new ServerDatapoints({
+      wsserver: server
     })
   }
 
@@ -33,7 +33,7 @@ class WebSocketServer {
   } = {}) {
     const server = this;
 
-    this.serverParams = {
+    server.serverParams = {
       port: port
     };
     server.wss = new WebSocket.Server({
@@ -43,7 +43,8 @@ class WebSocketServer {
     var nextWsIndex = 1;
 
     server.wss.on("connection", function connection(ws, req) {
-      ws.isAlive = true;
+      ws.pongHistory = [0, 0, 0, 1],
+        ws.pongCount = 1;
 
       console.log(req.headers);
 
@@ -55,7 +56,10 @@ class WebSocketServer {
 
       server.notifyListeners('onclientConnected', client)
 
-      ws.on("pong", heartbeat);
+      ws.on("pong", () => {
+        ws.pongHistory[ws.pongHistory.length - 1]++;
+        ws.pongCount++
+      });
 
       ws.on("message", function incoming(message) {
         client.serverReceivedMessage(message);
@@ -68,18 +72,18 @@ class WebSocketServer {
       ws.on("error", () => console.log("errored"));
     });
 
-    function heartbeat() {
-      this.isAlive = true;
-    }
-
     const interval = setInterval(function ping() {
       server.wss.clients.forEach(function each(ws) {
-        if (ws.isAlive === false) return ws.terminate();
+        if (!ws.pongCount) {
+          return ws.terminate();
+        }
 
-        ws.isAlive = false;
+        ws.pongHistory.push(0);
+        ws.pongCount -= ws.pongHistory.shift()
+
         ws.ping("", false, true);
       });
-    }, 30000);
+    }, 10000);
 
     console.log(`Web socket server listening on port ${port}`);
   }
@@ -92,10 +96,12 @@ class WebSocketClient {
     ws,
     index
   }) {
-    this.server = server;
-    this.ws = ws;
-    this.index = index;
-    this.mapProxyRowId(
+    const client = this
+
+    client.server = server;
+    client.ws = ws;
+    client.index = index;
+    client.mapProxyRowId(
       ConvertIds.recomposeId({
         typeName: "App",
         proxyKey: "default"
@@ -105,12 +111,14 @@ class WebSocketClient {
         dbRowId: 1
       }).rowId
     );
-    this.login(1);
+    client.login(1);
   }
 
   login(userId) {
+    const client = this
+
     if (userId) {
-      this.mapProxyRowId(
+      client.mapProxyRowId(
         ConvertIds.recomposeId({
           typeName: "User",
           proxyKey: "me"
@@ -120,7 +128,7 @@ class WebSocketClient {
           dbRowId: userId
         }).rowId
       );
-      this.mapProxyRowId(
+      client.mapProxyRowId(
         ConvertIds.recomposeId({
           typeName: "User",
           proxyKey: "default"
@@ -131,7 +139,7 @@ class WebSocketClient {
         }).rowId
       );
     } else {
-      this.mapProxyRowId(
+      client.mapProxyRowId(
         ConvertIds.recomposeId({
           typeName: "User",
           proxyKey: "me"
@@ -141,7 +149,7 @@ class WebSocketClient {
           dbRowId: 1
         }).rowId
       );
-      this.mapProxyRowId(
+      client.mapProxyRowId(
         ConvertIds.recomposeId({
           typeName: "User",
           proxyKey: "default"
@@ -165,10 +173,11 @@ class WebSocketClient {
   serverReceivedMessage(message) {
     const client = this;
 
-    console.log("Received message from client #" + this.index + ":   " + message);
+    console.log("Received message from client #" + client.index + ":   " + message);
 
-    var matches = /(\d+):/.exec(message);
-    var messageIndex = matches ? +matches[1] : -1;
+    const matches = /^(?:(\d+)|(\w+)):/.exec(message),
+      messageIndex = matches ? +matches[1] : -1,
+      messageType = matches ? matches[2] : undefined;
     if (matches) message = message.substring(matches[0].length);
 
     let payloadObject
@@ -189,6 +198,7 @@ class WebSocketClient {
 
     client.notifyListeners('onpayload', {
       messageIndex,
+      messageType,
       payloadObject
     })
   }
@@ -197,11 +207,23 @@ class WebSocketClient {
     const client = this;
     const server = client.server;
 
-    console.log("Client #" + this.index + " closed");
+    console.log("Client #" + client.index + " closed");
 
     client.notifyListeners('onclose')
   }
 
+  sendPayload({
+    messageIndex = -1,
+    messageType,
+    payloadObject
+  }) {
+    const client = this;
+
+    const message = `${messageIndex==-1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`}${JSON.stringify(payloadObject)}`
+    console.log("Sending message to client #" + client.index + ":   " + message);
+
+    client.ws.send(message)
+  }
 }
 
 makeClassWatchable(WebSocketClient)

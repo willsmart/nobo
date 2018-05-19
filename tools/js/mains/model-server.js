@@ -30,7 +30,7 @@ const processArgs = require("../general/process-args");
     return;
   }
 
-  const schema = connection.schemaLayoutConnection.currentSchema;
+  const schema = await connection.schemaLayoutConnection.currentSchema;
 
   const cache = new DatapointCache({
     schema,

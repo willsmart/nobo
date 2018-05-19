@@ -51,7 +51,7 @@ class Templates {
     return ConvertIds.recomposeId({
       typeName: 'App',
       dbRowId: this.appDbRowId,
-      fieldName: `template_${variant?`V_${variant}_`:''}${classFilter?`C_${classFilter}_`:''}${ownerOnly?'_private':''}`
+      fieldName: `useTemplate_${variant?`V_${variant}_`:''}${classFilter?`C_${classFilter}_`:''}${ownerOnly?'_private':''}`
     }).datapointId
   }
 

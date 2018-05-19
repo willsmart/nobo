@@ -22,6 +22,7 @@ const DatapointCache = require("../../datapoint-cache");
     const datapointIds = {
       name: 'app__1__#name',
       appDom: 'app__1__#dom',
+      appTemplate: 'app__1__#template',
       templateDom: 'template__1__#dom',
       appDomWithVariant: 'app__1__#dom_variant',
     }
@@ -44,9 +45,9 @@ const DatapointCache = require("../../datapoint-cache");
     await datapointCache.validateNewlyInvalidDatapoints()
     await datapointCache.validateNewlyInvalidDatapoints()
 
-    for (const [key, datapointId] of Object.entries(datapointIds)) {
-      rig.assert(`The value of datapoint '${datapointId}' is correct`, datapoints[key].valueIfAny, {
-        equals: expectedValues[key]
+    for (const [key, expectedValue] of Object.entries(expectedValues)) {
+      rig.assert(`The value of datapoint '${datapoints[key].datapointId}' is correct`, datapoints[key].valueIfAny, {
+        equals: expectedValue
       })
     }
 

@@ -188,11 +188,11 @@ class Datapoint {
       cache = datapoint.cache,
       templates = cache.templates
 
-    const match = /^dom(\w*)$/.exec(datapoint.fieldName)
+    let match = /^dom(\w*)$/.exec(datapoint.fieldName)
     if (templates && match) {
       const variant = ChangeCase.camelCase(match[1])
       return datapoint.makeVirtualField({
-        isId: true,
+        isId: false,
         isMultiple: false,
         names: {
           'template': {
@@ -206,6 +206,26 @@ class Datapoint {
         },
         getterFunction: (args) => {
           return args.template.dom
+        }
+      })
+    }
+    match = /^template(\w*)$/.exec(datapoint.fieldName)
+    if (templates && match) {
+      const variant = ChangeCase.camelCase(match[1])
+      return datapoint.makeVirtualField({
+        isId: true,
+        isMultiple: false,
+        names: {
+          'template': {
+            datapointId: templates.getTemplateReferencingDatapoint({
+              variant,
+              classFilter: datapoint.typeName,
+              ownerOnly: false
+            }).datapointId,
+          }
+        },
+        getterFunction: (args) => {
+          return args.template
         }
       })
     }

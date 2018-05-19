@@ -24,12 +24,27 @@ class WSClientDatapoints {
     clientDatapoints.newlyValidDatapoints = {}
     clientDatapoints.clientDatapointVersions = {}
 
-    clientDatapoints.sendMessage = (string) => client.ws.send(string)
+    clientDatapoints.sendMessage = (string) => client.sendMessage(string)
+    clientDatapoints.sendPayload = ({
+      messageIndex,
+      messageType,
+      payloadObject
+    }) => {
+      client.sendPayload({
+        messageIndex,
+        messageType,
+        payloadObject
+      })
+    }
 
     client.watch({
       callbackKey,
       onclose: () => clientDatapoints.close(),
       onpayload: (args) => clientDatapoints.handlePayload(args),
+    })
+
+    clientDatapoints.subscribe({
+      datapointId: 'user__1__#bio'
     })
   }
 
@@ -42,7 +57,9 @@ class WSClientDatapoints {
       serverDatapoints = clientDatapoints.serverDatapoints;
 
     for (const datapoint of Object.values(clientDatapoints.subscribedDatapoints)) {
-      datapoint.stopWatching(clientDatapoints.callbackKey)
+      datapoint.stopWatching({
+        callbackKey: clientDatapoints.callbackKey
+      })
       serverDatapoints.releaseRefForDatapoint(datapoint)
     }
     clientDatapoints.subscribedDatapoints = {}
@@ -131,6 +148,7 @@ class WSClientDatapoints {
 
   handlePayload({
     messageIndex,
+    messageType,
     payloadObject,
   }) {
     const clientDatapoints = this
@@ -141,7 +159,15 @@ class WSClientDatapoints {
   recievedDatapointsFromClient({
     datapoints: datapointsFromClient
   }) {
-    for (const [datapointId, datapointFromClient] of Object.entries(datapointsFromClient)) {
+    const clientDatapoints = this
+
+    for (let [datapointId, datapointFromClient] of Object.entries(datapointsFromClient)) {
+      if (datapointFromClient === 0) datapointFromClient = {
+        unsubscribe: true
+      }
+      else if (datapointFromClient === 1) datapointFromClient = {
+        subscribe: true
+      }
       const subscribedDatapoint = clientDatapoints.subscribedDatapoints[datapointId],
         {
           ackVersion,
@@ -152,7 +178,9 @@ class WSClientDatapoints {
 
       if (subscribedDatapoint) {
         if (unsubscribe) {
-          clientDatapoints.unsubscribe(subscribedDatapoint)
+          clientDatapoints.unsubscribe({
+            datapointId
+          })
           continue
         }
         if (ackVersion) {
@@ -174,6 +202,10 @@ class WSClientDatapoints {
         if (diff) {
           // TODO
         }
+      } else if (subscribe) {
+        clientDatapoints.subscribe({
+          datapointId
+        })
       }
     }
   }
@@ -207,7 +239,9 @@ class WSServerDatapoints {
 
     serverDatapoints.cache.watch({
       callbackKey,
-      onvalid: () => serverDatapoints.sendPayloadsToClients()
+      onvalid: () => {
+        serverDatapoints.sendPayloadsToClients()
+      }
     })
   }
 
@@ -252,7 +286,7 @@ class WSServerDatapoints {
 
     let datapointInfo = serverDatapoints.datapointInfos[datapointId]
     if (datapointInfo && !--datapointInfo.refCnt) {
-      datapoint.stopWatching({
+      datapointInfo.datapoint.stopWatching({
         callbackKey
       })
       delete serverDatapoints.datapointInfos[datapointId]
@@ -294,13 +328,20 @@ class WSServerDatapoints {
 
     const clientsWithPayloads = serverDatapoints.clientsWithPayloads;
     serverDatapoints.clientsWithPayloads = {}
+    serverDatapoints.payloadByFromVersionByDatapointId = {}
 
     for (const clientDatapoints of Object.values(clientsWithPayloads)) {
       const newlyValidDatapoints = clientDatapoints.newlyValidDatapoints;
       clientDatapoints.newlyValidDatapoints = {}
 
+      const diffByDatapointId = clientDatapoints.diffByDatapointId
+      clientDatapoints.diffByDatapointId = {}
+
       try {
-        client.sendPayload("Models", payload);
+        clientDatapoints.sendPayload({
+          messageType: "Models",
+          payloadObject: diffByDatapointId
+        });
       } catch (err) {
         console.log(err);
       }

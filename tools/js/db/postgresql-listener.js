@@ -36,14 +36,20 @@ class PostgresqlListener {
       channel: "modelchanges",
       callbackKey: "listenForDatapointChanges",
       callback: changes => {
-        changes = JSON.parse(changes);
-        if (Array.isArray(changes)) {
-          changes.forEach(datapointId => {
-            cache.invalidateDatapoint({
-              datapointId: datapointId
+        try {
+          changes = JSON.parse(changes);
+          if (Array.isArray(changes)) {
+            changes.forEach(datapointId => {
+              const datapoint = cache.getExistingDatapoint({
+                datapointId
+              })
+              if (datapoint) datapoint.invalidate({
+                queueValidationJob: true
+              });
             });
-          });
-          cache.validateNewlyInvalidDatapoints(); //TODO delay?
+          }
+        } catch (error) {
+          console.log(`Error while handling db model change: ${error.message}`)
         }
       }
     });
