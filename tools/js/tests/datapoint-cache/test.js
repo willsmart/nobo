@@ -105,17 +105,17 @@ const DatapointCache = require("../../datapoint-cache");
     //     "getExistingDatapoint",
     //         CA2: datapoint didn't exist
     let datapoint, value, datapointId,
-      simpleDatapointId = "app__1__#name",
+      simpleDatapointId = "app__1__name",
 
-      dpWithDependentWithDependentId = "user__1__#name",
-      dpWithGetterAndDependencyAndDependentId = "user__1__#uppercase_name",
-      dpWithGetterAndDependencyWithDependencyId = "user__1__#quoted_uppercase_name",
+      dpWithDependentWithDependentId = "user__1__name",
+      dpWithGetterAndDependencyAndDependentId = "user__1__uppercase_name",
+      dpWithGetterAndDependencyWithDependencyId = "user__1__quoted_uppercase_name",
 
-      dpWithDependentId = "user__1__#bio",
-      dpWithGetterAndDependencyId = "user__1__#uppercase_bio",
+      dpWithDependentId = "user__1__bio",
+      dpWithGetterAndDependencyId = "user__1__uppercase_bio",
 
-      dpWithGetterId = "user__1__#type",
-      dpWithGetterUsingParentId = "user__1__#app_name",
+      dpWithGetterId = "user__1__type",
+      dpWithGetterUsingParentId = "user__1__app_name",
 
       datapointIds = [simpleDatapointId, dpWithDependentWithDependentId, dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithDependentId, dpWithGetterAndDependencyId, dpWithGetterId, dpWithGetterUsingParentId],
       datapointsWithGetterIds = [dpWithGetterAndDependencyAndDependentId, dpWithGetterAndDependencyWithDependencyId, dpWithGetterAndDependencyId, dpWithGetterId, dpWithGetterUsingParentId],
@@ -126,17 +126,17 @@ const DatapointCache = require("../../datapoint-cache");
 
       datapoints = {},
       expectedValues = {
-        "app__1__#name": "1 app name",
+        "app__1__name": "1 app name",
 
-        "user__1__#name": "1 user name",
-        "user__1__#uppercase_name": "1 USER NAME",
-        "user__1__#quoted_uppercase_name": "\"1 USER NAME\"",
+        "user__1__name": "1 user name",
+        "user__1__uppercase_name": "1 USER NAME",
+        "user__1__quoted_uppercase_name": "\"1 USER NAME\"",
 
-        "user__1__#bio": "1 user bio",
-        "user__1__#uppercase_bio": "1 USER BIO",
+        "user__1__bio": "1 user bio",
+        "user__1__uppercase_bio": "1 USER BIO",
 
-        "user__1__#type": "?",
-        "user__1__#app_name": "app is 1 app name"
+        "user__1__type": "?",
+        "user__1__app_name": "app is 1 app name"
       },
       baseCallbackKey = "a",
       callbackKeys = {},
@@ -394,8 +394,8 @@ const DatapointCache = require("../../datapoint-cache");
     })
 
     const newValues = {
-      "app__1__#name": "1 app new name",
-      "user__1__#app_name": "app is 1 app new name"
+      "app__1__name": "1 app new name",
+      "user__1__app_name": "app is 1 app new name"
     }
 
     //     "updateValue", 

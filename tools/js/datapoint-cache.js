@@ -30,6 +30,8 @@ class Datapoint {
   }) {
     const datapoint = this;
 
+    console.log(`creating datapoint ${datapointId}`)
+
     cache.datapointsById[datapointId] = datapoint;
 
     Object.assign(datapoint, ConvertIds.decomposeId({
@@ -435,6 +437,7 @@ class Datapoint {
   }
 
   forget() {
+    console.log(`forgetting datapoint ${this.datapointId}`)
     const datapoint = this,
       {
         cache

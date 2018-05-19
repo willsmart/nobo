@@ -285,7 +285,6 @@ class PostgresqlConnection {
               })
               .filter(value => value !== undefined);
 
-            if (!values.length) return;
             let ret = {};
             ret[outputKey] = values;
             return ret;

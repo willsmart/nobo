@@ -20,11 +20,11 @@ const DatapointCache = require("../../datapoint-cache");
     const datapointCache = new DatapointCache(rig)
 
     const datapointIds = {
-      name: 'app__1__#name',
-      appDom: 'app__1__#dom',
-      appTemplate: 'app__1__#template',
-      templateDom: 'template__1__#dom',
-      appDomWithVariant: 'app__1__#dom_variant',
+      name: 'app__1__name',
+      appDom: 'app__1__dom',
+      appTemplate: 'app__1__template',
+      templateDom: 'template__1__dom',
+      appDomWithVariant: 'app__1__dom_variant',
     }
     const expectedValues = {
       name: '1 app name',

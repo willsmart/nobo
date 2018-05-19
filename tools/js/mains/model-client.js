@@ -5,6 +5,7 @@ const WebSocketClient = require("../web-socket-client");
 const fs = require("fs");
 const rl = require("readline");
 const processArgs = require("../general/process-args");
+const ConvertIds = require("../convert-ids");
 
 var rlInterface = rl.createInterface({
   input: process.stdin,
@@ -33,6 +34,19 @@ var rlInterface = rl.createInterface({
   })
 
   rlInterface.on('line', (message) => {
+    if (ConvertIds.datapointRegex.test(message)) {
+      message = JSON.stringify({
+        datapoints: {
+          [message]: 1
+        }
+      })
+    } else if (message.startsWith('x ') && ConvertIds.datapointRegex.test(message.substring(2))) {
+      message = JSON.stringify({
+        datapoints: {
+          [message.substring(2)]: 0
+        }
+      })
+    }
     wsclient.sendMessage({
       message
     })
@@ -42,6 +56,6 @@ var rlInterface = rl.createInterface({
 
 /*
 
-{"datapoints":{"user__1__#bio":1}}
+{"datapoints":{"user__1__bio":1}}
 
 */

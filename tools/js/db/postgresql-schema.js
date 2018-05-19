@@ -78,7 +78,7 @@ function sqlFieldForField_noCache(field) {
   };
   if (field.isId) {
     if (field.isVirtual) {
-      ret.sqlName = "~" + ret.sqlName;
+      ret.sqlName = ret.sqlName;
       ret.isVirtual = true;
     } else {
       ret.sqlName += "_id";
@@ -405,7 +405,7 @@ DROP FUNCTION "` +
           IF latest_model_change_id > OLD.model_change_id THEN
 
             IF latest_model_change_id - OLD.model_change_id < 400 THEN
-              SELECT '[' || string_agg('"' || type || '__' || row_id || '__#' || field || '"', ',') || ']' INTO payload FROM model_change_log where id > OLD.model_change_id AND id <= latest_model_change_id;
+              SELECT '[' || string_agg('"' || type || '__' || row_id || '__' || field || '"', ',') || ']' INTO payload FROM model_change_log where id > OLD.model_change_id AND id <= latest_model_change_id;
             ELSE
               payload = '{"from_change_id": ' ||  (OLD.model_change_id + 1) || ', "to_change_id": ' || latest_model_change_id || '}';
             END IF;

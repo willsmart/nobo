@@ -42,14 +42,10 @@ class WSClientDatapoints {
       onclose: () => clientDatapoints.close(),
       onpayload: (args) => clientDatapoints.handlePayload(args),
     })
-
-    clientDatapoints.subscribe({
-      datapointId: 'user__1__#bio'
-    })
   }
 
   get callbackKey() {
-    `${callbackKey}_${this.index}`
+    return `${callbackKey}_${this.index}`
   }
 
   close() {
@@ -111,6 +107,7 @@ class WSClientDatapoints {
     datapoint.stopWatching({
       callbackKey: clientDatapoints.callbackKey,
     })
+    serverDatapoints.releaseRefForDatapoint(datapoint)
   }
 
   queueSendDiff(datapoint) {
