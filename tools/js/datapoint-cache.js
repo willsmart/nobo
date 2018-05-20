@@ -44,7 +44,9 @@ class Datapoint {
     if (field && field.get) {
       datapoint.setupDependencyFields();
     }
-    datapoint.invalidate();
+    datapoint.invalidate({
+      queueValidationJob: true
+    });
   }
 
   get valueIfAny() {

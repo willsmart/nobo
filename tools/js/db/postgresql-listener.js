@@ -40,6 +40,7 @@ class PostgresqlListener {
           changes = JSON.parse(changes);
           if (Array.isArray(changes)) {
             changes.forEach(datapointId => {
+              if (datapointId.endsWith('_id')) datapointId = datapointId.substring(0, datapointId.length - 3)
               const datapoint = cache.getExistingDatapoint({
                 datapointId
               })
