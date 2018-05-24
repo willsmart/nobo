@@ -108,6 +108,7 @@ class SharedState {
     if (!diff) return;
 
     const changes = sharedState.changeListFromDiff(diff, fromState, toState);
+
     const forEachChangedKeyPath = (callback) => {
       let keyPath = []
       for (const change of changes) {
@@ -118,7 +119,79 @@ class SharedState {
         if (change.index != undefined) {
           keyPath.push(change.index)
         }
-        callback(keyPath, change)
+        if (callback(keyPath, change)) {
+          switch (change.type) {
+            case "delete":
+              if (Array.isArray(change.was)) forEachDeletedArrayElement(depth, keyPath, change.was, callback);
+              else if (typeof (change.was) == 'object') forEachDeletedObjectElement(depth, keyPath, change.was, callback);
+              break;
+            case "insert":
+              if (Array.isArray(change.was)) forEachInsertedArrayElement(depth, keyPath, change.is, callback);
+              else if (typeof (change.was) == 'object') forEachInsertedObjectElement(depth, keyPath, change.is, callback);
+              break;
+          }
+        }
+
+      }
+
+      function forEachDeletedArrayElement(depth, keyPath, array, callback) {
+        keyPath.push(0)
+        depth++;
+        for (let index = array.length - 1; index >= 0; index--) {
+          keyPath[keyPath.length - 1] = index
+          callback(keyPath, {
+            type: 'delete',
+            depth,
+            index,
+            was: array[index]
+          })
+        }
+        keyPath.pop()
+      }
+
+      function forEachInsertedArrayElement(depth, keyPath, array, callback) {
+        keyPath.push(0)
+        depth++;
+        for (let index = 0; index < array.length; index++) {
+          keyPath[keyPath.length - 1] = index
+          callback(keyPath, {
+            type: 'insert',
+            depth,
+            index,
+            is: array[index]
+          })
+        }
+        keyPath.pop()
+      }
+
+      function forEachDeletedObjectElement(depth, keyPath, object, callback) {
+        keyPath.push(0)
+        depth++;
+        for (const [key, value] of Object.entries(object)) {
+          keyPath[keyPath.length - 1] = key
+          callback(keyPath, {
+            type: 'delete',
+            depth,
+            key,
+            was: value
+          })
+        }
+        keyPath.pop()
+      }
+
+      function forEachInsertedObjectElement(depth, keyPath, object, callback) {
+        keyPath.push(0)
+        depth++;
+        for (const [key, value] of Object.entries(object)) {
+          keyPath[keyPath.length - 1] = key
+          callback(keyPath, {
+            type: 'insert',
+            depth,
+            key,
+            is: value
+          })
+        }
+        keyPath.pop()
       }
     }
 
@@ -138,6 +211,7 @@ class SharedState {
     if (!depth) {
       retChanges.push({
         depth: -1,
+        type: 'change',
         was,
         is
       })
@@ -152,6 +226,7 @@ class SharedState {
 
         retChanges.push({
           depth,
+          type: (wasChild === undefined ? 'insert' : (isChild === undefined ? 'delete' : 'change')),
           key,
           was: wasChild,
           is: isChild
@@ -183,6 +258,7 @@ class SharedState {
 
           retChanges.push({
             depth,
+            type: 'change',
             index: isIndex,
             was: wasChild,
             is: isChild
@@ -200,6 +276,7 @@ class SharedState {
 
           retChanges.push({
             depth,
+            type: 'delete',
             index: childDiff.deleteAt,
             was: wasChild
           });
@@ -211,6 +288,7 @@ class SharedState {
 
           retChanges.push({
             depth,
+            type: 'insert',
             index: childDiff.insertAt,
             is: isChild,
           });

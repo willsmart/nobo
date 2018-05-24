@@ -20,45 +20,25 @@ class WSClientDatapoints {
     const clientDatapoints = this
 
     SharedState.global.watch({
-      callbackKey,
+      callbackKey: 'manage-subscriptions',
       onchangedstate: (diff, changes, forEachChangedKeyPath) => {
         let payloadObject
 
         if (!clientDatapoints.wsclient) return;
 
         forEachChangedKeyPath((keyPath, change) => {
-          if (keyPath.length == 2 && keyPath[0] == 'subscriptions' && ConvertIds.datapointRegex.test(keyPath[1])) {
-            if (change.was) {
-              if (!change.is) {
-                if (!payloadObject) payloadObject = {}
-                if (!payloadObject.datapoints) payloadObject.datapoints = {}
+          if (keyPath.length == 1 && keyPath[0] == 'datapointsById') return true;
+
+          if (keyPath.length == 2 && keyPath[0] == 'datapointsById' && ConvertIds.datapointRegex.test(keyPath[1])) {
+            if (!payloadObject) payloadObject = {}
+            if (!payloadObject.datapoints) payloadObject.datapoints = {}
+            switch (change.type) {
+              case 'delete':
                 payloadObject.datapoints[keyPath[1]] = 0
-              }
-            } else if (change.is) {
-              if (!payloadObject) payloadObject = {}
-              if (!payloadObject.datapoints) payloadObject.datapoints = {}
-              payloadObject.datapoints[keyPath[1]] = 1
-            }
-          }
-          if (keyPath.length == 1 && keyPath[0] == 'subscriptions') {
-            if (change.was) {
-              if (!change.is) {
-                if (!payloadObject) payloadObject = {}
-                if (!payloadObject.datapoints) payloadObject.datapoints = {}
-                for (const datapointId of Object.keys(change.was)) {
-                  if (ConvertIds.datapointRegex.test(datapointId)) {
-                    payloadObject.datapoints[keyPath[1]] = 0
-                  }
-                }
-              }
-            } else if (change.is) {
-              if (!payloadObject) payloadObject = {}
-              if (!payloadObject.datapoints) payloadObject.datapoints = {}
-              for (const datapointId of Object.keys(change.is)) {
-                if (ConvertIds.datapointRegex.test(datapointId)) {
-                  payloadObject.datapoints[keyPath[1]] = 1
-                }
-              }
+                break;
+              case 'insert':
+                payloadObject.datapoints[keyPath[1]] = 1
+                break;
             }
           }
         })
@@ -68,6 +48,54 @@ class WSClientDatapoints {
             payloadObject
           })
         }
+      }
+    })
+
+    SharedState.global.watch({
+      callbackKey: 'adjust-divs',
+      onchangedstate: (diff, changes, forEachChangedKeyPath) => {
+        let payloadObject
+
+        forEachChangedKeyPath((keyPath, change) => {
+          if (!keyPath.length || keyPath[0] != 'datapointsById') return;
+          if (keyPath.length <= 2 || !ConvertIds.datapointRegex.test(keyPath[1])) return true;
+
+          const datapointId = keyPath[1];
+
+          if (keyPath.length == 3) {
+            if (Array.isArray(change.is)) return true
+
+            clientDatapoints.updateFieldValue({
+              datapointId,
+              field: keyPath[2],
+              was: change.was,
+              is: change.is
+            })
+          } else if (keyPath.length == 4 && typeof (keyPath[3]) == 'number') {
+            const
+              wasRowId = (typeof (change.was) == 'string' && ConvertIds.rowRegex.test(change.was) ? change.was : undefined),
+              isRowId = (typeof (change.is) == 'string' && ConvertIds.rowRegex.test(change.is) ? change.is : undefined)
+
+            if (wasRowId == isRowId) return;
+
+            if (change.type == 'change' || change.type == 'delete') {
+              clientDatapoints.deleteDOMChild({
+                datapointId,
+                field: keyPath[2],
+                index: keyPath[3],
+                rowId: wasRowId
+              })
+            }
+            if (change.type == 'change' || change.type == 'insert') {
+              clientDatapoints.insertDOMChild({
+                datapointId,
+                field: keyPath[2],
+                index: keyPath[3],
+                rowId: isRowId
+              })
+            }
+          }
+        })
       }
     })
 
@@ -82,7 +110,6 @@ class WSClientDatapoints {
         messageType,
         payloadObject
       }) => {
-        const nonsubscribedDiffs = {}
         if (payloadObject.diffs) {
           SharedState.requestCommit(state => {
             for (const [datapointId, diff] of Object.entries(payloadObject.diffs)) {
@@ -120,6 +147,19 @@ class WSClientDatapoints {
       }
     })
   }
+
+  subscribe({
+    datapointIds
+  }) {
+    if (!Array.isArray(datapointIds)) datapointIds = Object.keys(datapointIds);
+    if (!datapoints.length) return;
+    const datapointsById = {}
+    for (const datapointId of datapointIds) datapointsById[datapointId] = 1;
+    clientDatapoints.wsclient.sendPayload({
+      datapoints: datapointsById
+    })
+  }
+
 }
 
 
