@@ -1,7 +1,7 @@
 // model_server
 // © Will Smart 2018. Licence: MIT
 
-const WebSocketClient = require("../web-socket-client");
+const WebSocketClient = require("./web-socket-client");
 const fs = require("fs");
 const rl = require("readline");
 const processArgs = require("../general/process-args");

@@ -337,7 +337,9 @@ class WSServerDatapoints {
       try {
         clientDatapoints.sendPayload({
           messageType: "Models",
-          payloadObject: diffByDatapointId
+          payloadObject: {
+            diffs: diffByDatapointId
+          }
         });
       } catch (err) {
         console.log(err);

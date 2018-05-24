@@ -1,15 +1,15 @@
 const WebSocket = require("isomorphic-ws");
-const ConvertIds = require("./convert-ids");
-const PublicApi = require("./general/public-api");
-const makeClassWatchable = require("./general/watchable");
-const ServerDatapoints = require("./server-datapoints");
+const ConvertIds = require("../convert-ids");
+const PublicApi = require("../general/public-api");
+const makeClassWatchable = require("../general/watchable");
+const ServerDatapoints = require("../server-datapoints");
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class WebSocketClient {
   // public methods
   static publicMethods() {
-    return ["sendMessage", "sendPayload", "watch", "stopWatching"];
+    return ["sendMessage", "sendPayload", "isOpen", "watch", "stopWatching"];
   }
 
   constructor({
@@ -17,6 +17,7 @@ class WebSocketClient {
   } = {}) {
     const client = this;
 
+    client._isOpen = false
     client.nextMessageIndex = 1
     client.clientParams = {
       port: port
@@ -28,6 +29,7 @@ class WebSocketClient {
       });
 
       ws.onopen = function open() {
+        client._isOpen = true
         client.notifyListeners('onopen')
 
         client.pongHistory = [0, 0, 0, 1],
@@ -36,6 +38,7 @@ class WebSocketClient {
       };
 
       ws.onclose = function close() {
+        client._isOpen = false
         client.notifyListeners('onclose')
         setTimeout(() => open(), 2000)
       };
@@ -72,6 +75,10 @@ class WebSocketClient {
 
 
     console.log(`Web socket client listening to server on port ${port}`);
+  }
+
+  get isOpen() {
+    return this._isOpen
   }
 
   static decodeMessage({
@@ -123,6 +130,8 @@ class WebSocketClient {
     payloadObject
   }) {
     const client = this;
+
+    if (!client.isOpen) return;
 
     if (messageIndex == -1 && !messageType) messageIndex = client.nextMessageIndex++;
     const message = `${messageIndex==-1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`}${JSON.stringify(payloadObject)}`
