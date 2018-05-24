@@ -24,9 +24,7 @@ class WebSocketClient {
     };
 
     function open() {
-      const ws = client.ws = new WebSocket(`ws://localhost:${port}`, {
-        origin: 'https://websocket.org'
-      });
+      const ws = client.ws = new WebSocket(`ws://localhost:${port}`);
 
       ws.onopen = function open() {
         client._isOpen = true
@@ -38,19 +36,20 @@ class WebSocketClient {
       };
 
       ws.onclose = function close() {
+        clearInterval(ws.pingInterval);
         client._isOpen = false
         client.notifyListeners('onclose')
         setTimeout(() => open(), 2000)
       };
 
-      ws.on("pong", () => {
-        client.pongHistory[client.pongHistory.length - 1]++;
-        client.pongCount++;
-      });
+      if (ws.on) {
+        ws.on("pong", () => {
+          ws.pongHistory[ws.pongHistory.length - 1]++;
+          ws.pongCount++;
+        });
+      }
 
       ws.onmessage = function incoming(message) {
-        console.log("Received message from server:   " + message);
-
         client.notifyListeners('onpayload', WebSocketClient.decodeMessage({
           message: message.data
         }))
@@ -59,20 +58,21 @@ class WebSocketClient {
       ws.onerror = (err) => {
         console.log(`Error: ${err.message}`);
       }
+
+      if (ws.ping) {
+        ws.pingInterval = setInterval(function ping() {
+          if (!ws.pongCount) {
+            return ws.close();
+          }
+
+          ws.pongHistory.push(0);
+          clwsient.pongCount -= ws.pongHistory.shift()
+
+          ws.ping("", false, true);
+        }, 10000);
+      }
     }
     open()
-
-    const interval = setInterval(function ping() {
-      if (!client.pongCount) {
-        return client.ws.close();
-      }
-
-      client.pongHistory.push(0);
-      client.pongCount -= client.pongHistory.shift()
-
-      client.ws.ping("", false, true);
-    }, 10000);
-
 
     console.log(`Web socket client listening to server on port ${port}`);
   }
@@ -85,8 +85,8 @@ class WebSocketClient {
     message
   }) {
     const matches = /^(?:(\d+)|(\w+)):/.exec(message),
-      messageIndex = matches ? +matches[1] : -1,
-      messageType = matches ? matches[2] : undefined;
+      messageIndex = matches && matches[1] !== undefined ? +matches[1] : -1,
+      messageType = matches && matches[2] !== undefined ? matches[2] : undefined;
     if (matches) message = message.substring(matches[0].length);
 
     let payloadObject

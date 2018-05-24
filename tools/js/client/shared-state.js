@@ -1,6 +1,10 @@
 const PublicApi = require("../general/public-api");
 const makeClassWatchable = require("../general/watchable");
 const diffAny = require("../general/diff")
+const {
+  shallowCopy,
+  shallowCopyObjectIfSame
+} = require("../general/clone")
 
 // API is auto-generated at the bottom from the public interface of the SharedState class
 
@@ -47,7 +51,7 @@ const TemporaryState_public = PublicApi({
 
 
 
-let globalSharedState = {};
+let globalSharedState;
 
 class SharedState {
   static publicMethods() {
@@ -80,14 +84,13 @@ class SharedState {
     const sharedState = this
 
     sharedState.commitPromise = sharedState.commitPromise.then(() => {
-      fromState = sharedState.state,
-        temporaryState = new TemporaryState({
-          fromState
-        })
+      const temporaryState = new TemporaryState({
+        fromState: sharedState.state
+      })
 
       modifyStateCallback(temporaryState);
 
-      commit({
+      sharedState.commit({
         toState: temporaryState.state
       })
     })
@@ -107,7 +110,7 @@ class SharedState {
     const changes = sharedState.changeListFromDiff(diff, fromState, toState);
     const forEachChangedKeyPath = (callback) => {
       let keyPath = []
-      for (const change in changes) {
+      for (const change of changes) {
         if (change.depth < keyPath.length) keyPath.splice(change.depth, keyPath.length - change.depth);
         if (change.key != undefined) {
           keyPath.push(change.key)
@@ -119,15 +122,17 @@ class SharedState {
       }
     }
 
-    stateInfo.notifyListeners("onwillchangesate", diff, changes, forEachChangedKeyPath);
+    sharedState.notifyListeners("onwillchangesate", diff, changes, forEachChangedKeyPath);
     sharedState._state = toState;
-    stateInfo.notifyListeners("onchangedstate", diff, changes, forEachChangedKeyPath);
+    sharedState.notifyListeners("onchangedstate", diff, changes, forEachChangedKeyPath);
 
     return toState
   }
 
   changeListFromDiff(diff, was, is, retChanges, depth) {
     if (!diff) return retChanges;
+
+    depth = depth || 0
 
     retChanges = retChanges || []
     if (!depth) {
@@ -138,21 +143,12 @@ class SharedState {
       })
     }
 
-    const stateInfo = this;
+    const sharedState = this;
 
     if (diff.objectDiff) {
       for (const [key, childDiff] of Object.entries(diff.objectDiff)) {
         const wasChild = typeof was == "object" && !Array.isArray(was) ? was[key] : undefined,
           isChild = typeof is == "object" && !Array.isArray(is) ? is[key] : undefined
-
-        if (childDiff === undefined) {
-          retChanges.push({
-            depth,
-            key,
-            wasChild
-          });
-          continue
-        }
 
         retChanges.push({
           depth,
@@ -160,7 +156,12 @@ class SharedState {
           was: wasChild,
           is: isChild
         });
-        stateInfo.changeListFromDiff(
+
+        if (isChild === undefined || wasChild === undefined) {
+          continue
+        }
+
+        sharedState.changeListFromDiff(
           childDiff,
           wasChild,
           isChild,
@@ -186,7 +187,7 @@ class SharedState {
             was: wasChild,
             is: isChild
           });
-          stateInfo.changeListFromDiff(
+          sharedState.changeListFromDiff(
             childDiff,
             wasChild,
             isChild,

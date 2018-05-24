@@ -1,16 +1,10 @@
-const PublicApi = require("./general/public-api");
+const PublicApi = require("../general/public-api");
 
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
 
 const WebSocketClient = require("./web-socket-client");
 const ConvertIds = require("../convert-ids");
-const State = require("./client-state");
-
-var rlInterface = rl.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-  terminal: false
-});
+const SharedState = require("./shared-state");
 
 const callbackKey = 'ClientDatapoints'
 
@@ -28,29 +22,50 @@ class WSClientDatapoints {
     SharedState.global.watch({
       callbackKey,
       onchangedstate: (diff, changes, forEachChangedKeyPath) => {
-        let message
+        let payloadObject
 
         if (!clientDatapoints.wsclient) return;
 
         forEachChangedKeyPath((keyPath, change) => {
           if (keyPath.length == 2 && keyPath[0] == 'subscriptions' && ConvertIds.datapointRegex.test(keyPath[1])) {
-            if (change.hasOwnProperty('was')) {
-              if (!change.hasOwnProperty('is')) {
-                if (!message) message = {}
-                if (!message.datapoints) message.datapoints = {}
-                message.datapoints[keyPath[1]] = 0
+            if (change.was) {
+              if (!change.is) {
+                if (!payloadObject) payloadObject = {}
+                if (!payloadObject.datapoints) payloadObject.datapoints = {}
+                payloadObject.datapoints[keyPath[1]] = 0
               }
-            } else if (change.hasOwnProperty('is')) {
-              if (!message) message = {}
-              if (!message.datapoints) message.datapoints = {}
-              message.datapoints[keyPath[1]] = 1
+            } else if (change.is) {
+              if (!payloadObject) payloadObject = {}
+              if (!payloadObject.datapoints) payloadObject.datapoints = {}
+              payloadObject.datapoints[keyPath[1]] = 1
+            }
+          }
+          if (keyPath.length == 1 && keyPath[0] == 'subscriptions') {
+            if (change.was) {
+              if (!change.is) {
+                if (!payloadObject) payloadObject = {}
+                if (!payloadObject.datapoints) payloadObject.datapoints = {}
+                for (const datapointId of Object.keys(change.was)) {
+                  if (ConvertIds.datapointRegex.test(datapointId)) {
+                    payloadObject.datapoints[keyPath[1]] = 0
+                  }
+                }
+              }
+            } else if (change.is) {
+              if (!payloadObject) payloadObject = {}
+              if (!payloadObject.datapoints) payloadObject.datapoints = {}
+              for (const datapointId of Object.keys(change.is)) {
+                if (ConvertIds.datapointRegex.test(datapointId)) {
+                  payloadObject.datapoints[keyPath[1]] = 1
+                }
+              }
             }
           }
         })
 
-        if (message) {
-          clientDatapoints.wsclient.sendMessage({
-            message
+        if (payloadObject) {
+          clientDatapoints.wsclient.sendPayload({
+            payloadObject
           })
         }
       }
@@ -70,7 +85,7 @@ class WSClientDatapoints {
         const nonsubscribedDiffs = {}
         if (payloadObject.diffs) {
           SharedState.requestCommit(state => {
-            for (const [datapointId, diff] of payloadObject.diffs) {
+            for (const [datapointId, diff] of Object.entries(payloadObject.diffs)) {
               state.atPath('datapointsById')[datapointId] = diff
               // TODO...
               // const datapoint = state.atPath('datapointsById', datapointId)
@@ -87,19 +102,19 @@ class WSClientDatapoints {
           subscriptions = state.subscriptions;
         if (!subscriptions) return;
 
-        let message
+        let payloadObject
 
         for (const datapointId of Object.keys(subscriptions)) {
           if (ConvertIds.datapointRegex.test(datapointId)) {
-            if (!message) message = {}
-            if (!message.datapoints) message.datapoints = {}
-            message.datapoints[datapointId] = 1
+            if (!payloadObject) payloadObject = {}
+            if (!payloadObject.datapoints) payloadObject.datapoints = {}
+            payloadObject.datapoints[datapointId] = 1
           }
         }
 
-        if (message) {
-          clientDatapoints.wsclient.sendMessage({
-            message
+        if (payloadObject) {
+          clientDatapoints.wsclient.sendPayload({
+            payloadObject
           })
         }
       }
@@ -110,6 +125,6 @@ class WSClientDatapoints {
 
 // API is the public facing class
 module.exports = PublicApi({
-  fromClass: WSServerDatapoints,
+  fromClass: WSClientDatapoints,
   hasExposedBackDoor: true
 });

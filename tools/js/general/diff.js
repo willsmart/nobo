@@ -5,7 +5,7 @@
 // It is used by the SharedState module.
 // output is a fairly custom format
 //  for example
-// diff({a:1,b:[2,1]},{b:[1],c:2}) 
+// diffAny({a:1,b:[2,1]},{b:[1],c:2}) 
 // == 
 // {
 //   objectDiff: {
@@ -21,11 +21,11 @@
 
 
 // API is the function. Use via
-//   const diff = require(pathToDiff)
+//   const diffAny = require(pathToDiff)
 
-module.exports = diff;
+module.exports = diffAny;
 
-function diff(was, is) {
+function diffAny(was, is) {
   if (was === is) return;
   if (Array.isArray(is)) return diffArray(Array.isArray(was) ? was : undefined, is);
   if (typeof is == "object") return diffObject(typeof was == "object" ? was : undefined, is);
@@ -47,7 +47,7 @@ function diffObject(was, is) {
         }
         const wasChild = was[key],
           isChild = is[key],
-          diffChild = diff(wasChild, isChild);
+          diffChild = diffAny(wasChild, isChild);
 
         if (diffChild) {
           if (!diff) diff = {};
@@ -80,7 +80,7 @@ function diffArray(was, is) {
   for (index = 0; index < was.length && index < is.length; index++) {
     const wasChild = was[index],
       isChild = is[index],
-      diffChild = diff(wasChild, isChild);
+      diffChild = diffAny(wasChild, isChild);
 
     if (diffChild) {
       if (!diff) diff = {
@@ -93,7 +93,7 @@ function diffArray(was, is) {
   }
   for (index = 0; index < was.length; index++) {
     const wasChild = was[index],
-      diffChild = diff(wasChild);
+      diffChild = diffAny(wasChild);
 
     if (diffChild) {
       if (!diff) diff = {

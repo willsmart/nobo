@@ -3,4 +3,4 @@
 DIR=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 cd "$DIR"
 
-browserify model-client.js -o bundles/model-client.js
+browserify client.js -o bundles/client.js
