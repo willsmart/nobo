@@ -177,8 +177,14 @@ class Templates {
       node.datapoint.setVirtualField({
         isId: true,
         isMultiple: false,
-        getterFunction: () => node.template ? [node.template.rowId] : []
+        getterFunction: () => {
+          return node.template ? [node.template.rowId] : []
+        }
       })
+      node.datapoint.invalidate({
+        queueValidationJob: true
+      })
+      node.callbackKey = node.datapoint.watch({})
       return node
     }
 
