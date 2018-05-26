@@ -4,7 +4,100 @@ const PublicApi = require("../general/public-api");
 
 const SharedState = require("./shared-state");
 
-const callbackKey = 'ClientDom'
+const callbackKey = "ClientDom";
+
+function datapointChildrenClass(datapointId) {
+  return `${datapointId}__children`;
+}
+
+function datapointFieldClass(datapointId) {
+  return `${datapointId}__field`;
+}
+
+function datapointTemplateFieldClass(datapointId) {
+  return `${datapointId}__template`;
+}
+
+function datapointDomFieldClass(datapointId) {
+  return `${datapointId}__dom`;
+}
+
+function childrenPlaceholders(datapointId) {
+  return document.getElementsByClassName(datapointChildrenClass(datapointId));
+}
+function datapointFieldElements(datapointId) {
+  return document.getElementsByClassName(datapointFieldClass(datapointId));
+}
+function datapointTemplateElements(datapointId) {
+  return document.getElementsByClassName(datapointTemplateClass(datapointId));
+}
+function datapointDomElements(datapointId) {
+  return document.getElementsByClassName(datapointDomClass(datapointId));
+}
+
+function elementChildrenFieldName(element) {
+  for (const className of element.classList) {
+    const match = /^(\w+)-model-child$/.exec(className);
+    if (match) return ChangeCase.camelCase(match[1]);
+  }
+}
+
+function htmlToElement(html) {
+  var template = document.createElement("template");
+  template.innerHTML = html.trim();
+  return template.content.firstChild;
+}
+
+function nextChild(placeholderUid, previousChildElement) {
+  return _nextChild(placeholderUid, [previousChildElement]);
+}
+
+function skipAllChildren(placeholderUid, previousChildElement) {
+  return _skipAllChildren(placeholderUid, [previousChildElement]);
+}
+
+function skipChildren(placeholderUid, previousChildElement, count) {
+  return _skipChildren(placeholderUid, [previousChildElement], count);
+}
+
+function _nextChild(placeholderUid, currentChildElementArray) {
+  const previousChildElement = currentChildElementArray[0],
+    previousChildUid = previousChildElement.getAttribute("nobouid");
+  let element = previousChildElement.nextElement;
+  currentChildElementArray[1] = previousChildElement;
+  currentChildElementArray[0] = element;
+  if (element && element.getAttribute("placeholderuid") == placeholderUid) return element;
+
+  if (!previousChildUid || element.getAttribute("placeholderuid") != previousChildUid) return;
+  element = _skipAllChildren(previousChildUid, currentChildElementArray);
+
+  return element && element.getAttribute("placeholderuid") == placeholderUid ? element : undefined;
+}
+
+function _skipAllChildren(placeholderUid, currentChildElementArray) {
+  while (_nextChild(placeholderUid, currentChildElementArray));
+  return currentChildElementArray[0];
+}
+
+function _skipChildren(placeholderUid, currentChildElementArray, count) {
+  for (let index = 0; index < count; index++) {
+    if (!_nextChild(placeholderUid, currentChildElementArray)) return;
+  }
+  return currentChildElementArray[0];
+}
+
+function childRangeAtIndex({ placeholderDiv, index }) {
+  if (index < 0) return placeholderDiv;
+  const placeholderUid = placeholderDiv.getAttribute("nobouid"),
+    firstElement = placeholderDiv.nextElement;
+
+  if (!firstElement || element.getAttribute("placeholderuid") != placeholderUid) return [];
+  const startElement = skipChildren(placeholderUid, element, index);
+  if (!startElement) return [];
+  const currentChildElementArray = [startElement];
+  _nextChild(placeholderUid, element, index);
+  return [startElement, currentChildElementArray[1]];
+}
 
 class ClientDom {
   // public methods
@@ -12,342 +105,269 @@ class ClientDom {
     return [];
   }
 
-  constructor({
-    clientDatapoints
-  }) {
-    const clientDom = this
+  constructor({ clientDatapoints }) {
+    const clientDom = this;
 
     clientDom.clientDatapoints = clientDatapoints;
 
-    clientDom.nextUid = 1
+    clientDom.nextUid = 1;
 
     SharedState.global.watch({
-      callbackKey: 'adjust-divs',
-      onchangedstate: (diff, changes, forEachChangedKeyPath) => {
-        let payloadObject
+      callbackKey: "adjust-divs",
+      onchangedstate: (diff, changes, forEachChangedKeyPath, fromState, toState) => {
+        const datapointsById = toState.datapointsById || {};
 
-        let subscribe = {}
+        let payloadObject;
+
+        const subscribe = {},
+          getDatapoint = datapointId => {
+            if (datapointsById[datapointId]) return datapointsById[datapointId];
+            subscribe[datapointId] = true;
+          };
 
         forEachChangedKeyPath((keyPath, change) => {
-          if (!keyPath.length || keyPath[0] != 'datapointsById') return;
+          if (!keyPath.length || keyPath[0] != "datapointsById") return;
           if (keyPath.length == 1) return true;
           const datapointId = keyPath[1];
           if (!ConvertIds.datapointRegex.test(datapointId)) return;
 
           if (keyPath.length == 2) {
-            if (Array.isArray(change.is)) return true
+            if (Array.isArray(change.is)) return true;
 
             clientDom.updateFieldValue({
               datapointId,
               was: change.was,
               is: change.is
-            })
-          } else if (keyPath.length == 3 && typeof (keyPath[3]) == 'number') {
-            const
-              wasRowId = (typeof (change.was) == 'string' && ConvertIds.rowRegex.test(change.was) ? change.was : undefined),
-              isRowId = (typeof (change.is) == 'string' && ConvertIds.rowRegex.test(change.is) ? change.is : undefined)
+            });
+          } else if (keyPath.length == 3 && typeof keyPath[3] == "number") {
+            const wasRowId =
+                typeof change.was == "string" && ConvertIds.rowRegex.test(change.was) ? change.was : undefined,
+              isRowId = typeof change.is == "string" && ConvertIds.rowRegex.test(change.is) ? change.is : undefined;
 
             if (wasRowId == isRowId) return;
 
-            if (change.type == 'change' || change.type == 'delete') {
+            if (change.type == "change" || change.type == "delete") {
               clientDom.deleteDOMChild({
                 datapointId,
                 index: keyPath[2],
                 rowId: wasRowId
-              })
+              });
             }
-            if (change.type == 'change' || change.type == 'insert') {
+            if (change.type == "change" || change.type == "insert") {
               clientDom.insertDOMChild({
                 datapointId,
                 index: keyPath[2],
                 rowId: isRowId,
-                subscribe
-              })
+                getDatapoint
+              });
+            }
+            if (change.type == "change") {
+              clientDom.replaceDOMChild({
+                datapointId,
+                index: keyPath[2],
+                rowId: isRowId,
+                getDatapoint
+              });
             }
           }
-        })
+        });
 
-        if (Object.keys(subscribe).length) clientDatapoints.subscribe(subscribe)
+        if (Object.keys(subscribe).length) clientDatapoints.subscribe(subscribe);
       }
-    })
+    });
   }
 
-  classForDatapointChildPlaceholder({
-    datapointId
-  }) {
-    return `${datapointId}__children`
+  prepPage() {
+    const clientDom = this,
+      childrenDatapointId = "page";
+    for (const element of childrenPlaceholders(childrenDatapointId)) {
+      if (element.style.display && !element.style.getAttribute("nobo-style-display")) {
+        element.style.setAttribute("nobo-style-display", element.style.display);
+      }
+      element.style.display = "none";
+      const uid = clientDom.nextUid++;
+      element.setAttribute("nobouid", uid);
+    }
   }
 
-  classAsDatapointChild({
-    placeholderDiv
-  }) {
-    return `child_of_${placeholderDiv.id}`
-  }
-
-  getPlaceholderChildUids({
-    placeholderDiv
-  }) {
-    return placeholder.getAttribute('childuids').split(' ')
-  }
-
-  setPlaceholderChildUids({
-    placeholderDiv,
-    placeholderChildUids
-  }) {
-    return placeholder.setAttribute('childuids', placeholderChildUids.join(' '))
-  }
-
-  classForDatapointField({
-    datapointId,
-  }) {
-    return `${datapointId}__field`
-  }
-
-  classForDatapointTemplateField({
-    datapointId,
-  }) {
-    return `${datapointId}__template`
-  }
-
-  classForDatapointDomField({
-    datapointId,
-  }) {
-    return `${datapointId}__dom`
-  }
-
-  updateFieldValue({
-    datapointId,
-    was,
-    is
-  }) {}
-
-  findChildAtIndex({
-    placeholderDiv,
-    index
-  }) {
+  replaceDOMChild({ datapointId, index, rowId, getDatapoint }) {
     const clientDom = this;
 
-    if (index < -1) return;
-    if (index == -1) return placeholderDiv;
-
-    const classAsChild = clientDom.classAsDatapointChild({
-      placeholderDiv
-    })
-
-    function nextElement(div) {
-      for (div = div.nextElement; div && !div.classList.contains(classAsChild); div = div.nextElement);
-      return div;
-    }
-
-    let childElement = placeholderDiv;
-    for (let childIndex = -1; childIndex < index; childIndex++) childElement = nextElement(childElement);
-    return childElement;
+    clientDom.deleteDOMChild({ datapointId, index, rowId });
+    clientDom.insertDOMChild({ datapointId, index, rowId, getDatapoint });
   }
 
-  insertDOMChild({
-    parentDatapointId,
-    index,
-    rowId,
-    datapointsById,
-    subscribe
-  }) {
-    const clientDom = this
+  deleteDOMChild({ datapointId, index, rowId }) {
+    const clientDom = this;
 
-    const placeholderDivs = document.getElementsByClassName(clientDom.classForDatapointChildPlaceholder({
-      datapointId: parentDatapointId
-    }))
-    for (const placeholderDiv of placeholderDivs) {
-      clientDom.insertSpecificDOMChild({
-        placeholderDiv,
-        index,
-        rowId,
-        datapointsById,
-        subscribe
-      })
+    for (const placeholderDiv of childrenPlaceholders(datapointId)) {
+      const [startOfChild, endOfChild] = childRangeAtIndex({ placeholderDiv, index });
+      if (!startOfChild) continue;
+      while (true) {
+        const child = startOfChild;
+        startOfChild = startOfChild.nextElement;
+        child.parentElement.removeChild(child);
+        if (child === endOfChild) break;
+      }
     }
   }
 
-  insertSpecificDOMChild({
-    placeholderDiv,
-    index,
-    rowId,
-    datapointsById,
-    subscribe
-  }) {
-    const clientDom = this
+  insertDOMChild({ datapointId, index, rowId, getDatapoint }) {
+    const clientDom = this;
 
+    for (const placeholderDiv of childrenPlaceholders(datapointId)) {
+      const variant = placeholderDiv.getAttribute("variant"),
+        placeholderUid = placeholderDiv.getAttribute("nobouid");
 
-    let afterElement = clientDom.findChildAtIndex({
-      placeholderDiv,
-      index: index - 1
-    })
+      let [startOfChild, afterElement] = childRangeAtIndex({ placeholderDiv, index });
+      if (!afterElement) continue;
 
-    const
-      variant = placeholderDiv.getAttribute('variant'),
-      childElement = childElement.createChild({
-        rowId,
+      const childElements = createChildElements({
         variant,
-        datapointsById,
-        subscribe
-      })
-
-    afterElement.insertAdjacentElement('afterend', childElement)
-
-    return childElement
-  }
-
-  createChild({
-    rowId,
-    variant,
-    datapointsById,
-    subscribe
-  }) {
-    const
-      subscribe = {},
-      decomposedRowId = ConvertIds.decomposeId({
-          rowId
-        },
-        templateDatapointId = ConvertIds.recomposeId(Object.assign(decomposedRowId, {
-          variant: `template_${ChangeCase.snakeCase(variant)}`
-        }))).datapointId,
-      templateDatapoint = datapointsById[templateDatapointId];
-
-    let domDatapointId, dom
-
-    if (templateDatapoint === undefined) subscribe[templateDatapointId] = 1;
-    else if (Array.isArray(templateDatapoint) && templateDatapoint.length == 1 && ConvertIds.rowRegex.test(templateDatapoint[0])) {
-      domDatapointId = ConvertIds.recomposeId(Object.assign(ConvertIds.decomposeId({
-        rowId: templateDatapoint[0]
-      }, {
-        variant: 'dom'
-      }))).datapointId
-
-      dom = datapointsById[domDatapointId];
-
-      if (dom === undefined) subscribe[domDatapointId] = 1;
-    }
-
-    const defaultDom = '<div></div>'
-    if (typeof (dom) != 'string') dom = defaultDom
-
-    let childElement = ClientDom.htmlToElement(dom);
-    if (!childElement) childElement = ClientDom.htmlToElement(defaultDom);
-
-    clientDom.prepDomTree({
-      element: childElement,
-      templateDatapointId,
-      domDatapointId,
-      decomposedRowId,
-      subscribe,
-      datapointsById
-    })
-  }
-
-  prepDomTree({
-    element,
-    templateDatapointId,
-    domDatapointId,
-    decomposedRowId,
-    subscribe,
-    datapointsById
-  }) {
-    const clientDom = this;
-
-    clientDom.prepDomSubtree({
-      element,
-      decomposedRowId,
-      subscribe,
-      datapointsById
-    })
-
-    if (templateDatapointId) {
-      element.classList.add(clientDom.classForDatapointTemplateField({
-        datapointId: templateDatapointId
-      }))
-    }
-
-    if (domDatapointId) {
-      element.classList.add(clientDom.classForDatapointDomField({
-        datapointId: domDatapointId
-      }))
-    }
-  }
-
-  prepDomSubtree({
-    element,
-    decomposedRowId,
-    subscribe,
-    datapointsById
-  }) {
-    const clientDom = this;
-
-    for (const className of element.classList) {
-      const match = /^(\w+)-model-child$/.exec(className)
-      if (match) {
-        const
-          fieldName = ChangeCase.snakeCase(match[1]),
-          datapointId = ConvertIds.recomposeId(decomposedRowId, {
-            fieldName
-          })
-
-        if (element.style.display && !element.style.getAttribute('nobo-style-display')) {
-          element.style.setAttribute('nobo-style-display', element.style.display);
-        }
-        element.style.display = 'none'
-        element.id = `nobo-${clientDom.nextUid++}`
-
-        element.classList.add(clientDom.classForDatapointChildPlaceholder({
-          datapointId
-        }))
-
-        const datapoint = datapointsById[datapointId];
-        if (datapoint === undefined) subscribe[datapointId] = true;
-        else if (Array.isArray(datapoint)) {
-          const variant = element.getAttribute('variant')
-
-          for (let index = 0; index < datapoint; index++) {
-            const rowId = typeof (datapoint[index]) == 'string' && ConvertIds.rowRegex.test(datapoint[index]) ? datapoint[index] : undefined
-            const childElement = clientDom.insertSpecificDOMChild({
-              placeholderDiv: element,
-              index,
-              rowId,
-              datapointsById,
-              subscribe
-            })
-
-            childElement.classList.add(clientDom.classAsDatapointChild({
-              placeholderDiv: element
-            }))
-          }
-        }
+        rowId,
+        getDatapoint,
+        placeholderUid
+      });
+      for (const childElement of childElements) {
+        afterElement.insertAdjacentElement("afterend", childElement);
+        afterElement = childElement;
       }
     }
   }
 
+  updateFieldValue({ datapointId, was, is }) {}
 
-  deleteDOMChild({
-    datapointId,
-    index,
-    rowId
-  }) {
-    const clientDom = this
+  createChildElements({ variant, rowId, decomposedRowId, getDatapoint, placeholderUid }) {
+    if (rowId && !decomposedRowId) decomposedRowId = ConvertIds.decomposeId({ rowId });
 
-    const placeholderDivs = document.getElementsByClassName(clientDom.classForDatapointChildPlaceholder)
-    for (const placeholderDiv of placeholderDivs) {
-      let childElement = placeholderDiv.nextElementSibling
-      for (let childIndex = 0; childIndex < index; childIndex++) childElement = childElement.nextElementSibling;
-      childElement.parentElement.removeChild(childElement)
-    }
+    const clientDom = this,
+      element = this.elementForVariantOfRow({
+        variant,
+        decomposedRowId,
+        getDatapoint
+      });
+
+    return clientDom.prepDomElement({
+      element: childElement,
+      decomposedRowId,
+      getDatapoint,
+      placeholderUid
+    });
   }
 
+  domForVariantOfRow({ variant, decomposedRowId, getDatapoint }) {
+    const templateDatapointId = ConvertIds.recomposeId(decomposedRowId, {
+        fieldName: `template_${ChangeCase.snakeCase(variant)}`
+      }).datapointId,
+      templateDatapoint = getDatapoint(templateDatapointId);
 
-  static htmlToElement(html) {
-    var template = document.createElement('template');
-    template.innerHTML = html.trim();
-    return template.content.firstChild;
+    let domDatapointId, dom;
+
+    if (
+      Array.isArray(templateDatapoint) &&
+      templateDatapoint.length == 1 &&
+      ConvertIds.rowRegex.test(templateDatapoint[0])
+    ) {
+      domDatapointId = ConvertIds.recomposeId(
+        ConvertIds.decomposeId({
+          rowId: templateDatapoint[0]
+        }),
+        {
+          variant: "dom"
+        }
+      ).datapointId;
+
+      dom = getDatapoint(domDatapointId);
+    }
+
+    return { dom, templateDatapointId, domDatapointId };
+  }
+
+  elementForVariantOfRow({ variant, decomposedRowId, getDatapoint }) {
+    const clientDom = this,
+      defaultDom = "<div></div>",
+      { dom, templateDatapointId, domDatapointId } = clientDom.domForVariantOfRow({
+        variant,
+        decomposedRowId,
+        getDatapoint
+      });
+
+    let element;
+    if (dom) {
+      element = htmlToElement(dom);
+    }
+    if (!element) element = htmlToElement(defaultDom);
+
+    if (templateDatapointId) element.classList.add(classForDatapointTemplateField(templateDatapointId));
+    if (domDatapointId) element.classList.add(classForDatapointDomField(domDatapointId));
+
+    return element;
+  }
+
+  prepDomElement({ element, decomposedRowId, getDatapoint, placeholderUid }) {
+    const clientDom = this;
+
+    element.setAttribute("noborowid", decomposedRowId.rowId);
+    if (placeholderUid) element.setAttribute("placeholderuid", placeholderUid);
+
+    for (let childElement = element.firstElementChild; childElement; childElement = nextElementSibling) {
+      const nextElementSibling = childElement.nextElementSibling;
+      const preppedChildElements = clientDom.prepDomElement({
+        element: childElement,
+        decomposedRowId,
+        getDatapoint,
+        placeholderUid
+      });
+      for (let index = preppedChildElements.length - 1; index > 0; index--) {
+        childElement.insertAdjacentElement("afterend", preppedChildElements[index]);
+      }
+    }
+
+    const elements = [element],
+      childrenFieldName = elementChildrenFieldName(element);
+
+    if (childrenFieldName) {
+      const childrenDatapointId = ConvertIds.recomposeId(decomposedRowId, {
+        fieldName: childrenFieldName
+      });
+
+      if (element.style.display && !element.style.getAttribute("nobo-style-display")) {
+        element.style.setAttribute("nobo-style-display", element.style.display);
+      }
+      element.style.display = "none";
+      const uid = clientDom.nextUid++;
+      element.setAttribute("nobouid", uid);
+      element.classList.add(datapointChildrenClass(childrenDatapointId));
+
+      const childrenElements = createChildrenElements({
+        childrenDatapointId,
+        variant: element.getAttribute("variant") || undefined,
+        getDatapoint,
+        placeholderUid: uid
+      });
+      elements.push(...childrenElements);
+    }
+
+    return elements;
+  }
+
+  createChildrenElements({ datapointId, variant, getDatapoint, placeholderUid }) {
+    const clientDom = this,
+      rowIds = getDatapoint(datapointId);
+
+    if (!Array.isArray(rowIds)) return [];
+
+    return rowIds.flatMap(rowId => {
+      if (typeof rowId != "string" || !ConvertIds.rowRegex.test(rowId)) rowId = undefined;
+      return clientDom.createChildElements({
+        variant,
+        rowId,
+        getDatapoint,
+        placeholderUid
+      });
+    });
   }
 }
-
 
 // API is the public facing class
 module.exports = PublicApi({
