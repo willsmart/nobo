@@ -5,8 +5,8 @@
 // It is used by the SharedState module.
 // output is a fairly custom format
 //  for example
-// diffAny({a:1,b:[2,1]},{b:[1],c:2}) 
-// == 
+// diffAny({a:1,b:[2,1]},{b:[1],c:2})
+// ==
 // {
 //   objectDiff: {
 //     a: undefined,
@@ -17,8 +17,6 @@
 //     c: {value: 2}
 //   }
 // }
-
-
 
 // API is the function. Use via
 //   const diffAny = require(pathToDiff)
@@ -67,10 +65,11 @@ function diffObject(was, is) {
       };
     }
   }
-  return diff ? {
-      objectDiff: diff
-    } :
-    undefined;
+  return diff
+    ? {
+        objectDiff: diff
+      }
+    : undefined;
 }
 
 function diffArray(was, is) {
@@ -83,37 +82,44 @@ function diffArray(was, is) {
       diffChild = diffAny(wasChild, isChild);
 
     if (diffChild) {
-      if (!diff) diff = {
-        arrayDiff: []
-      };
-      diff.arrayDiff.push(Object.assign(diffChild, {
-        at: index
-      }))
+      if (!diff)
+        diff = {
+          arrayDiff: []
+        };
+      diff.arrayDiff.push(
+        Object.assign(diffChild, {
+          at: index
+        })
+      );
     }
   }
-  for (index = 0; index < was.length; index++) {
+  for (index = was.length - 1; index >= is.length; index--) {
     const wasChild = was[index],
       diffChild = diffAny(wasChild);
 
     if (diffChild) {
-      if (!diff) diff = {
-        arrayDiff: []
-      };
+      if (!diff)
+        diff = {
+          arrayDiff: []
+        };
       diff.arrayDiff.push({
         deleteAt: index
-      })
+      });
     }
   }
-  for (index = 0; index < is.length; index++) {
+  for (index = is.length - 1; index >= was.length; index--) {
     const isChild = is[index];
 
-    if (!diff) diff = {
-      arrayDiff: []
-    };
-    diff.arrayDiff.push(Object.assign({
-      insertAt: index,
-      value: isChild
-    }))
+    if (!diff)
+      diff = {
+        arrayDiff: []
+      };
+    diff.arrayDiff.push(
+      Object.assign({
+        insertAt: was.length,
+        value: isChild
+      })
+    );
   }
 
   return diff;

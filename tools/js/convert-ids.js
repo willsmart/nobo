@@ -88,36 +88,36 @@ const ChangeCase = require("change-case");
 // deconstructs a string id into its component parts or throws if not possible
 //  arguments object with one key of:
 //    rowId, proxyableRowId, datapointId
-function decomposeId({
-  rowId,
-  proxyableRowId,
-  datapointId,
-  relaxed
-}) {
+function decomposeId({ rowId, proxyableRowId, datapointId, relaxed }) {
   if (datapointId) return stringToDatapoint(datapointId);
   if (rowId) return stringToRow(rowId);
   if (proxyableRowId) return stringToProxyableRow(proxyableRowId);
   throw new Error("No id to decompose");
 }
 
-function ensureDecomposed({
-  typeName
-}) {
+function ensureDecomposed({ typeName }) {
   return typeName === undefined ? decomposeId(arguments[0]) : arguments[0];
 }
 
 // reconstructs string ids from their component parts or throws if not possible
 // you can provide more than one argument, in which case they are combined with the last taking precidence
-function recomposeId({
-  typeName,
-  dbRowId,
-  proxyKey,
-  fieldName
-}) {
+function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableRowId }) {
   if (arguments.length != 1) {
     const combined = {};
     Array.prototype.forEach.call(arguments, argument => Object.assign(combined, argument));
     return recomposeId(combined);
+  }
+
+  if (rowId) {
+    const args = decomposeId({ rowId });
+    typeName = args.typeName;
+    dbRowId = args.dbRowId;
+  }
+
+  if (proxyableRowId) {
+    const args = decomposeId({ proxyableRowId });
+    typeName = args.typeName;
+    proxyKey = args.proxyKey;
   }
 
   if (!typeName) throw new Error("Can't recompose without typeName");
@@ -185,16 +185,19 @@ function stringToProxyableRow(rowId) {
   const match = proxyableRowRegex.exec(rowId);
   if (!match) throw new Error(`Bad row id ${rowId}`);
 
-  return Object.assign({
+  return Object.assign(
+    {
       proxyableRowId: rowId,
       typeName: ChangeCase.pascalCase(match[1])
     },
-    match[2] ? {
-      rowId: rowId,
-      dbRowId: +match[2]
-    } : {
-      proxyRowId: rowId,
-      proxyKey: match[3]
-    }
+    match[2]
+      ? {
+          rowId: rowId,
+          dbRowId: +match[2]
+        }
+      : {
+          proxyRowId: rowId,
+          proxyKey: match[3]
+        }
   );
 }
