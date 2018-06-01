@@ -31,6 +31,7 @@ class DomUpdater {
     const domUpdater = this;
 
     domUpdater.domGenerator = domGenerator;
+    domUpdater.getDatapoint = domGenerator.getDatapoint;
 
     domUpdater.startWatch();
   }
@@ -92,6 +93,45 @@ class DomUpdater {
     });
   }
 
+  updateElementsWithUpdatedValueDatapoints({ element, datapointId }) {
+    const domUpdater = this,
+      getDatapoint = domUpdater.getDatapoint,
+      usesString = element.getAttribute(`nobo-uses-${datapointId}`),
+      rowId = element.getAttribute(`nobo-row-id`);
+
+    if (!(usesString && rowId)) return;
+    const uses = usesString.split(/\s+/g);
+
+    for (const use of uses) {
+      const match = /^=(\d+)$/.exec(use);
+      if (match) {
+        let childNode,
+          index = +match[1],
+          thisIndex = 0;
+        for (let childNode = element.firstChild; childNode; childNode = childNode.nextSibling) {
+          if (childNode.nodeType == 3) {
+            if (thisIndex++ < index) continue;
+
+            const backup = element.getAttribute(`nobo-backup-text-${index}`);
+            if (!backup) break;
+
+            const templatedText = new TemplatedText({ getDatapoint, rowId, text: backup });
+            const string = templatedText.evaluate.string;
+            childNode.textContent = string;
+            break;
+          }
+        }
+      } else {
+        const name = use;
+        const backup = element.getAttribute(`nobo-backup--${name}`);
+        if (!backup) break;
+
+        const templatedText = new TemplatedText({ getDatapoint, rowId, text: backup });
+        element.setAttribute(name, templatedText.evaluate.string);
+      }
+    }
+  }
+
   markRangeAsDead([start, end]) {
     for (let element = start; ; element = element.nextElementSibling) {
       element.classList.add("nobo-dead");
@@ -118,6 +158,7 @@ class DomUpdater {
       domUpdater.markRangeAsDead(range);
     }
     for (const element of datapointValueElements(datapointId)) {
+      domUpdater.updateElementsWithUpdatedValueDatapoints({ element, datapointId });
     }
 
     return replacements;

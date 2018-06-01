@@ -1,8 +1,7 @@
 const strippedValues = require("./general/stripped-values");
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./general/public-api");
-const vm = require("vm");
-const jsep = require("jsep");
+const CodeSnippet = require("./general/code-snippet");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -43,10 +42,7 @@ class SchemaDefn {
     });
   }
 
-  fieldForDatapoint({
-    typeName,
-    fieldName
-  }) {
+  fieldForDatapoint({ typeName, fieldName }) {
     return this.allTypes[typeName].fields[fieldName];
   }
 
@@ -57,17 +53,17 @@ class SchemaDefn {
       this._allTypes[name] ||
       (this._allTypes[name] = {
         _: "Type",
-        stripped: function () {
+        stripped: function() {
           let ret = {};
           if (Object.keys(this.fields).length) ret.fields = strippedValues(this.fields);
           return ret;
         },
         name: name,
         fields: {},
-        getEnclosingType: function () {
+        getEnclosingType: function() {
           return this;
         },
-        getField: function (name, dataType, isVirtual, isMultiple) {
+        getField: function(name, dataType, isVirtual, isMultiple) {
           if (name == undefined) {
             return;
           }
@@ -77,7 +73,7 @@ class SchemaDefn {
             type.fields[name] ||
             (type.fields[name] = {
               _: "Field",
-              stripped: function () {
+              stripped: function() {
                 let ret = {
                   dataType: this.dataType.name
                 };
@@ -96,35 +92,33 @@ class SchemaDefn {
               enclosingType: type,
               links: {},
               fullName: type.name + "::" + name,
-              getEnclosingType: function () {
+              getEnclosingType: function() {
                 return type;
               },
-              getField: function (name, dataType, isVirtual, isMultiple) {
+              getField: function(name, dataType, isVirtual, isMultiple) {
                 if (name == undefined) return this;
                 return this.dataType.getField(name, dataType, isVirtual, isMultiple);
               },
-              getDatapointId: function ({
-                dbRowId
-              }) {
+              getDatapointId: function({ dbRowId }) {
                 return ConvertIds.recomposeId({
                   typeName: this.enclosingType.name,
                   dbRowId: dbRowId,
                   fieldName: this.name
                 }).datapointId;
               },
-              getLinkedToField: function () {
+              getLinkedToField: function() {
                 const linkKeys = Object.keys(this.links);
                 if (!linkKeys.length) return;
                 const link = this.links[linkKeys[0]];
                 return link.left === this ? link.right : link.left;
               },
-              getLink: function (toField, linkType) {
+              getLink: function(toField, linkType) {
                 const field = this;
                 return (
                   field.links[toField.fullName] ||
                   (field.links[toField.fullName] = toField.links[field.fullName] = {
                     _: "Link",
-                    stripped: function () {
+                    stripped: function() {
                       return {
                         left: this.left.fullName,
                         right: this.right.fullName,
@@ -176,12 +170,7 @@ class SchemaDefn {
           case "get":
             if (!myField) break;
             myField.isVirtual = true;
-            let parsedVal = schema.parse(val);
-            if (!parsedVal) {
-              console.log(`I couldn't parse the getter (will default to just '?') : ${val}`);
-              parsedVal = schema.parse(val);
-            }
-            myField[key] = parsedVal;
+            myField.get = new CodeSnippet({ code: val });
             break;
           case "default":
           case "unique":
@@ -212,14 +201,14 @@ class SchemaDefn {
                 childTypeName = match[3] ? match[3] : match[2];
               const linkTypeInfo = linkType ? linkTypes[linkType] : undefined;
               const childField =
-                me && childFieldName ?
-                me.getField(
-                  childFieldName,
-                  childTypeName,
-                  linkTypeInfo ? linkTypeInfo.rightIsVirtual : false,
-                  linkTypeInfo ? linkTypeInfo.rightIsMultiple : false
-                ) :
-                schema.getType(childTypeName);
+                me && childFieldName
+                  ? me.getField(
+                      childFieldName,
+                      childTypeName,
+                      linkTypeInfo ? linkTypeInfo.rightIsVirtual : false,
+                      linkTypeInfo ? linkTypeInfo.rightIsMultiple : false
+                    )
+                  : schema.getType(childTypeName);
 
               const myLocalFieldName = schema._addLayout(val, childField, childFieldName, myFieldName, depth + 1);
 
@@ -239,82 +228,6 @@ class SchemaDefn {
       });
     }
     return as;
-  }
-
-  parse(code) {
-    let ast, ret;
-    try {
-      ret = {
-        names: {},
-        resultKey: "___result___",
-        script: new vm.Script(`___result___ = (${code})`, {
-          displayErrors: true
-        })
-      };
-      ast = jsep(code);
-    } catch (err) {
-      console.log(`Failed to compile getter: ${code}
-      ${err}
-`);
-      return;
-    }
-    const jsepChildKeys = {
-      left: true,
-      right: true,
-      test: true,
-      consequent: true,
-      alternate: true,
-      object: true,
-      discriminant: true,
-      argument: true,
-      body: true
-    };
-    const jsepChildArrayKeys = {
-      expressions: true,
-      arguments: true,
-      defaults: true
-    };
-
-    function addNames(ast) {
-      if (typeof ast != "object" || !ast.type) return;
-
-      if (ast.type == "Identifier" && ast.name) {
-        ret.names[ast.name] = {};
-        return;
-      }
-
-      if (ast.type == "MemberExpression") {
-        memberHandler: do {
-          const namesArray = [];
-          let object = ast;
-          for (; object.type == "MemberExpression"; object = object.object) {
-            if (object.property.type != "Identifier") break memberHandler;
-            namesArray.unshift(object.property.name);
-          }
-          if (object.type != "Identifier") break;
-          namesArray.unshift(object.name);
-
-          let names = ret.names;
-          for (const name of namesArray) {
-            names = names[name] = names[name] || {};
-          }
-          return;
-        } while (false);
-      }
-
-      if (ast.type == "CallExpression" && ast.callee.type == "MemberExpression") {
-        addNames(ast.callee.object);
-      }
-
-      for (const [key, val] of Object.entries(ast)) {
-        if (jsepChildKeys[key]) addNames(val);
-        else if (jsepChildArrayKeys[key] && Array.isArray(val)) {
-          for (const child of val) addNames(child);
-        }
-      }
-    }
-    addNames(ast);
-    return ret;
   }
 }
 

@@ -13,6 +13,7 @@ const PublicApi = require("./general/public-api");
 const mapValues = require("./general/map-values");
 const makeClassWatchable = require("./general/watchable");
 const Templates = require("./templates");
+const CodeSnippet = require("./general/code-snippet");
 
 var g_nextUniqueCallbackIndex = 1;
 
@@ -24,19 +25,19 @@ class Datapoint {
     return ["invalidate", "updateValue", "watch", "stopWatching", "value", "valueIfAny"];
   }
 
-  constructor({
-    cache,
-    datapointId
-  }) {
+  constructor({ cache, datapointId }) {
     const datapoint = this;
 
-    console.log(`creating datapoint ${datapointId}`)
+    console.log(`creating datapoint ${datapointId}`);
 
     cache.datapointsById[datapointId] = datapoint;
 
-    Object.assign(datapoint, ConvertIds.decomposeId({
-      datapointId
-    }));
+    Object.assign(
+      datapoint,
+      ConvertIds.decomposeId({
+        datapointId
+      })
+    );
     datapoint.cache = cache;
 
     const field = datapoint.fieldIfAny;
@@ -62,7 +63,7 @@ class Datapoint {
       datapoint.watchingOneShotResolvers = datapoint.watchingOneShotResolvers || [];
       datapoint.watchingOneShotResolvers.push(resolve);
     }).then(theDatapoint => {
-      return theDatapoint.value
+      return theDatapoint.value;
     });
 
     datapoint.cache.validateNewlyInvalidDatapoints();
@@ -70,18 +71,14 @@ class Datapoint {
     return ret;
   }
 
-  invalidate({
-    queueValidationJob = false
-  } = {}) {
+  invalidate({ queueValidationJob = false } = {}) {
     const datapoint = this,
-      {
-        cache
-      } = datapoint;
+      { cache } = datapoint;
 
     if (datapoint.invalid) return datapoint;
 
     datapoint.invalid = true;
-    delete datapoint._value
+    delete datapoint._value;
     cache.newlyInvalidDatapointIds.push(datapoint.datapointId);
 
     if (datapoint.dependentDatapointsById) {
@@ -100,19 +97,15 @@ class Datapoint {
       }
     }
 
-    datapoint.notifyListeners('oninvalid', datapoint);
+    datapoint.notifyListeners("oninvalid", datapoint);
 
-    if (queueValidationJob) cache.queueValidationJob()
-    return datapoint
+    if (queueValidationJob) cache.queueValidationJob();
+    return datapoint;
   }
 
-  validate({
-    value
-  } = {}) {
+  validate({ value } = {}) {
     const datapoint = this,
-      {
-        cache
-      } = datapoint;
+      { cache } = datapoint;
 
     if (!datapoint.invalid) return;
 
@@ -140,13 +133,13 @@ class Datapoint {
           }
         }
         if (!--dependentDatapoint.invalidDependencyDatapointCount) {
-          dependentDatapoint.validate()
+          dependentDatapoint.validate();
         }
       }
     }
 
-    datapoint.notifyListeners('onvalid_prioritized', datapoint);
-    datapoint.notifyListeners('onvalid', datapoint);
+    datapoint.notifyListeners("onvalid_prioritized", datapoint);
+    datapoint.notifyListeners("onvalid", datapoint);
 
     if (datapoint.watchingOneShotResolvers) {
       const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
@@ -159,47 +152,43 @@ class Datapoint {
     datapoint.deleteIfUnwatched();
   }
 
-  updateValue({
-    newValue
-  }) {
+  updateValue({ newValue }) {
     const datapoint = this,
-      {
-        cache
-      } = datapoint;
+      { cache } = datapoint;
 
     datapoint.newValue = clone(newValue);
     datapoint.updated = true;
 
     cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
 
-    return datapoint
+    return datapoint;
   }
 
   get fieldIfAny() {
-    const datapoint = this
+    const datapoint = this;
 
-    if (datapoint._field) return datapoint._field
+    if (datapoint._field) return datapoint._field;
     try {
       datapoint._field = datapoint.cache.schema.fieldForDatapoint(datapoint);
     } catch (err) {}
-    if (datapoint._field) return datapoint._field
+    if (datapoint._field) return datapoint._field;
 
-    return datapoint._field = datapoint.virtualFieldIfAny
+    return (datapoint._field = datapoint.virtualFieldIfAny);
   }
 
   get virtualFieldIfAny() {
     const datapoint = this,
       cache = datapoint.cache,
-      templates = cache.templates
+      templates = cache.templates;
 
-    let match = /^dom(\w*)$/.exec(datapoint.fieldName)
+    let match = /^dom(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
-      const variant = ChangeCase.camelCase(match[1])
+      const variant = ChangeCase.camelCase(match[1]);
       return datapoint.makeVirtualField({
         isId: false,
         isMultiple: false,
         names: {
-          'template': {
+          template: {
             datapointId: templates.getTemplateReferencingDatapoint({
               variant,
               classFilter: datapoint.typeName,
@@ -208,69 +197,58 @@ class Datapoint {
             dom: {}
           }
         },
-        getterFunction: (args) => {
-          return args.template.dom
+        getterFunction: args => {
+          return args.template.dom;
         }
-      })
+      });
     }
-    match = /^template(\w*)$/.exec(datapoint.fieldName)
+    match = /^template(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
-      const variant = ChangeCase.camelCase(match[1])
+      const variant = ChangeCase.camelCase(match[1]);
       return datapoint.makeVirtualField({
         isId: true,
         isMultiple: false,
         names: {
-          'template': {
+          template: {
             datapointId: templates.getTemplateReferencingDatapoint({
               variant,
               classFilter: datapoint.typeName,
               ownerOnly: false
-            }).datapointId,
+            }).datapointId
           }
         },
-        getterFunction: (args) => {
-          return args.template
+        getterFunction: args => {
+          return args.template;
         }
-      })
+      });
     }
   }
 
-  setVirtualField({
-    getterFunction,
-    names = {},
-    isId,
-    isMultiple
-  }) {
-    this._field = this.makeVirtualField(arguments[0])
+  setVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
+    this._field = this.makeVirtualField(arguments[0]);
   }
 
-  makeVirtualField({
-    getterFunction,
-    names = {},
-    isId,
-    isMultiple
-  }) {
+  makeVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
     const datapoint = this,
       field = {
         isId,
         isMultiple,
         name: datapoint.fieldName,
-        getDatapointId: ({
-          dbRowId
-        }) => ConvertIds.recomposeId({
-          typeName: datapoint.typeName,
-          dbRowId,
-          fieldName: datapoint.fieldName
-        })
-      }
+        getDatapointId: ({ dbRowId }) =>
+          ConvertIds.recomposeId({
+            typeName: datapoint.typeName,
+            dbRowId,
+            fieldName: datapoint.fieldName
+          })
+      };
     if (getterFunction) {
-      field.get = {
-        getterFunction,
+      field.get = new CodeSnippet({
+        func: getterFunction,
         names,
-        resultKey: "___result___",
-      }
+        ignoreNames: { datapointId: true }
+      });
     }
-    return field
+    return field;
   }
 
   get valueAsRowId() {
@@ -278,21 +256,15 @@ class Datapoint {
 
     const field = datapoint.fieldIfAny,
       value = datapoint.valueIfAny;
-    if (!field ||
-      !field.isId ||
-      field.isMultiple ||
-      datapoint.invalid ||
-      !Array.isArray(value) ||
-      value.length != 1
-    )
+    if (!field || !field.isId || field.isMultiple || datapoint.invalid || !Array.isArray(value) || value.length != 1)
       return;
 
     return value[0];
   }
 
   get valueAsDecomposedRowId() {
-    const rowId = this.valueAsRowId
-    if (!rowId) return
+    const rowId = this.valueAsRowId;
+    if (!rowId) return;
     try {
       return ConvertIds.decomposeId({
         rowId
@@ -310,19 +282,21 @@ class Datapoint {
       dependenciesByDatapointId: {},
       dependencyDatapointCountsById: {},
       invalidDependencyDatapointCount: 0,
-      dependencies: !field ? {} : (function dependencyTreeFromNames(names) {
-        return mapValues(names, (subNames, name) => {
-          if (name == 'datapointId') return undefined
-          const ret = {}
-          if (subNames.datapointId && typeof (subNames.datapointId) == 'string') {
-            ret.datapointId = subNames.datapointId;
-          }
-          const children = dependencyTreeFromNames(subNames);
-          delete children.datapointId;
-          if (Object.keys(children).length) ret.children = children;
-          return ret;
-        });
-      })(field.get.names)
+      dependencies: !field
+        ? {}
+        : (function dependencyTreeFromNames(names) {
+            return mapValues(names, (subNames, name) => {
+              if (name == "datapointId") return undefined;
+              const ret = {};
+              if (subNames.datapointId && typeof subNames.datapointId == "string") {
+                ret.datapointId = subNames.datapointId;
+              }
+              const children = dependencyTreeFromNames(subNames);
+              delete children.datapointId;
+              if (Object.keys(children).length) ret.children = children;
+              return ret;
+            });
+          })(field.get.names)
     });
 
     datapoint.updateDependencies({
@@ -331,14 +305,9 @@ class Datapoint {
     });
   }
 
-  updateDependencies({
-    parentRowId,
-    dependencies
-  }) {
+  updateDependencies({ parentRowId, dependencies }) {
     const datapoint = this,
-      {
-        cache
-      } = datapoint;
+      { cache } = datapoint;
 
     if (!dependencies) return;
 
@@ -354,22 +323,15 @@ class Datapoint {
     }
   }
 
-  updateDependency({
-    name,
-    dependency,
-    parentRowId,
-    parentType
-  }) {
+  updateDependency({ name, dependency, parentRowId, parentType }) {
     const datapoint = this,
-      {
-        cache
-      } = datapoint;
+      { cache } = datapoint;
 
     let dependencyDatapoint;
     if (dependency.datapointId) {
       dependencyDatapoint = cache.getOrCreateDatapoint({
         datapointId: dependency.datapointId
-      })
+      });
     } else {
       const dependencyField = parentType ? parentType.fields[name] : undefined;
       if (dependencyField) {
@@ -428,50 +390,45 @@ class Datapoint {
   deleteIfUnwatched() {
     const datapoint = this;
 
-    if ((datapoint.listeners && datapoint.listeners.length) ||
+    if (
+      (datapoint.listeners && datapoint.listeners.length) ||
       datapoint.watchingOneShotResolvers ||
       (datapoint.dependentDatapointsById && Object.keys(datapoint.dependentDatapointsById).length)
     ) {
       return;
     }
 
-    datapoint.forget()
+    datapoint.forget();
   }
 
   forget() {
-    console.log(`forgetting datapoint ${this.datapointId}`)
+    console.log(`forgetting datapoint ${this.datapointId}`);
     const datapoint = this,
-      {
-        cache
-      } = datapoint;
+      { cache } = datapoint;
 
     if (datapoint.dependenciesByDatapointId) {
       for (const dependencyDatapointId of Object.keys(datapoint.dependenciesByDatapointId)) {
         const dependencyDatapoint = cache.getExistingDatapoint({
           datapointId: dependencyDatapointId
-        })
-        delete dependencyDatapoint.dependentDatapointsById[datapoint.datapointId]
+        });
+        delete dependencyDatapoint.dependentDatapointsById[datapoint.datapointId];
         if (!Object.keys(dependencyDatapoint.dependentDatapointsById).length) {
-          delete dependencyDatapoint.dependentDatapointsById
-          dependencyDatapoint.deleteIfUnwatched()
+          delete dependencyDatapoint.dependentDatapointsById;
+          dependencyDatapoint.deleteIfUnwatched();
         }
       }
     }
 
-    delete datapoint.dependenciesByDatapointId
-    delete datapoint.dependencyDatapointCountsById
-    delete datapoint.invalidDependencyDatapointCount
-    delete datapoint.dependencies
+    delete datapoint.dependenciesByDatapointId;
+    delete datapoint.dependencyDatapointCountsById;
+    delete datapoint.invalidDependencyDatapointCount;
+    delete datapoint.dependencies;
 
     cache.forgetDatapoint(datapoint);
   }
 
-  static valueFromGetter({
-    getter,
-    dependencies
-  }) {
-    const sandbox = {};
-    sandbox[getter.resultKey] = "?";
+  static valueFromGetter({ getter, dependencies }) {
+    const dependencyValues = {};
 
     if (dependencies) {
       (function addDependencyValues(dependencies, to) {
@@ -481,29 +438,12 @@ class Datapoint {
             addDependencyValues(dependency.children, to[name]);
           } else if (dependency.datapoint && !dependency.datapoint.invalid) {
             to[name] = dependency.datapoint.valueIfAny;
-          } else {
-            to[name] = "...";
           }
         }
-      })(dependencies, sandbox);
+      })(dependencies, dependencyValues);
     }
 
-    if (getter.script) try {
-      getter.script.runInNewContext(sandbox, {
-        displayErrors: true,
-        timeout: 1000
-      });
-    } catch (err) {
-      console.log(`Failed to run getter:
-      ${err}
-`);
-    }
-
-    if (getter.getterFunction) {
-      sandbox[getter.resultKey] = getter.getterFunction(sandbox)
-    }
-
-    return sandbox[getter.resultKey];
+    return getter.evaluate({ valuesByName: dependencyValues });
   }
 }
 
@@ -513,20 +453,20 @@ class DatapointCache {
     return [
       "getExistingDatapoint",
       "getOrCreateDatapoint",
-      "validateNewlyInvalidDatapoints", "queueValidationJob",
+      "validateNewlyInvalidDatapoints",
+      "queueValidationJob",
       "commitNewlyUpdatedDatapoints",
 
-      "watch", "stopWatching",
+      "watch",
+      "stopWatching",
 
-      "schema", "connection",
+      "schema",
+      "connection"
     ];
   }
 
-  constructor({
-    schema,
-    connection,
-  }) {
-    const cache = this
+  constructor({ schema, connection }) {
+    const cache = this;
 
     cache._schema = schema;
     cache._connection = connection;
@@ -537,7 +477,7 @@ class DatapointCache {
 
     cache.templates = new Templates({
       cache
-    })
+    });
   }
 
   get schema() {
@@ -548,55 +488,48 @@ class DatapointCache {
     return this._connection;
   }
 
-  forgetDatapoint({
-    datapointId
-  }) {
+  forgetDatapoint({ datapointId }) {
     const cache = this;
 
     delete cache.datapointsById[datapointId];
   }
 
-  queueValidationJob({
-    delay = 100
-  } = {}) {
+  queueValidationJob({ delay = 100 } = {}) {
     const cache = this;
 
     if (delay <= 0) {
-      cache.validateNewlyInvalidDatapoints()
-      return
+      cache.validateNewlyInvalidDatapoints();
+      return;
     }
 
     if (cache._validateTimeout) return;
     cache._validateTimeout = setTimeout(() => {
-      delete cache._validateTimeout
-      cache.validateNewlyInvalidDatapoints()
-    }, delay)
+      delete cache._validateTimeout;
+      cache.validateNewlyInvalidDatapoints();
+    }, delay);
   }
 
-
-  validateNewlyInvalidDatapoints({
-    delay
-  } = {}) {
+  validateNewlyInvalidDatapoints({ delay } = {}) {
     const cache = this;
 
     if (cache._validateTimeout) {
-      clearTimeout(cache._validateTimeout)
-      delete cache._validateTimeout
+      clearTimeout(cache._validateTimeout);
+      delete cache._validateTimeout;
     }
 
     if (delay > 0) {
-      delay = delay === true ? 100 : +delay
+      delay = delay === true ? 100 : +delay;
 
       if (cache._validateTimeout) return;
       cache._validateTimeout = setTimeout(() => {
-        delete cache._validateTimeout
-        cache.validateNewlyInvalidDatapoints()
-      }, delay)
+        delete cache._validateTimeout;
+        cache.validateNewlyInvalidDatapoints();
+      }, delay);
     }
 
     if (cache._validateTimeout) {
-      clearTimeout(cache._validateTimeout)
-      delete cache._validateTimeout
+      clearTimeout(cache._validateTimeout);
+      delete cache._validateTimeout;
     }
 
     const datapoints = cache.newlyInvalidDatapointIds
@@ -620,15 +553,11 @@ class DatapointCache {
     return cache.commitDatapoints(datapoints);
   }
 
-  getExistingDatapoint({
-    datapointId
-  }) {
+  getExistingDatapoint({ datapointId }) {
     return this.datapointsById[datapointId];
   }
 
-  getOrCreateDatapoint({
-    datapointId
-  }) {
+  getOrCreateDatapoint({ datapointId }) {
     const cache = this;
 
     let datapoint = cache.datapointsById[datapointId];
@@ -654,7 +583,7 @@ class DatapointCache {
       const field = datapoint.fieldIfAny;
       if (!field || field.get) {
         if (!datapoint.invalidDependencyDatapointCount) {
-          datapoint.validate()
+          datapoint.validate();
         }
         return;
       }
@@ -674,30 +603,32 @@ class DatapointCache {
 
         promises.push(
           connection
-          .getRowFields({
-            type,
-            dbRowId,
-            fields
-          })
-          .then(row => {
-            fields.forEach(field => {
-              const datapoint = cache.getExistingDatapoint({
-                datapointId: field.getDatapointId({
-                  dbRowId
-                })
-              })
-              if (datapoint) datapoint.validate({
-                value: row[field.name]
+            .getRowFields({
+              type,
+              dbRowId,
+              fields
+            })
+            .then(row => {
+              fields.forEach(field => {
+                const datapoint = cache.getExistingDatapoint({
+                  datapointId: field.getDatapointId({
+                    dbRowId
+                  })
+                });
+                if (datapoint)
+                  datapoint.validate({
+                    value: row[field.name]
+                  });
               });
-            });
-          }));
+            })
+        );
       });
     });
 
     return Promise.all(promises).then(() => {
       const newlyValidDatapoints = cache.newlyValidDatapoints;
       cache.newlyValidDatapoints = [];
-      cache.notifyListeners('onvalid', {
+      cache.notifyListeners("onvalid", {
         newlyValidDatapoints
       });
     });
@@ -744,29 +675,28 @@ class DatapointCache {
 
         promises.push(
           connection
-          .updateRowFields({
-            type: type,
-            dbRowId,
-            fields: fieldInfos
-          })
-          .then(() => {
-            fieldInfos.forEach(fieldInfo => {
-              const datapoint = cache.datapointsById[fieldInfo.datapointId];
-              delete datapoint.updated;
-              delete datapoint.newValue;
-            });
-          })
+            .updateRowFields({
+              type: type,
+              dbRowId,
+              fields: fieldInfos
+            })
+            .then(() => {
+              fieldInfos.forEach(fieldInfo => {
+                const datapoint = cache.datapointsById[fieldInfo.datapointId];
+                delete datapoint.updated;
+                delete datapoint.newValue;
+              });
+            })
         );
       });
     });
 
     return Promise.all(promises);
   }
-
 }
 
-makeClassWatchable(Datapoint)
-makeClassWatchable(DatapointCache)
+makeClassWatchable(Datapoint);
+makeClassWatchable(DatapointCache);
 
 // API is the public facing class
 module.exports = PublicApi({

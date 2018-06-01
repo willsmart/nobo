@@ -1,4 +1,8 @@
 const PublicApi = require("../general/public-api");
+const locateEnd = require("../general/locate-end");
+const CodeSnippet = require("../general/code-snippet");
+
+const { locateEndOfString } = locateEnd;
 
 const ConvertIds = require("../convert-ids");
 
@@ -7,110 +11,114 @@ const ConvertIds = require("../convert-ids");
 class TemplatedText {
   // public methods
   static publicMethods() {
-    return ["ranges", "datapointIds"];
+    return ["evaluate", "dependencyTree", "nodesByDatapointId"];
   }
 
-  constructor({ text, rowId }) {
+  constructor({ text, rowId, getDatapoint }) {
     this.templateString = text;
     this.rowId = rowId;
+    this.getDatapoint = getDatapoint;
   }
 
-  get ranges() {
-    const templatedText = this,
-      templateString = templatedText.templateString;
-    if (templatedText._ranges) return templatedText._ranges;
-    if (typeof templateString != "string") return (templatedText._ranges = []);
-    return (templatedText._ranges = templatedText.getRanges(this.templateString));
+  get nodesByDatapointId() {
+    this.dependencyTree;
+    return this._nodesByDatapointId;
   }
 
-  getRanges(text, fromIndex, delimiters) {
+  get dependencyTree() {
     const templatedText = this,
-      ranges = [];
+      templateString = templatedText.templateString,
+      getDatapoint = templatedText.getDatapoint,
+      rowId = templatedText.rowId;
+    if (templatedText._dependencyTree) return templatedText._dependencyTree;
+    templatedText._nodesByDatapointId = {};
+    const rootPart = locateEndOfString(templateString, false);
+    if (!rootPart) return;
+    const parts = rootPart.children;
+    if (!parts) return;
 
-    let prevIndex = fromIndex || 0,
-      match;
-
-    const regex = new RegExp(
-        `^((?:\\\\\\\\|[^\\\\${delimiters || ""}])*)(${delimiters ? `([${delimiters}])|` : ""}(\\$\\{)|$)`,
-        "g"
-      ),
-      delimiterCapi = delimiters ? 3 : undefined,
-      bracketCapi = delimiters ? 4 : 3;
-
-    while (true) {
-      regex.lastIndex = prevIndex;
-      if (!(match = regex.exec(text))) break;
-
-      let textEnd = prevIndex + match[1].length,
-        end = textEnd + match[2].length;
-      if (!match[bracketCapi]) {
-        if (prevIndex < textEnd) {
-          const snippet = text.substring(prevIndex, textEnd);
-          if (!prevIndex && ConvertIds.fieldNameRegex.test(snippet) && templatedText.rowId) {
-            ranges.push({
-              datapointId: ConvertIds.recomposeId({ rowId: templatedText.rowId, fieldName: snippet }).datapointId
-            });
-          } else ranges.push(snippet);
-        }
-        return {
-          ranges,
-          delimiter: delimiters && match[delimiterCapi] ? match[delimiterCapi] : undefined,
-          matchEnd: end
-        };
-      }
-
-      const range = {};
-      let { delimiter, subRanges, matchEnd } = getRanges(text, end, "?|}");
-      if (!delimiter) {
-        ranges.push(text.substring(prevIndex));
-        return { ranges };
-      }
-
-      if (delimiter == "?") {
-        range.condition = subRanges;
-        ({ delimiter, subRanges, matchEnd } = getRanges(text, matchEnd, "|}"));
-        if (!delimiter) {
-          ranges.push(text.substring(prevIndex));
-          return { ranges };
-        }
-      }
-
-      if (delimiter == "|") {
-        range.truthy = subRanges;
-        ({ delimiter, subRanges, matchEnd } = getRanges(text, matchEnd, "}"));
-        if (!delimiter) {
-          ranges.push(text.substring(prevIndex));
-          return { ranges };
-        }
-        range.falsey = subRanges;
-      } else range.truthy = subRanges;
-
-      ranges.push(range);
-
-      prevIndex = matchEnd;
+    const root = (templatedText._dependencyTree = {
+      string: templateString
+    });
+    for (const part of parts) {
+      markup(part, root);
     }
-  }
+    return root;
 
-  get datapointIds() {
-    const templatedText = this;
-    if (templatedText._datapointIds) return templatedText._datapointIds;
-
-    const ranges = templatedText.ranges,
-      datapointsById = {};
-
-    gather(ranges);
-    return (templatedText._datapointIds = Object.keys(datapointsById));
-
-    function gather(range) {
-      if (typeof range != "object") return;
-      if (range.datapointId) {
-        datapointsById[range.datapointId] = true;
+    function markup(part, parent) {
+      if (part.type != "${}") {
+        if (part.children) for (const child of part.children) markup(child, parent);
         return;
       }
-      if (range.condition) gather(range.condition);
-      if (range.falsey) gather(range.falsey);
-      if (range.truthy) gather(range.truthy);
+      const node = { range: part.range };
+      parent.children = parent.children || [];
+      parent.children.push(node);
+      if (part.children) {
+        for (const child of part.children) {
+          markup(child, node);
+        }
+      }
+      if (!node.children) {
+        node.code = new CodeSnippet({ code: templateString.substring(part.range[0] + 2, part.range[1] - 1) });
+        if (!node.code.script) {
+          delete node.code;
+          return;
+        }
+        if (rowId) {
+          for (const [fieldName, subNames] of Object.entries(node.code.names)) {
+            if (typeof subNames == "object" && Object.keys(subNames).length) continue;
+            node.datapointIdsByName = node.datapointIdsByName || {};
+            const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
+            node.datapointIdsByName[fieldName] = datapointId;
+            templatedText._nodesByDatapointId[datapointId] = templatedText._nodesByDatapointId[datapointId] || [];
+            templatedText._nodesByDatapointId[datapointId].push(node);
+          }
+        }
+      }
     }
+  }
+
+  get evaluate() {
+    const templatedText = this,
+      root = templatedText.dependencyTree;
+    if (!root || !root.children) return { string: this.templateString };
+    return this.evaluatePart({ nodes: root.children, range: [0, undefined] });
+  }
+
+  evaluatePart({ nodes, range }) {
+    const templatedText = this,
+      templateString = templatedText.templateString;
+    if (!nodes) return { string: this.templateString.substring(range[0], range[1]) };
+
+    let string = "",
+      wasIndex = 0,
+      addIndex = 0;
+
+    for (const node of nodes) {
+      let repl = "...";
+      if (node.children) {
+        // TODO
+      } else if (node.code) {
+        repl =
+          "" +
+          node.code.evaluate((...names) => {
+            if (names.length > 1) return "...";
+            const datapointId = node.datapointIdsByName[names[0]];
+            if (!datapointId) return "...";
+            return this.getDatapoint(datapointId, "...");
+          });
+      }
+      if (node.range[0] < wasIndex) continue;
+      if (node.range[0] > wasIndex) string += templateString.substring(wasIndex, node.range[0]);
+      if (repl.length) string += repl;
+      wasIndex = node.range[1];
+      if (wasIndex === undefined) break;
+      addIndex += repl.length - (wasIndex - node.range[0]);
+    }
+    if (wasIndex !== undefined && wasIndex < templateString.length) {
+      string += templateString.substring(wasIndex);
+    }
+    return { string };
   }
 }
 

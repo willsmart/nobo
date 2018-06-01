@@ -21,16 +21,21 @@ class DomGenerator {
       "createElementsForVariantOfRow",
       "createChildElements",
       "createElementsUsingTemplateDatapointId",
-      "createElementsUsingDomDatapointId"
+      "createElementsUsingDomDatapointId",
+      "getDatapoint"
     ];
   }
 
   constructor({ getDatapoint, htmlToElement }) {
     const domGenerator = this;
 
-    domGenerator.getDatapoint = getDatapoint;
+    domGenerator._getDatapoint = getDatapoint;
     domGenerator.nextUid = 1;
     domGenerator.htmlToElement = htmlToElement;
+  }
+
+  get getDatapoint() {
+    return this._getDatapoint;
   }
 
   createElementsForVariantOfRow({ variant, rowId, placeholderUid }) {
@@ -159,6 +164,9 @@ class DomGenerator {
   }
 
   prepValueFields({ element, rowId }) {
+    const domGenerator = this,
+      getDatapoint = domGenerator.getDatapoint;
+
     let index = 0;
     const usesByDatapointId = {};
 
@@ -167,13 +175,15 @@ class DomGenerator {
         const backupName = `nobo-backup-text-${index}`;
         if (element.hasAttribute(backupName)) continue;
 
-        const templatedText = new TemplatedText({ rowId, text: childNode.textContent });
-        if (templatedText.datapointIds.length) {
-          for (const datapointId of templatedText.datapointIds) {
+        const templatedText = new TemplatedText({ getDatapoint, rowId, text: childNode.textContent });
+        const datapointIds = Object.keys(templatedText.nodesByDatapointId);
+        if (datapointIds.length) {
+          for (const datapointId of datapointIds) {
             usesByDatapointId[datapointId] = usesByDatapointId[datapointId] || {};
             usesByDatapointId[datapointId][`=${index}`] = true;
           }
           element.setAttribute(backupName, childNode.textContent);
+          childNode.textContent = templatedText.evaluate.string;
           //TODO substituteTextNode({element, index})
         }
 
@@ -183,22 +193,27 @@ class DomGenerator {
 
     if (element.hasAttributes())
       for (const { name, value } of element.attributes) {
-        if (name.startsWith("nobo-")) continue;
+        if (name.startsWith("nobo-") || name == "class" || name == "id") continue;
 
         const backupName = `nobo-backup--${name}`;
         if (element.hasAttribute(backupName)) continue;
 
-        const templatedText = new TemplatedText({ rowId, text: value });
-        if (templatedText.datapointIds.length) {
-          for (const datapointId of templatedText.datapointIds) {
+        const templatedText = new TemplatedText({ getDatapoint, rowId, text: value });
+        const datapointIds = Object.keys(templatedText.nodesByDatapointId);
+        if (datapointIds.length) {
+          for (const datapointId of datapointIds) {
             usesByDatapointId[datapointId] = usesByDatapointId[datapointId] || {};
             usesByDatapointId[datapointId][name] = true;
           }
           element.setAttribute(backupName, value);
+          element.setAttribute(name, templatedText.evaluate.string);
           //TODOsubstituteAttribute({element, attributeName: name})
         }
       }
 
+    if (Object.keys(usesByDatapointId).length) {
+      element.setAttribute("nobo-row-id", rowId);
+    }
     for (const [datapointId, uses] of Object.entries(usesByDatapointId)) {
       const usesName = `nobo-uses-${datapointId}`;
       if (element.hasAttribute(usesName)) continue;
