@@ -51,7 +51,7 @@ let globalSharedState;
 
 class SharedState {
   static publicMethods() {
-    return ["global", "requestCommit", "state", "watch", "stopWatching", "currentTemporaryState"];
+    return ["global", "requestCommit", "state", "watch", "stopWatching", "currentTemporaryState", "withTemporaryState"];
   }
 
   constructor() {
@@ -66,6 +66,18 @@ class SharedState {
 
   get currentTemporaryState() {
     return this._currentTemporaryState;
+  }
+
+  withTemporaryState(callback) {
+    const sharedState = this,
+      currentTemporaryState = sharedState.currentTemporaryState;
+
+    if (currentTemporaryState) callback(currentTemporaryState);
+    else {
+      sharedState.requestCommit(temp => {
+        callback(temp);
+      });
+    }
   }
 
   get state() {

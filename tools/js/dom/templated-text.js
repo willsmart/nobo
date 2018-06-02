@@ -105,7 +105,8 @@ class TemplatedText {
             if (names.length > 1) return "...";
             const datapointId = node.datapointIdsByName[names[0]];
             if (!datapointId) return "...";
-            return this.getDatapoint(datapointId, "...");
+            const ret = this.getDatapoint(datapointId, "...");
+            return Array.isArray(ret) && !ret.length ? undefined : ret;
           });
       }
       if (node.range[0] < wasIndex) continue;

@@ -25,7 +25,13 @@ module.exports = diffAny;
 
 function diffAny(was, is) {
   if (was === is) return;
-  if (Array.isArray(is)) return diffArray(Array.isArray(was) ? was : undefined, is);
+  if (Array.isArray(is)) {
+    return Array.isArray(was)
+      ? diffArray(was, is)
+      : {
+          value: is
+        };
+  }
   if (typeof is == "object") return diffObject(typeof was == "object" ? was : undefined, is);
   if (typeof was == typeof is && was == is) return;
   return {
@@ -76,6 +82,7 @@ function diffArray(was, is) {
   let diff;
   // TODO better diff algorithm
   let index;
+  was = was || [];
   for (index = 0; index < was.length && index < is.length; index++) {
     const wasChild = was[index],
       isChild = is[index],

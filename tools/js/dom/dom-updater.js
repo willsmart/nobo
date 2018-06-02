@@ -169,10 +169,16 @@ class DomUpdater {
       replacements = [];
 
     for (const element of childrenPlaceholders(datapointId)) {
-      const variant = element.getAttribute("variant") || undefined,
+      let variant = element.getAttribute("variant") || undefined,
         placeholderUid = element.getAttribute("nobo-uid"),
         rowId = ConvertIds.rowRegex.test(change.is) ? change.is : undefined,
+        datapointId = ConvertIds.datapointRegex.test(change.is) ? change.is : undefined,
         range = childRangeAtIndex({ placeholderDiv: element, index });
+      if (datapointId) {
+        const datapointInfo = ConvertIds.decomposeId({ datapointId });
+        rowId = datapointInfo.rowId;
+        variant = datapointInfo.fieldName;
+      }
       if (change.index !== undefined) {
         switch (change.type) {
           case "insert":

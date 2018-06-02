@@ -9,13 +9,15 @@ const { TemporaryState } = SharedState;
 
 const callbackKey = "ClientDatapoints";
 
+let globalClientDatapoints;
+
 class WSClientDatapoints {
   // public methods
   static publicMethods() {
-    return ["subscribe", "getDatapoint"];
+    return ["subscribe", "getDatapoint", "global"];
   }
 
-  constructor({ port }) {
+  constructor({ port } = {}) {
     const clientDatapoints = this;
 
     SharedState.global.watch({
@@ -95,12 +97,17 @@ class WSClientDatapoints {
     });
   }
 
+  static get global() {
+    return globalClientDatapoints ? globalClientDatapoints : (globalClientDatapoints = new WSClientDatapoints());
+  }
+
   getDatapoint(datapointId, defaultValue) {
     const clientDatapoints = this,
       datapointsById = SharedState.global.state.datapointsById || {};
     if (datapointsById[datapointId]) return datapointsById[datapointId];
-    const tempState = SharedState.global.currentTemporaryState;
-    if (tempState) tempState.atPath("datapointsById")[datapointId] = defaultValue;
+    SharedState.global.withTemporaryState(tempState => {
+      tempState.atPath("datapointsById")[datapointId] = defaultValue;
+    });
     return defaultValue;
   }
 

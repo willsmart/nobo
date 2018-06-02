@@ -42,9 +42,11 @@ class DomGenerator {
     variant = variant || "";
     const domGenerator = this,
       templateDatapointId =
-        typeof rowId == "string" && typeof rowId == "string" && ConvertIds.rowRegex.test(rowId)
+        typeof rowId == "string" && ConvertIds.rowRegex.test(rowId)
           ? templateDatapointIdForRowAndVariant(rowId, variant)
-          : undefined;
+          : typeof rowId == "string" && ConvertIds.datapointRegex.test(rowId)
+            ? templateDatapointIdForRowAndVariant(rowId, variant)
+            : undefined;
     return domGenerator.createElementsUsingTemplateDatapointId({ templateDatapointId, placeholderUid });
   }
 
@@ -145,16 +147,25 @@ class DomGenerator {
 
   createChildElements({ datapointId, variant, placeholderUid }) {
     const domGenerator = this,
-      rowIds = domGenerator.getDatapoint(datapointId, []);
+      rowOrDatapointIds = domGenerator.getDatapoint(datapointId, []);
 
-    if (!Array.isArray(rowIds)) return [];
+    if (!Array.isArray(rowOrDatapointIds)) return [];
 
     const childElements = [];
-    for (const rowId of rowIds) {
-      if (typeof rowId != "string" || !ConvertIds.rowRegex.test(rowId)) rowId = undefined;
+    for (const rowOrDatapointId of rowOrDatapointIds) {
+      let rowId,
+        localVariant = variant;
+      if (typeof rowOrDatapointId == "string") {
+        if (ConvertIds.rowRegex.test(rowOrDatapointId)) rowId = rowOrDatapointId;
+        if (ConvertIds.datapointRegex.test(rowOrDatapointId)) {
+          const datapointInfo = ConvertIds.decomposeId({ datapointId: rowOrDatapointId });
+          rowId = datapointInfo.rowId;
+          localVariant = datapointInfo.fieldName;
+        }
+      }
       childElements.push(
         ...domGenerator.createElementsForVariantOfRow({
-          variant,
+          variant: localVariant,
           rowId,
           placeholderUid
         })

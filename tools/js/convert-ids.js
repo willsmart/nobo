@@ -28,7 +28,7 @@
 
 const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   dbRowIdRegex = /([1-9][0-9]*)/,
-  fieldNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
+  fieldNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*|)/,
   // Pointer to a row in the DB
   //   captures:
   //      [1]: typename in snake_case
@@ -88,10 +88,20 @@ const ChangeCase = require("change-case");
 // deconstructs a string id into its component parts or throws if not possible
 //  arguments object with one key of:
 //    rowId, proxyableRowId, datapointId
-function decomposeId({ rowId, proxyableRowId, datapointId, relaxed }) {
-  if (datapointId) return stringToDatapoint(datapointId);
-  if (rowId) return stringToRow(rowId);
-  if (proxyableRowId) return stringToProxyableRow(proxyableRowId);
+function decomposeId({ rowId, proxyableRowId, datapointId, relaxed, permissive }) {
+  if (datapointId) {
+    const ret = stringToDatapoint(datapointId, permissive);
+    if (ret) return ret;
+  }
+  if (rowId) {
+    const ret = stringToRow(rowId, permissive);
+    if (ret) return ret;
+  }
+  if (proxyableRowId) {
+    const ret = stringToProxyableRow(proxyableRowId, permissive);
+    if (ret) return ret;
+  }
+  if (permissive) return;
   throw new Error("No id to decompose");
 }
 
@@ -101,7 +111,7 @@ function ensureDecomposed({ typeName }) {
 
 // reconstructs string ids from their component parts or throws if not possible
 // you can provide more than one argument, in which case they are combined with the last taking precidence
-function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableRowId }) {
+function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableRowId, datapointId, permissive }) {
   if (arguments.length != 1) {
     const combined = {};
     Array.prototype.forEach.call(arguments, argument => Object.assign(combined, argument));
@@ -109,18 +119,34 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableR
   }
 
   if (rowId) {
-    const args = decomposeId({ rowId });
-    typeName = args.typeName;
-    dbRowId = args.dbRowId;
+    const args = decomposeId({ rowId, permissive: true });
+    if (args) {
+      typeName = args.typeName;
+      dbRowId = args.dbRowId;
+    }
   }
 
   if (proxyableRowId) {
-    const args = decomposeId({ proxyableRowId });
-    typeName = args.typeName;
-    proxyKey = args.proxyKey;
+    const args = decomposeId({ proxyableRowId, permissive: true });
+    if (args) {
+      typeName = args.typeName;
+      proxyKey = args.proxyKey;
+    }
   }
 
-  if (!typeName) throw new Error("Can't recompose without typeName");
+  if (datapointId) {
+    const args = decomposeId({ datapointId, permissive: true });
+    if (args) {
+      typeName = args.typeName;
+      dbRowId = args.dbRowId;
+      fieldName = args.fieldName;
+    }
+  }
+
+  if (!typeName) {
+    if (permissive) return;
+    throw new Error("Can't recompose without typeName");
+  }
 
   const ret = {
     typeName: ChangeCase.snakeCase(typeName)
@@ -132,7 +158,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableR
     ret.dbRowId = +dbRowId;
     ret.rowId = ret.proxyableRowId = `${ret.typeName}__${ret.dbRowId}`;
 
-    if (fieldName) {
+    if (fieldName !== undefined) {
       ret.fieldName = ChangeCase.snakeCase(fieldName);
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error("Field name has invalid characters or format");
 
@@ -142,19 +168,25 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableR
     ret.proxyKey = proxyKey;
     if (!proxyKeyRegex.test(ret.proxyKey)) throw new Error("Proxy key has invalid characters or format");
     ret.proxyRowId = ret.proxyableRowId = `${ret.typeName}__${ret.proxyKey}`;
-  } else throw new Error("Must have either a dbRowId or a proxyKey");
+  } else {
+    if (permissive) return;
+    throw new Error("Must have either a dbRowId or a proxyKey");
+  }
 
   ret.typeName = ChangeCase.pascalCase(ret.typeName);
-  if (ret.fieldName) ret.fieldName = ChangeCase.camelCase(ret.fieldName);
+  if (ret.fieldName !== undefined) ret.fieldName = ChangeCase.camelCase(ret.fieldName);
 
   return ret;
 }
 
 // Helper methods for applying the regexes
 
-function stringToRow(rowId) {
+function stringToRow(rowId, permissive) {
   const match = rowRegex.exec(rowId);
-  if (!match) throw new Error(`Bad row id ${rowId}`);
+  if (!match) {
+    if (permissive) return;
+    throw new Error(`Bad row id ${rowId}`);
+  }
 
   return {
     rowId: rowId,
@@ -165,9 +197,12 @@ function stringToRow(rowId) {
   };
 }
 
-function stringToDatapoint(datapointId) {
+function stringToDatapoint(datapointId, permissive) {
   const match = datapointRegex.exec(datapointId);
-  if (!match) throw new Error(`Bad datapoint id ${datapointId}`);
+  if (!match) {
+    if (permissive) return;
+    throw new Error(`Bad datapoint id ${datapointId}`);
+  }
 
   return {
     datapointId: datapointId,
@@ -181,9 +216,12 @@ function stringToDatapoint(datapointId) {
   };
 }
 
-function stringToProxyableRow(rowId) {
+function stringToProxyableRow(rowId, permissive) {
   const match = proxyableRowRegex.exec(rowId);
-  if (!match) throw new Error(`Bad row id ${rowId}`);
+  if (!match) {
+    if (permissive) return;
+    throw new Error(`Bad row id ${rowId}`);
+  }
 
   return Object.assign(
     {

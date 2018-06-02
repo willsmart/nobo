@@ -86,7 +86,16 @@ class CodeSnippet {
       return;
     }
     try {
-      codeSnippet._names = CodeSnippet.namesFromAst(jsep(code));
+      codeSnippet._names = applyIgnore(CodeSnippet.namesFromAst(jsep(code)));
+      function applyIgnore(names) {
+        if (typeof names != "object") return names;
+        const ret = {};
+        for (const [name, value] of Object.entries(names)) {
+          if (codeSnippet.ignoreNames[name]) continue;
+          ret[name] = applyIgnore(value);
+        }
+        return ret;
+      }
     } catch (err) {
       console.log(`Failed to parse code snippet: ${code}\n${err}\n`);
       delete codeSnippet._script;
