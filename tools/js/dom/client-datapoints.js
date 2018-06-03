@@ -30,7 +30,11 @@ class WSClientDatapoints {
         forEachChangedKeyPath((keyPath, change) => {
           if (keyPath.length == 1 && keyPath[0] == "datapointsById") return true;
 
-          if (keyPath.length == 2 && keyPath[0] == "datapointsById" && ConvertIds.datapointRegex.test(keyPath[1])) {
+          if (
+            keyPath.length == 2 &&
+            keyPath[0] == "datapointsById" &&
+            ConvertIds.proxyableDatapointRegex.test(keyPath[1])
+          ) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
             switch (change.type) {
@@ -81,7 +85,7 @@ class WSClientDatapoints {
         let payloadObject;
 
         for (const datapointId of Object.keys(datapointsById)) {
-          if (ConvertIds.datapointRegex.test(datapointId)) {
+          if (ConvertIds.proxyableDatapointRegex.test(datapointId)) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
             payloadObject.datapoints[datapointId] = 1;

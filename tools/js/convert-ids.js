@@ -21,8 +21,13 @@
 //          In the case of user__me, the proxy key 'me' could be mapped to the current user's id
 //          If logged out, user__me could be made to redirect to some other row, like app__default
 //
+//  proxyDatapointId : a proxy pointer to a particular field value in a db table.
+//          Made up of a proxyRowId and a snake_case field name, joined by double underscores
+//          eg. user__me__name
+//
 // GENERAL
 //  proxyableRowId : all rowId's and proxyRowId's are proxyableRowId's
+//  proxyableDatapointId : all datapointId's and proxyDatapointId's are proxyableDatapointId's
 //          This allows code to deal with both cases generally if need be
 //
 
@@ -39,25 +44,46 @@ const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: row id as an integer string
+  //      [4]: field name in snake_case
   datapointRegex = new RegExp(`^(${typeNameRegex.source}__${dbRowIdRegex.source})__~?${fieldNameRegex.source}$`),
   // at some levels the system uses 'proxy' and 'proxyable' row ids
   // eg, when retrieving a model like 'user__me' the 'me' is a proxy row id
   proxyKeyRegex = /([a-z][a-z0-9]*(?:_[a-z0-9]+)*)/,
   proxyableRowIdRegex = new RegExp(`(?:${dbRowIdRegex.source}|${proxyKeyRegex.source})`),
-  // Pointer to a row in the DB, or a proxy to one
+  // Pointer to a proxy to a row in the DB
   //   captures:
   //      [1]: typename in snake_case
-  //      [2]: row id as an integer string
-  //      [3]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
-  proxyableRowRegex = new RegExp(`^${typeNameRegex.source}__${proxyableRowIdRegex.source}$`);
+  //      [2]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  proxyRowRegex = new RegExp(`^${typeNameRegex.source}__${proxyKeyRegex.source}$`),
+  // Pointer to a particular expression of a proxy to a row in the db
+  //   captures:
+  //      [1]: the row string
+  //      [2]: typename in snake_case
+  //      [3]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  proxyDatapointRegex = new RegExp(`^${typeNameRegex.source}__${proxyKeyRegex.source}__~?${fieldNameRegex.source}$`),
+  // Pointer to a particular expression of a row in the db
+  //   captures:
+  //      [1]: the row string
+  //      [2]: typename in snake_case
+  //      [3]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  //      [4]: field name in snake_case
+  proxyableRowRegex = new RegExp(`^${typeNameRegex.source}__${proxyableRowIdRegex.source}$`),
+  // Pointer to a particular expression of a row in the db
+  //   captures:
+  //      [1]: the row string
+  //      [2]: typename in snake_case
+  //      [3]: row id as an integer string
+  //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  proxyableDatapointRegex = new RegExp(
+    `^(${typeNameRegex.source}__${proxyableRowIdRegex.source})__~?${fieldNameRegex.source}$`
+  );
 // Pointer to a particular expression of a row in the db
 //   captures:
 //      [1]: the row string
 //      [2]: typename in snake_case
 //      [3]: row id as an integer string
 //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
-
-// datapoints are never proxied
+//      [5]: field name in snake_case
 
 // API
 module.exports = {
@@ -80,7 +106,10 @@ module.exports = {
   datapointRegex,
   proxyKeyRegex,
   proxyableRowIdRegex,
-  proxyableRowRegex
+  proxyRowRegex,
+  proxyDatapointRegex,
+  proxyableRowRegex,
+  proxyableDatapointRegex
 };
 
 const ChangeCase = require("change-case");
@@ -88,13 +117,17 @@ const ChangeCase = require("change-case");
 // deconstructs a string id into its component parts or throws if not possible
 //  arguments object with one key of:
 //    rowId, proxyableRowId, datapointId
-function decomposeId({ rowId, proxyableRowId, datapointId, relaxed, permissive }) {
+function decomposeId({ rowId, proxyableRowId, proxyableDatapointId, datapointId, relaxed, permissive }) {
   if (datapointId) {
     const ret = stringToDatapoint(datapointId, permissive);
     if (ret) return ret;
   }
   if (rowId) {
     const ret = stringToRow(rowId, permissive);
+    if (ret) return ret;
+  }
+  if (proxyableDatapointId) {
+    const ret = stringToProxyableDatapoint(proxyableDatapointId, permissive);
     if (ret) return ret;
   }
   if (proxyableRowId) {
@@ -162,12 +195,19 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableR
       ret.fieldName = ChangeCase.snakeCase(fieldName);
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error("Field name has invalid characters or format");
 
-      ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
+      ret.datapointId = ret.proxyableDatapointId = `${ret.rowId}__${ret.fieldName}`;
     }
   } else if (proxyKey) {
     ret.proxyKey = proxyKey;
     if (!proxyKeyRegex.test(ret.proxyKey)) throw new Error("Proxy key has invalid characters or format");
     ret.proxyRowId = ret.proxyableRowId = `${ret.typeName}__${ret.proxyKey}`;
+
+    if (fieldName !== undefined) {
+      ret.fieldName = ChangeCase.snakeCase(fieldName);
+      if (!fieldNameRegex.test(ret.fieldName)) throw new Error("Field name has invalid characters or format");
+
+      ret.proxyDatapointId = ret.proxyableDatapointId = `${ret.proxyRowId}__${ret.fieldName}`;
+    }
   } else {
     if (permissive) return;
     throw new Error("Must have either a dbRowId or a proxyKey");
@@ -236,6 +276,34 @@ function stringToProxyableRow(rowId, permissive) {
       : {
           proxyRowId: rowId,
           proxyKey: match[3]
+        }
+  );
+}
+
+function stringToProxyableDatapoint(datapointId, permissive) {
+  const match = proxyableDatapointRegex.exec(datapointId);
+  if (!match) {
+    if (permissive) return;
+    throw new Error(`Bad datapoint id ${rowId}`);
+  }
+
+  return Object.assign(
+    {
+      proxyableDatapointId: datapointId,
+      proxyableRowId: match[1],
+      typeName: ChangeCase.pascalCase(match[2]),
+      fieldName: match[5]
+    },
+    match[3]
+      ? {
+          datapointId: datapointId,
+          rowId: match[1],
+          dbRowId: +match[3]
+        }
+      : {
+          proxyDatapointId: datapointId,
+          proxyRowId: match[1],
+          proxyKey: match[4]
         }
   );
 }

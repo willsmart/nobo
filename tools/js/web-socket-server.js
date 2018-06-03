@@ -5,6 +5,7 @@ const Cookie = require("cookie");
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./general/public-api");
 const makeClassWatchable = require("./general/watchable");
+const ServerDatapoints = require("./server-datapoints");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -18,6 +19,10 @@ class WebSocketServer {
     const server = this;
 
     server._cache = cache;
+
+    server.serverDatapoints = new ServerDatapoints({
+      wsserver: server
+    })
   }
 
   get cache() {
@@ -107,8 +112,9 @@ class WebSocketServer {
       console.log(`Session: ${JSON.stringify(session)}`);
 
       var client = new WebSocketClient({
-        server: server,
-        ws: ws,
+        server,
+        session,
+        ws,
         index: nextWsIndex++,
         userId: session.userId
       });
@@ -149,10 +155,11 @@ class WebSocketServer {
 }
 
 class WebSocketClient {
-  constructor({ server, ws, index }) {
+  constructor({ server, session, ws, index }) {
     const client = this;
 
     client.server = server;
+    client.session = session;
     client.ws = ws;
     client.index = index;
     client.mapProxyRowId(
@@ -262,7 +269,8 @@ class WebSocketClient {
     client.notifyListeners("onpayload", {
       messageIndex,
       messageType,
-      payloadObject
+      payloadObject,
+      session: client.session
     });
   }
 
