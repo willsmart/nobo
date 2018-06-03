@@ -9,7 +9,7 @@ const Connection = require("../db/postgresql-connection");
 const fs = require("fs");
 const processArgs = require("../general/process-args");
 
-(async function () {
+(async function() {
   var args = processArgs();
 
   console.log("Load a model from the db");
@@ -55,5 +55,5 @@ const processArgs = require("../general/process-args");
   const wsserver = new WebSocketServer({
     cache
   });
-  wsserver.start();
+  await wsserver.start();
 })();

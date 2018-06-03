@@ -66,7 +66,7 @@ class Datapoint {
       return theDatapoint.value;
     });
 
-    datapoint.cache.validateNewlyInvalidDatapoints();
+    datapoint.cache.queueValidationJob();
 
     return ret;
   }

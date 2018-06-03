@@ -1,6 +1,6 @@
 const PublicApi = require("../general/public-api");
 
-// API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
+// API is auto-generated at the bottom from the public interface of the WSClientDatapoints class
 
 const WebSocketClient = require("./web-socket-client");
 const ConvertIds = require("../convert-ids");
