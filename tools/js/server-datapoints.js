@@ -58,53 +58,55 @@ class WSClientDatapoints {
     delete serverDatapoints.clientsWithPayloads[clientDatapoints.index];
   }
 
-  subscribe({ datapointId }) {
+  subscribe({ proxyableDatapointId, user }) {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints;
 
-    if (clientDatapoints.subscribedDatapoints[datapointId]) return clientDatapoints.subscribedDatapoints[datapointId];
+    if (clientDatapoints.subscribedDatapoints[proxyableDatapointId])
+      return clientDatapoints.subscribedDatapoints[proxyableDatapointId];
+
+    const datapointId = clientDatapoints.datapointIdFromProxyableDatapointId({ proxyableDatapointId, user });
+    if (!datapointId) return;
 
     const { datapoint } = serverDatapoints.addRefForDatapoint({
       datapointId
     });
 
-    clientDatapoints.subscribedDatapoints[datapointId] = datapoint;
+    clientDatapoints.subscribedDatapoints[proxyableDatapointId] = datapoint;
 
     datapoint.watch({
-      callbackKey: clientDatapoints.callbackKey,
+      callbackKey: `${clientDatapoints.callbackKey}__${proxyableDatapointId}`,
       onvalid: () => {
-        clientDatapoints.queueSendDiff(datapoint);
+        clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
       }
     });
 
-    clientDatapoints.queueSendDiff(datapoint);
+    clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
   }
 
-  unsubscribe({ datapointId }) {
+  unsubscribe({ proxyableDatapointId }) {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints,
-      datapoint = clientDatapoints.subscribedDatapoints[datapointId];
+      datapoint = clientDatapoints.subscribedDatapoints[proxyableDatapointId];
 
     if (!datapoint) return;
 
-    delete clientDatapoints.subscribedDatapoints[datapointId];
-
-    if (ConvertIds.proxyDatapointRegex.test(datapointId)) return;
+    delete clientDatapoints.subscribedDatapoints[proxyableDatapointId];
 
     datapoint.stopWatching({
-      callbackKey: clientDatapoints.callbackKey
+      callbackKey: `${clientDatapoints.callbackKey}__${proxyableDatapointId}`
     });
     serverDatapoints.releaseRefForDatapoint(datapoint);
   }
 
-  queueSendDiff(datapoint) {
+  queueSendDiff({ proxyableDatapointId, datapoint }) {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints,
       datapointId = datapoint.datapointId;
 
-    if (clientDatapoints.diffByDatapointId[datapointId]) return;
+    if (clientDatapoints.diffByDatapointId[proxyableDatapointId]) return;
 
-    const clientVersionInfo = clientDatapoints.clientDatapointVersions[datapointId],
+    const clientVersionInfo = clientDatapoints.clientDatapointVersions[proxyableDatapointId],
       { sentVersion = 0, hasVersion = 0 } = clientVersionInfo || {};
 
     if (sentVersion != hasVersion) return;
@@ -118,11 +120,11 @@ class WSClientDatapoints {
 
     if (clientVersionInfo) clientVersionInfo.sentVersion = diff.toVersion;
     else
-      clientDatapoints.clientDatapointVersions[datapointId] = {
+      clientDatapoints.clientDatapointVersions[proxyableDatapointId] = {
         hasVersion,
         sentVersion: diff.toVersion
       };
-    clientDatapoints.diffByDatapointId[datapointId] = diff;
+    clientDatapoints.diffByDatapointId[proxyableDatapointId] = diff;
     serverDatapoints.clientsWithPayloads[clientDatapoints.index] = clientDatapoints;
 
     serverDatapoints.queueSendPayloads();
@@ -137,12 +139,33 @@ class WSClientDatapoints {
       clientDatapoints.recievedDatapointsFromClient({ datapoints: payloadObject.datapoints, session });
   }
 
+  datapointIdFromProxyableDatapointId({ proxyableDatapointId, user }) {
+    if (!ConvertIds.proxyDatapointRegex.test(proxyableDatapointId)) return proxyableDatapointId;
+    const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId });
+    switch (datapointInfo.typeName) {
+      case "User":
+        switch (datapointInfo.proxyKey) {
+          case "":
+          case "me":
+          case "current":
+            if (user) return ConvertIds.recomposeId(datapointInfo, { dbRowId: user.id }).datapointId;
+            break;
+        }
+      case "App":
+        switch (datapointInfo.proxyKey) {
+          case "":
+          case "current":
+            return ConvertIds.recomposeId(datapointInfo, { dbRowId: 1 }).datapointId;
+        }
+    }
+  }
+
   recievedDatapointsFromClient({ datapoints: datapointsFromClient, session }) {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints,
       { user } = session;
 
-    for (let [datapointId, datapointFromClient] of Object.entries(datapointsFromClient)) {
+    for (let [proxyableDatapointId, datapointFromClient] of Object.entries(datapointsFromClient)) {
       if (datapointFromClient === 0)
         datapointFromClient = {
           unsubscribe: true
@@ -152,56 +175,29 @@ class WSClientDatapoints {
           subscribe: true
         };
 
-      if (ConvertIds.proxyDatapointRegex.test(datapointId)) {
-        const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: datapointId });
-        switch (datapointInfo.typeName) {
-          case "User":
-            switch (datapointInfo.proxyKey) {
-              case "":
-              case "me":
-              case "current":
-                clientDatapoints.diffByDatapointId[datapointId] =
-                  user && user.id ? [ConvertIds.recomposeId(datapointInfo, { dbRowId: user.id }).datapointId] : [];
-                serverDatapoints.clientsWithPayloads[clientDatapoints.index] = clientDatapoints;
-                serverDatapoints.queueSendPayloads();
-            }
-          case "App":
-            switch (datapointInfo.proxyKey) {
-              case "":
-              case "current":
-                clientDatapoints.diffByDatapointId[datapointId] = [
-                  ConvertIds.recomposeId(datapointInfo, { dbRowId: 1 }).datapointId
-                ];
-                serverDatapoints.clientsWithPayloads[clientDatapoints.index] = clientDatapoints;
-                serverDatapoints.queueSendPayloads();
-            }
-        }
-        continue;
-      }
-
-      const subscribedDatapoint = clientDatapoints.subscribedDatapoints[datapointId],
+      const subscribedDatapoint = clientDatapoints.subscribedDatapoints[proxyableDatapointId],
         { ackVersion, unsubscribe, subscribe, diff } = datapointFromClient;
 
       if (subscribedDatapoint) {
         if (unsubscribe) {
           clientDatapoints.unsubscribe({
-            datapointId
+            proxyableDatapointId
           });
           continue;
         }
         if (ackVersion) {
-          let clientVersionInfo = clientDatapoints.clientDatapointVersions[datapointId];
+          let clientVersionInfo = clientDatapoints.clientDatapointVersions[proxyableDatapointId];
           const { hasVersion = 0 } = clientVersionInfo || {};
 
           if (hasVersion != ackVersion) {
             if (!clientVersionInfo)
-              clientVersionInfo = clientDatapoints.clientDatapointVersions[datapointId] = {
+              clientVersionInfo = clientDatapoints.clientDatapointVersions[proxyableDatapointId] = {
                 hasVersion: ackVersion,
                 sentVersion: ackVersion
               };
             else clientVersionInfo.hasVersion = ackVersion;
 
-            clientDatapoints.queueSendDiff(subscribedDatapoint);
+            clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint: subscribedDatapoint });
           }
         }
         if (diff) {
@@ -209,7 +205,8 @@ class WSClientDatapoints {
         }
       } else if (subscribe) {
         clientDatapoints.subscribe({
-          datapointId
+          proxyableDatapointId,
+          user
         });
       }
     }
