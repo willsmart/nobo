@@ -195,7 +195,6 @@ class DomGenerator {
           }
           element.setAttribute(backupName, childNode.textContent);
           childNode.textContent = templatedText.evaluate.string;
-          //TODO substituteTextNode({element, index})
         }
 
         index++;
@@ -218,7 +217,6 @@ class DomGenerator {
           }
           element.setAttribute(backupName, value);
           element.setAttribute(name, templatedText.evaluate.string);
-          //TODOsubstituteAttribute({element, attributeName: name})
         }
       }
 
