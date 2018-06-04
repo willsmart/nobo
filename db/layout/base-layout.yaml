@@ -18,7 +18,6 @@
         default: 'noboapp'
 
     ~< users(User):
-        as: user
         phoenixKey(string): null
 
     # A template is some DOM block that can be customised with a model (i.e. a row in a table), and inserted into a document
