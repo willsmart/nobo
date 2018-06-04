@@ -1,7 +1,6 @@
 const PublicApi = require("../general/public-api");
 const ConvertIds = require("../convert-ids");
 const SharedState = require("../dom/shared-state");
-const ClientDatapoints = require("../dom/client-datapoints");
 
 let globalPageState;
 
@@ -10,11 +9,13 @@ let globalPageState;
 class PageState {
   // public methods
   static publicMethods() {
-    return ["visit"];
+    return ["visit", "global"];
   }
 
   constructor({ getDatapoint, defaultPageDatapointInfo } = {}) {
     const pageState = this;
+
+    globalPageState = pageState;
 
     pageState.defaultPageDatapointInfo =
       defaultPageDatapointInfo ||
@@ -24,7 +25,7 @@ class PageState {
         fieldName: ""
       });
 
-    pageState.getDatapoint = getDatapoint || ClientDatapoints.global.getDatapoint;
+    pageState.getDatapoint = getDatapoint;
 
     window.onpopstate = event => {
       const pageState = this;
@@ -58,7 +59,7 @@ class PageState {
   }
 
   static get global() {
-    return globalPageState ? globalPageState : (globalPageState = new PageState());
+    return globalPageState;
   }
 
   static get currentWindowState() {
@@ -68,12 +69,12 @@ class PageState {
 
   static get datapointInfoFromPath() {
     const pathName = window.location.pathname,
-      match = /^\/(\w+)\/(?:(\d+)|(\w+))(?:\/(\w*))?$/.exec(pathName);
+      match = /^\/(\w+)(?:\/(?:(\d+)|(\w+))?(?:\/(\w*))?)?($|\/)/.exec(pathName);
     if (!match) return;
     return ConvertIds.recomposeId({
       typeName: match[1],
-      dbRowId: +match[2],
-      proxyKey: match[3],
+      dbRowId: match[2] ? +match[2] : undefined,
+      proxyKey: match[2] || match[3] ? match[3] : "default",
       fieldName: match[4] || ""
     });
   }
@@ -91,12 +92,16 @@ class PageState {
   updateState(rowOrDatapointId) {
     const pageState = this;
 
-    let pageDatapointInfo = ConvertIds.recomposeId({
-      proxyableRowId: rowOrDatapointId,
-      proxyableDatapointId: rowOrDatapointId,
-      fieldName: "",
-      permissive: true
-    });
+    let pageDatapointInfo = rowOrDatapointId
+      ? ConvertIds.recomposeId({
+          proxyableDatapointId: rowOrDatapointId,
+          permissive: true
+        })
+      : ConvertIds.recomposeId({
+          proxyableRowId: rowOrDatapointId,
+          fieldName: "",
+          permissive: true
+        });
     if (!pageDatapointInfo) {
       pageDatapointInfo = PageState.datapointInfoFromPath;
       if (!pageDatapointInfo) {
@@ -138,9 +143,19 @@ class PageState {
     const regex = /(?=((?:[\!\$&'\(\)\*\+,;=a-zA-Z0-9\-._~:@\/?]|%[0-9a-fA-F]{2})*))\1./g,
       titleForFragment = !state.title ? undefined : state.title.substring(0, 100).replace(regex, "$1-");
 
-    return `/${datapointInfo.typeName}/${datapointInfo.dbRowId || datapointInfo.proxyKey}${
-      datapointInfo.fieldName ? `/${datapointInfo.fieldName}` : ""
-    }${titleForFragment ? `#${titleForFragment}` : ""}`;
+    const dbRowIdOrProxyKey =
+      datapointInfo.proxyKey == "default" ? "" : datapointInfo.dbRowId || datapointInfo.proxyKey;
+    let ret = `/${datapointInfo.typeName}`;
+    if (dbRowIdOrProxyKey || datapointInfo.fieldName || titleForFragment) {
+      ret += `/${dbRowIdOrProxyKey || ""}`;
+      if (datapointInfo.fieldName || titleForFragment) {
+        ret += `/${datapointInfo.fieldName || ""}`;
+        if (titleForFragment) {
+          ret += `/${titleForFragment}`;
+        }
+      }
+    }
+    return ret;
   }
 }
 

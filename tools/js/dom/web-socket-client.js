@@ -2,6 +2,8 @@ const WebSocket = require("isomorphic-ws");
 const ConvertIds = require("../convert-ids");
 const PublicApi = require("../general/public-api");
 const makeClassWatchable = require("../general/watchable");
+const SharedState = require("./shared-state");
+const PageState = require("../client/page-state");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -36,7 +38,8 @@ class WebSocketClient {
         clearInterval(ws.pingInterval);
         client._isOpen = false;
         client.notifyListeners("onclose");
-        setTimeout(() => open(), 2000);
+        delete client.intentionalClose;
+        setTimeout(() => open(), client.intentionalClose ? 100 : 2000);
       };
 
       if (ws.on) {
@@ -50,6 +53,7 @@ class WebSocketClient {
         const match = /^Phoenix:(.*)$/.exec(message.data);
         if (match) {
           client.phoenix = JSON.parse(match[1]);
+          client.intentionalClose = true;
           ws.close();
           return;
         }
@@ -69,6 +73,7 @@ class WebSocketClient {
       if (ws.ping) {
         ws.pingInterval = setInterval(function ping() {
           if (!ws.pongCount) {
+            client.intentionalClose = true;
             return ws.close();
           }
 
@@ -145,8 +150,14 @@ class WebSocketClient {
   signOut() {
     const client = this;
 
+    SharedState.global.withTemporaryState(tempState => {
+      tempState.atPath().datapointsById = {};
+    });
     client.phoenix = "out";
+    client.intentionalClose = true;
     client.ws.close();
+
+    PageState.global.visit("app__default");
   }
 }
 

@@ -2,7 +2,6 @@ const PublicApi = require("../general/public-api");
 
 // API is auto-generated at the bottom from the public interface of the WSClientDatapoints class
 
-const WebSocketClient = require("./web-socket-client");
 const ConvertIds = require("../convert-ids");
 const SharedState = require("./shared-state");
 const { TemporaryState } = SharedState;
@@ -14,11 +13,13 @@ let globalClientDatapoints;
 class WSClientDatapoints {
   // public methods
   static publicMethods() {
-    return ["subscribe", "getDatapoint", "global"];
+    return ["subscribe", "getDatapoint"];
   }
 
-  constructor({ port } = {}) {
+  constructor({ wsclient }) {
     const clientDatapoints = this;
+
+    clientDatapoints.wsclient = wsclient;
 
     SharedState.global.watch({
       callbackKey: "manage-subscriptions",
@@ -54,10 +55,6 @@ class WSClientDatapoints {
           });
         }
       }
-    });
-
-    clientDatapoints.wsclient = new WebSocketClient({
-      port
     });
 
     clientDatapoints.wsclient.watch({
@@ -99,10 +96,6 @@ class WSClientDatapoints {
         }
       }
     });
-  }
-
-  static get global() {
-    return globalClientDatapoints ? globalClientDatapoints : (globalClientDatapoints = new WSClientDatapoints());
   }
 
   getDatapoint(proxyableDatapointId, defaultValue) {

@@ -16,16 +16,22 @@ document.nobo = {
   DomUpdater
 };
 
-document.nobo.datapoints = document.nobo.ClientDatapoints.global;
+document.nobo.wsclient = new WebSocketClient();
+document.nobo.datapoints = new document.nobo.ClientDatapoints({ wsclient: document.nobo.wsclient });
+
+const getDatapoint = (proxyableDatapointId, defaultValue) =>
+  document.nobo.datapoints.getDatapoint(proxyableDatapointId, defaultValue);
+
 document.nobo.domGenerator = new document.nobo.DomGenerator({
   htmlToElement,
-  getDatapoint: (proxyableDatapointId, defaultValue) =>
-    document.nobo.datapoints.getDatapoint(proxyableDatapointId, defaultValue)
+  getDatapoint
 });
 document.nobo.domUpdater = new document.nobo.DomUpdater({
   domGenerator: document.nobo.domGenerator
 });
-document.nobo.pageState = new document.nobo.PageState();
+document.nobo.pageState = new document.nobo.PageState({
+  getDatapoint
+});
 
 SharedState.global.watch({
   onchangedstate: function(diff, changes) {
