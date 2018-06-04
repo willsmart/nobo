@@ -8,15 +8,10 @@
       at(datetime): now
       name(string): null
 
-
 - SchemaHistory:
     modelLayout(text): null
     layoutToSchemaVersion(string): null
     at(datetime): now
-
-- NodelNotification:
-    - at(datetime)
-
 
 # A template is some DOM block that can be customised with a model (i.e. a row in a table), and inserted into a document
 - template(Template):

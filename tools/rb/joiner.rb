@@ -61,13 +61,20 @@ if !$secrets_dir.nil? and File.exist?("#{$secrets_dir}.dat") and File.exist?('bi
   print "\e[22m"
 end
 
+$prevModTimes = {}
+
+def mtime(file)
+  return $prevModTimes[file] if $prevModTimes.has_key? file
+  $prevModTimes[file] = File.new(file).mtime  
+end
+
 def touch(file, mtime, deb)
   unless deb.nil?
     #puts "(#{deb}) Touch #{file} : #{mtime}"
   end
+  mtime(file)
   FileUtils.touch file, :mtime => mtime
 end
-
 
 def ascendingTimes(tm1,tm2,deb=false)
   if deb 
@@ -77,12 +84,13 @@ def ascendingTimes(tm1,tm2,deb=false)
 end
 
 def sync
+  $prevModTimes = {}
   secrets_changed = false
   ret=0
   dirs = $base_dirs.select{|dir| Dir.exist?(dir)}
   mtimes = {}
   dirs.each do |dir|
-    mtimes[dir] = File.new(dir).mtime
+    mtimes[dir] = mtime(dir)
   end
 
   stack=[{
@@ -90,7 +98,7 @@ def sync
     mtimes:mtimes,
     _files:dirs,
     joined:$base_join_dir,
-    joined_mtime: File.exist?($base_join_dir) ? File.new($base_join_dir).mtime : nil,
+    joined_mtime: File.exist?($base_join_dir) ? mtime($base_join_dir) : nil,
     is_pushback:($can_pushback ? nil : false),
     is_ignore:false
   }]
@@ -130,8 +138,8 @@ def sync
             ret+=1
             FileUtils.rm_rf(path)
           elsif !all_entries.has_key?(file)
-            jdtm = File.new(info[:joined]).mtime
-            jtm = File.new(path).mtime
+            jdtm = mtime(info[:joined])
+            jtm = mtime(path)
             if (is_pushback = info[:is_pushback]).nil?
               for dir in dirs
                 _dtm = info[:mtimes][dir]
@@ -190,7 +198,7 @@ def sync
         unless jdtm.nil? or File.exist?(join_path)
           for dir in file_dirs
             file = "#{dir}/#{subdir}"
-            _tm = File.new(file).mtime
+            _tm = mtime(file)
             _tm = info[:mtimes][dir] if info[:mtimes][dir]>_tm
             tm = _tm if tm.nil? or tm<_tm
           end
@@ -210,7 +218,7 @@ def sync
         file_dirs.each do |dir|
           dtm = info[:mtimes][dir]
           file = "#{dir}/#{subdir}"
-          tm = File.new(file).mtime
+          tm = mtime(file)
           mtimes[file] = (ascendingTimes(dtm, tm) ? tm : dtm)
         end
 
@@ -219,7 +227,7 @@ def sync
           mtimes: mtimes,
           _files:dirs.map{|dir| "#{dir}/#{subdir}"}, 
           joined:join_path,
-          joined_mtime: File.exist?(join_path) ? ((tm=File.new(join_path).mtime)>info[:joined_mtime] ? tm : info[:joined_mtime]) : nil,
+          joined_mtime: File.exist?(join_path) ? ((tm=mtime(join_path))>info[:joined_mtime] ? tm : info[:joined_mtime]) : nil,
           is_pushback: pushback_entries.has_key?(subdir) ? true : (jdtm.nil? ? false : info[:is_pushback]),
           is_ignore: info[:is_ignore] || !($ignore_in_app !~ "#{subdir}/")
         })
@@ -231,13 +239,13 @@ def sync
       ptm=nil
       for file in info[:_files]
         if File.exist? "#{file}.props" and (hash=safe_JSON_parse(File.read("#{file}.props"))).is_a?(Hash)
-          _ptm = File.new("#{file}.props").mtime
+          _ptm = mtime("#{file}.props")
           ptm=_ptm if ptm.nil? or ascendingTimes(ptm,_ptm)
           props.merge! hash
         end
       end
 
-      tm = File.new(info[:files].last).mtime
+      tm = mtime(info[:files].last)
       tm = ptm if !ptm.nil? and ascendingTimes(tm, ptm)
 
       was_pushback = false
@@ -245,7 +253,7 @@ def sync
       if props.empty?
         FileUtils.rm_rf(info[:joined]) if Dir.exist? info[:joined]
         if File.exist? info[:joined]
-          jtm = File.new(info[:joined]).mtime
+          jtm = mtime(info[:joined])
           if ascendingTimes(jtm,tm)
             puts "    >> #{info[:joined]}: copy modified file from #{info[:files].last}"
             ret+=1
@@ -274,7 +282,7 @@ def sync
         end
 
         if File.exist? info[:joined]
-          jtm = File.new(info[:joined]).mtime
+          jtm = mtime(info[:joined])
           if ascendingTimes(jtm,tm)
             puts "    >> #{info[:joined]}: copy modified templated file from #{info[:files].last} and associated prop file(s)"
             ret+=1

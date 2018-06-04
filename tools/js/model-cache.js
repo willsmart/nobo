@@ -14,6 +14,7 @@
 const clone = require("./clone");
 const ConvertIds = require("./convert-ids");
 const PublicApi = require("./public-api");
+const mapValues = require("./map-values");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -111,6 +112,21 @@ class ModelCache {
         cache.invalidViewsById[viewId] = datapoint.viewsById[viewId];
       }
     });
+    if (datapoint.dependentDatapointsById) {
+      for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
+        if (!dependentDatapoint.invalidDependencyDatapointCount++) {
+          this.invalidateDatapoint(dependentDatapoint);
+        }
+        if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
+          for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
+            cache.updateDependencies({
+              datapoint: dependentDatapoint,
+              dependencies: dependency.children
+            });
+          }
+        }
+      }
+    }
   }
 
   updateDatapointValue({ datapointId, newValue }) {
@@ -158,6 +174,8 @@ class ModelCache {
   }
 
   getOrCreateDatapoint({ datapointId }) {
+    const cache = this;
+
     let datapoint = this.datapointsById[datapointId];
     if (!datapoint) {
       datapoint = this.datapointsById[datapointId] = Object.assign(
@@ -167,9 +185,106 @@ class ModelCache {
           viewsById: {}
         }
       );
-      this.invalidateDatapoint(arguments[0]);
+      const field = cache.schema.fieldForDatapoint(datapoint);
+      if (field && field.get) {
+        const type = field.enclosingType;
+
+        function dependenciesFromNames(names) {
+          return mapValues(names, subNames => {
+            const children = dependenciesFromNames(subNames);
+            return Object.keys(children).length ? { children } : {};
+          });
+        }
+
+        datapoint.dependencies = dependenciesFromNames(field.get.names);
+        datapoint.dependenciesByDatapointId = {};
+        datapoint.dependencyDatapointCountsById = {};
+        datapoint.invalidDependencyDatapointCount = 0;
+        cache.updateDependencies({
+          datapoint,
+          parentRowId: datapoint,
+          dependencies: datapoint.dependencies
+        });
+        if (datapoint.invalidDependencyDatapointCount) {
+          this.invalidateDatapoint(arguments[0]);
+        }
+      } else {
+        this.invalidateDatapoint(arguments[0]);
+      }
     }
     return datapoint;
+  }
+
+  updateDependencies({ datapoint, parentRowId, parentDatapointWithRowAsValue, dependencies }) {
+    const cache = this;
+
+    if (!dependencies) return;
+
+    if (!parentRowId && parentDatapointWithRowAsValue) {
+      let field = cache.schema.fieldForDatapoint(parentDatapointWithRowAsValue);
+      if (
+        field.isId &&
+        !field.isMultiple &&
+        !parentDatapointWithRowAsValue.invalid &&
+        Array.isArray(parentDatapointWithRowAsValue.value) &&
+        parentDatapointWithRowAsValue.value.length == 1
+      ) {
+        try {
+          parentRowId = ConvertIds.decomposeId({ rowId: parentDatapointWithRowAsValue.value[0] });
+        } catch (err) {
+          console.log(err);
+        }
+      }
+    }
+
+    const parentType = parentRowId ? cache.schema.allTypes[parentRowId.typeName] : undefined;
+
+    for (const [name, dependency] of Object.entries(dependencies)) {
+      const dependencyField = parentType ? parentType.fields[name] : undefined;
+      let valueRowId, dependencyDatapoint;
+      if (dependencyField) {
+        dependencyDatapoint = cache.getOrCreateDatapoint({ datapointId: dependencyField.getDatapointId(parentRowId) });
+      }
+
+      if (dependency.datapoint) {
+        if (!dependencyDatapoint || dependency.datapoint.datapointId != dependencyDatapoint.datapointId) {
+          delete dependency.datapoint.dependentDatapointsById[datapoint.datapointId];
+          datapoint.dependenciesByDatapointId[dependency.datapoint.datapointId] = datapoint.dependenciesByDatapointId[
+            dependency.datapoint.datapointId
+          ].filter(dependency2 => {
+            dependency !== dependency2;
+          });
+          if (!datapoint.dependenciesByDatapointId[dependency.datapoint.datapointId].length) {
+            delete datapoint.dependenciesByDatapointId[dependency.datapoint.datapointId];
+          }
+          if (!--datapoint.dependencyDatapointCountsById[dependency.datapoint.datapointId]) {
+            delete datapoint.dependencyDatapointCountsById[dependency.datapoint.datapointId];
+          }
+          if (dependency.datapoint.invalid) datapoint.invalidDependencyDatapointCount--;
+          delete dependency.datapoint;
+        }
+      }
+
+      if (dependencyDatapoint && !dependency.datapoint) {
+        dependency.datapoint = dependencyDatapoint;
+        dependencyDatapoint.dependentDatapointsById = dependencyDatapoint.dependentDatapointsById || {};
+        dependencyDatapoint.dependentDatapointsById[datapoint.datapointId] = datapoint;
+        datapoint.dependenciesByDatapointId[dependencyDatapoint.datapointId] =
+          datapoint.dependenciesByDatapointId[dependencyDatapoint.datapointId] || [];
+        datapoint.dependenciesByDatapointId[dependencyDatapoint.datapointId].push(dependency);
+        datapoint.dependencyDatapointCountsById[dependencyDatapoint.datapointId] =
+          (datapoint.dependencyDatapointCountsById[dependencyDatapoint.datapointId] || 0) + 1;
+        if (dependencyDatapoint.invalid) datapoint.invalidDependencyDatapointCount++;
+      }
+
+      if (dependency.children) {
+        cache.updateDependencies({
+          datapoint,
+          parentDatapointWithRowAsValue: dependencyDatapoint,
+          dependencies: dependency.children
+        });
+      }
+    }
   }
 
   getOrCreateView({ viewId }) {
@@ -272,12 +387,49 @@ class ModelCache {
     delete datapoint.newValue;
   }
 
-  validateDatapoint({ datapointId, value }) {
+  validateDatapoint({ datapointId, value, useGetter }) {
     const cache = this;
 
     const datapoint = cache.datapointsById[datapointId];
     if (!datapoint || !datapoint.invalid) return;
 
+    const getter = cache.schema.fieldForDatapoint(datapoint).get;
+    if (useGetter && value === undefined && !getter) {
+      console.log(`Datapoint ${datapoint.datapointId} has dependencies so should have a getter`);
+      value = "?";
+    }
+    if (getter) {
+      const sandbox = {};
+      sandbox[getter.resultKey] = "?";
+
+      if (datapoint.dependencies) {
+        function addDependencyValues(dependencies, to) {
+          for (let [name, dependency] of Object.entries(dependencies)) {
+            if (dependency.children) {
+              to[name] = {};
+              addDependencyValues(dependency.children, to[name]);
+            } else if (dependency.datapoint && !dependency.datapoint.invalid) {
+              to[name] = dependency.datapoint.value;
+            } else {
+              to[name] = "...";
+            }
+          }
+        }
+        addDependencyValues(datapoint.dependencies, sandbox);
+      }
+
+      try {
+        getter.script.runInNewContext(sandbox, {
+          displayErrors: true,
+          timeout: 1000
+        });
+      } catch (err) {
+        console.log(`Failed to run getter:
+        ${err}
+  `);
+      }
+      value = sandbox[getter.resultKey];
+    }
     delete datapoint.invalid;
     delete cache.invalidDatapointsById[datapointId];
     datapoint.value = clone(value);
@@ -293,6 +445,22 @@ class ModelCache {
         ret.push(view);
       }
     });
+    if (datapoint.dependentDatapointsById) {
+      for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
+        if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
+          for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
+            cache.updateDependencies({
+              datapoint: dependentDatapoint,
+              parentDatapointWithRowAsValue: datapoint,
+              dependencies: dependency.children
+            });
+          }
+        }
+        if (!--dependentDatapoint.invalidDependencyDatapointCount) {
+          cache.validateDatapoint({ datapointId: dependentDatapoint.datapointId, useGetter: true });
+        }
+      }
+    }
 
     return ret;
   }
@@ -367,6 +535,10 @@ class ModelCache {
       } catch (err) {
         console.log(err);
         cache.validateDatapoint(datapoint);
+        return;
+      }
+
+      if (field.get) {
         return;
       }
 

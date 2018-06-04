@@ -8,7 +8,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_misc = ModelDOM_misc = class ModelDOM_misc {
-  constructor() {
+  construct() {
     this.getModelDOM = this.getModelDOM.bind(this);
     this.changePage = this.changePage.bind(this);
     this.windowIsFocussed = true;

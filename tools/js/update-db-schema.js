@@ -105,6 +105,12 @@ const readdir_p = promisify(fs.readdir);
 
   if (!sql) {
     console.log(`Database structure is already up to date. Nothing to do`);
+    if (args["--save"]) {
+      await connection.saveLayoutToDB({
+        source: schema.source,
+        version: "1"
+      });
+    }
   } else if (args["--save"]) {
     console.log(`Adjusting the DB schema to match the provided layout files...`);
     await connection.saveLayoutToDB({

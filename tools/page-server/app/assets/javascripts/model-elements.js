@@ -8,7 +8,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_elements = ModelDOM_elements = class ModelDOM_elements {
-  constructor() {
+  construct() {
     this.modelIdForElement = this.modelIdForElement.bind(this);
     this.markerElementForElement = this.markerElementForElement.bind(this);
     this.modelForElement = this.modelForElement.bind(this);

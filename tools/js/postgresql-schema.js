@@ -86,6 +86,7 @@ function sqlFieldForField_noCache(field) {
       ret.sqlDataType = "integer";
     }
   } else {
+    ret.isVirtual = field.isVirtual;
     switch (field.dataType.name) {
       case "string":
         ret.sqlDataType = "character varying";
@@ -160,17 +161,21 @@ class TempSchema {
 
     if (!fromSchema) return this.getCreationSql();
 
+    fromSchema.isFrom = true;
+    for (let type of Object.values(fromSchema.allTypes)) type.isFrom = true;
+
     delete this.sql;
     const sqlObj = this.getSqlObject();
     sqlObj.retrigger = retrigger;
     sqlObj.fromTempSchema = new TempSchema({ schema: fromSchema });
+    sqlObj.fromTempSchema.isFrom = true;
 
     Object.keys(fromSchema.allTypes).forEach(k => {
       const fromType = fromSchema.allTypes[k];
       if (!/^[A-Z]/.test(k)) return;
 
       if (!schema.allTypes[fromType.name]) {
-        this.ensureDropTableSql(fromType);
+        sqlObj.fromTempSchema.ensureDropTableSql(fromType);
       }
     });
 
@@ -184,7 +189,7 @@ class TempSchema {
         const fromType = fromSchema.allTypes[type.name];
         Object.keys(fromType.fields).forEach(k => {
           const fromField = fromType.fields[k];
-          if (!type.fields[fromField.name]) this.ensureDropFieldSql(fromField);
+          if (!type.fields[fromField.name]) sqlObj.fromTempSchema.ensureDropFieldSql(fromField);
         });
 
         Object.keys(type.fields).forEach(k => {
@@ -201,18 +206,23 @@ class TempSchema {
   getSqlObject() {
     this.sql = this.sql || {
       tables: {},
-      getFullSql: function() {
+      getFullSql: function({ includeChangeNotifiers = true } = {}) {
         let ret = "";
+        if (!this.isFrom && this.fromTempSchema) {
+          ret += this.fromTempSchema.getSqlObject().getFullSql({ includeChangeNotifiers: false });
+        }
         Object.keys(this.tables).forEach(k => {
           const table = this.tables[k];
           let tableSQL = "";
           if (table.dropTable) {
             tableSQL += table.dropTable;
-            Object.keys(table.changeNotifier).forEach(name => {
-              const trigger = table.changeNotifier[name];
-              if (typeof trigger == "object" && trigger.dropSql) tableSQL += trigger.dropSql;
-            });
-          } else {
+            if (includeChangeNotifiers) {
+              Object.keys(table.changeNotifier).forEach(name => {
+                const trigger = table.changeNotifier[name];
+                if (typeof trigger == "object" && trigger.dropSql) tableSQL += trigger.dropSql;
+              });
+            }
+          } else if (includeChangeNotifiers) {
             Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
               if (typeof trigger == "object" && trigger.sql) tableSQL += trigger.sql;
@@ -410,6 +420,9 @@ DROP FUNCTION "` +
       };
       Object.keys(type.fields).forEach(k => {
         const field = type.fields[k];
+        const sqlField = sqlFieldForField(field);
+        if (!sqlField || sqlField.isVirtual) return;
+
         const fieldSql = TempSchema.sqlChangeNotifierForField(field);
         if (fieldSql.delete) {
           bodySql.delete += fieldSql.delete;
@@ -463,8 +476,12 @@ DROP FUNCTION "` +
           const trigger = changeNotifier[name];
           if (trigger && trigger.sql == fromTrigger.sql) {
             delete changeNotifier[name];
+          } else {
+            console.log("hi");
           }
         });
+      } else {
+        console.log("hi");
       }
     }
 

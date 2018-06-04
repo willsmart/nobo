@@ -8,7 +8,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_domState = ModelDOM_domState = class ModelDOM_domState {
-  constructor() {
+  construct() {
     this.pushState = this.pushState.bind(this);
     this.pushModel = this.pushModel.bind(this);
   }

@@ -9,7 +9,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_relationships = ModelDOM_relationships = class ModelDOM_relationships {
-  constructor() {
+  construct() {
     this.unlinkModels = this.unlinkModels.bind(this);
     this.linkModels = this.linkModels.bind(this);
     this.orphanModels = {};

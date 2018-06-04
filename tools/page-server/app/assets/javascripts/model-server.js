@@ -8,7 +8,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_server = ModelDOM_server = class ModelDOM_server {
-  constructor() {
+  construct() {
     let match;
     this.latestAllModelsBody = this.latestAllModelsBody.bind(this);
     this.latestRootModelBody = this.latestRootModelBody.bind(this);

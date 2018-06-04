@@ -17,7 +17,7 @@ document.ModelDOM_classes.ModelDOM_model = ModelDOM_model = (function() {
 
       this.prototype._debugCallDepth = 1;
     }
-    constructor() {
+    construct() {
       this.modelIdWithVariant = this.modelIdWithVariant.bind(this);
       this.model = this.model.bind(this);
       this.models = {};

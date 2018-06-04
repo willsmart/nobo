@@ -9,7 +9,7 @@ if (!document.ModelDOM_classes) {
   document.ModelDOM_classes = {};
 }
 document.ModelDOM_classes.ModelDOM_util = ModelDOM_util = class ModelDOM_util {
-  constructor() {}
+  construct() {}
 
   isEqual(a, b) {
     let v;

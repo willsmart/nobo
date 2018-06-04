@@ -77,18 +77,25 @@ class PostgresqlConnection {
     source = JSON.stringify(source, null, 2);
     console.log("Saving layout:\n" + source);
 
-    console.log("Running SQL:\n" + sql);
-    return connection
-      .query("BEGIN;\n" + sql)
-      .then((err, res) => {
-        return connection.query(
-          "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());",
-          [source, version]
-        );
-      })
-      .then((err, res) => {
-        return connection.query("END;");
-      });
+    if (sql) {
+      console.log("Running SQL:\n" + sql);
+      return connection
+        .query("BEGIN;\n" + sql)
+        .then((err, res) => {
+          return connection.query(
+            "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());",
+            [source, version]
+          );
+        })
+        .then((err, res) => {
+          return connection.query("END;");
+        });
+    } else {
+      return connection.query(
+        "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());",
+        [source, version]
+      );
+    }
   }
 
   // methods to load rows and views
@@ -196,10 +203,12 @@ class PostgresqlConnection {
               const value = model[fieldInfo.outputKey];
               if (value === undefined || value === null) continue;
               if (fieldInfo.sqlField.isId) {
-                ret[fieldInfo.outputKey] = ConvertIds.recomposeId({
-                  typeName: fieldInfo.field.dataType.name,
-                  dbRowId: value
-                }).rowId;
+                ret[fieldInfo.outputKey] = [
+                  ConvertIds.recomposeId({
+                    typeName: fieldInfo.field.dataType.name,
+                    dbRowId: value
+                  }).rowId
+                ];
               } else {
                 ret[fieldInfo.outputKey] = value;
               }
