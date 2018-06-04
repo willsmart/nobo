@@ -10,7 +10,7 @@ const { shallowCopy, shallowCopyObjectIfSame } = require("../general/clone");
 //  The callback you provide is passed a TemporaryState object, which you can modify using the atPath accessor
 //
 // eg
-//  SharedState.requestCommit(temp=>{temp.atPath('datapoints',datapointId).name = 'newName'})
+//  SharedState.requestCommit(temp=>{temp.atPath('datapoints',proxyableDatapointId).name = 'newName'})
 class TemporaryState {
   static publicMethods() {
     return ["atPath", "state", "current"];
@@ -147,6 +147,9 @@ class SharedState {
             case "delete":
               forEachDeletedElement(change.depth, keyPath, change.was, callback);
               break;
+            case "change":
+              // TODO the way diffs are handled is getting a little messy. Refactor
+              if (Array.isArray(change.was) == Array.isArray(change.is)) break; // an array to array diff will already include diffs for children
             case "insert":
               forEachInsertedElement(change.depth, keyPath, change.is, callback);
               break;

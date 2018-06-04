@@ -25,33 +25,33 @@ module.exports = {
   childRangeAtIndex
 };
 
-function datapointChildrenClass(datapointId) {
-  return `children--${datapointId}`;
+function datapointChildrenClass(proxyableDatapointId) {
+  return `children--${proxyableDatapointId}`;
 }
 
-function datapointValueFieldClass(datapointId) {
-  return `value--${datapointId}`;
+function datapointValueFieldClass(proxyableDatapointId) {
+  return `value--${proxyableDatapointId}`;
 }
 
-function datapointTemplateFieldClass(datapointId) {
-  return `template--${datapointId}`;
+function datapointTemplateFieldClass(proxyableDatapointId) {
+  return `template--${proxyableDatapointId}`;
 }
 
-function datapointDomFieldClass(datapointId) {
-  return `dom--${datapointId}`;
+function datapointDomFieldClass(proxyableDatapointId) {
+  return `dom--${proxyableDatapointId}`;
 }
 
-function childrenPlaceholders(datapointId) {
-  return document.getElementsByClassName(datapointChildrenClass(datapointId));
+function childrenPlaceholders(proxyableDatapointId) {
+  return document.getElementsByClassName(datapointChildrenClass(proxyableDatapointId));
 }
-function datapointValueElements(datapointId) {
-  return document.getElementsByClassName(datapointValueFieldClass(datapointId));
+function datapointValueElements(proxyableDatapointId) {
+  return document.getElementsByClassName(datapointValueFieldClass(proxyableDatapointId));
 }
-function datapointTemplateElements(datapointId) {
-  return document.getElementsByClassName(datapointTemplateFieldClass(datapointId));
+function datapointTemplateElements(proxyableDatapointId) {
+  return document.getElementsByClassName(datapointTemplateFieldClass(proxyableDatapointId));
 }
-function datapointDomElements(datapointId) {
-  return document.getElementsByClassName(datapointDomFieldClass(datapointId));
+function datapointDomElements(proxyableDatapointId) {
+  return document.getElementsByClassName(datapointDomFieldClass(proxyableDatapointId));
 }
 
 function elementChildrenFieldName(element) {
@@ -73,11 +73,11 @@ function htmlToElement(html) {
   return template.content.firstChild;
 }
 
-function templateDatapointIdForRowAndVariant(rowId, variant) {
+function templateDatapointIdForRowAndVariant(proxyableRowId, variant) {
   return ConvertIds.recomposeId({
-    rowId,
+    proxyableRowId,
     fieldName: `template_${variant}`
-  }).datapointId;
+  }).proxyableDatapointId;
 }
 
 function nextChild(placeholderUid, previousChildElement) {

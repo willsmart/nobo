@@ -14,9 +14,9 @@ class TemplatedText {
     return ["evaluate", "dependencyTree", "nodesByDatapointId"];
   }
 
-  constructor({ text, rowId, getDatapoint }) {
+  constructor({ text, proxyableRowId, getDatapoint }) {
     this.templateString = text;
-    this.rowId = rowId;
+    this.proxyableRowId = proxyableRowId;
     this.getDatapoint = getDatapoint;
   }
 
@@ -29,7 +29,7 @@ class TemplatedText {
     const templatedText = this,
       templateString = templatedText.templateString,
       getDatapoint = templatedText.getDatapoint,
-      rowId = templatedText.rowId;
+      proxyableRowId = templatedText.proxyableRowId;
     if (templatedText._dependencyTree) return templatedText._dependencyTree;
     templatedText._nodesByDatapointId = {};
     const rootPart = locateEndOfString(templateString, false);
@@ -64,14 +64,15 @@ class TemplatedText {
           delete node.code;
           return;
         }
-        if (rowId) {
+        if (proxyableRowId) {
           for (const [fieldName, subNames] of Object.entries(node.code.names)) {
             if (typeof subNames == "object" && Object.keys(subNames).length) continue;
             node.datapointIdsByName = node.datapointIdsByName || {};
-            const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-            node.datapointIdsByName[fieldName] = datapointId;
-            templatedText._nodesByDatapointId[datapointId] = templatedText._nodesByDatapointId[datapointId] || [];
-            templatedText._nodesByDatapointId[datapointId].push(node);
+            const proxyableDatapointId = ConvertIds.recomposeId({ proxyableRowId, fieldName }).proxyableDatapointId;
+            node.datapointIdsByName[fieldName] = proxyableDatapointId;
+            templatedText._nodesByDatapointId[proxyableDatapointId] =
+              templatedText._nodesByDatapointId[proxyableDatapointId] || [];
+            templatedText._nodesByDatapointId[proxyableDatapointId].push(node);
           }
         }
       }
@@ -103,9 +104,9 @@ class TemplatedText {
           "" +
           node.code.evaluate((...names) => {
             if (names.length > 1) return "...";
-            const datapointId = node.datapointIdsByName[names[0]];
-            if (!datapointId) return "...";
-            const ret = this.getDatapoint(datapointId, "...");
+            const proxyableDatapointId = node.datapointIdsByName[names[0]];
+            if (!proxyableDatapointId) return "...";
+            const ret = this.getDatapoint(proxyableDatapointId, "...");
             return Array.isArray(ret) && !ret.length ? undefined : ret;
           });
       }

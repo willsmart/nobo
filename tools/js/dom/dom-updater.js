@@ -48,14 +48,14 @@ class DomUpdater {
           if (!keyPath.length || keyPath[0] != "datapointsById") return;
           if (keyPath.length < 2) return true;
 
-          const datapointId = keyPath[1];
+          const proxyableDatapointId = keyPath[1];
 
           if (keyPath.length == 2) {
-            replacements.push(...domUpdater.datapointUpdated({ datapointId: keyPath[1], change }));
+            replacements.push(...domUpdater.datapointUpdated({ proxyableDatapointId: keyPath[1], change }));
             if (Array.isArray(change.is)) return true;
           } else if (keyPath.length == 3 && typeof keyPath[2] == "number") {
             replacements.push(
-              ...domUpdater.datapointMemberUpdated({ datapointId: keyPath[1], index: +keyPath[2], change })
+              ...domUpdater.datapointMemberUpdated({ proxyableDatapointId: keyPath[1], index: +keyPath[2], change })
             );
           }
         });
@@ -83,23 +83,23 @@ class DomUpdater {
       placeholderUid = element.getAttribute("nobo-placeholder-uid");
     if (!(templateDatapointId && domDatapointId)) return;
 
-    const rowId = ConvertIds.decomposeId({ datapointId: templateDatapointId }).rowId;
+    const proxyableRowId = ConvertIds.decomposeId({ proxyableDatapointId: templateDatapointId }).proxyableRowId;
 
     return domUpdater.domGenerator.createElementsUsingDomDatapointId({
       templateDatapointId,
       domDatapointId,
-      rowId,
+      proxyableRowId,
       placeholderUid
     });
   }
 
-  updateElementsWithUpdatedValueDatapoints({ element, datapointId }) {
+  updateElementsWithUpdatedValueDatapoints({ element, proxyableDatapointId }) {
     const domUpdater = this,
       getDatapoint = domUpdater.getDatapoint,
-      usesString = element.getAttribute(`nobo-uses-${datapointId}`),
-      rowId = element.getAttribute(`nobo-row-id`);
+      usesString = element.getAttribute(`nobo-uses-${proxyableDatapointId}`),
+      proxyableRowId = element.getAttribute(`nobo-row-id`);
 
-    if (!(usesString && rowId)) return;
+    if (!(usesString && proxyableRowId)) return;
     const uses = usesString.split(/\s+/g);
 
     for (const use of uses) {
@@ -115,7 +115,7 @@ class DomUpdater {
             const backup = element.getAttribute(`nobo-backup-text-${index}`);
             if (!backup) break;
 
-            const templatedText = new TemplatedText({ getDatapoint, rowId, text: backup });
+            const templatedText = new TemplatedText({ getDatapoint, proxyableRowId, text: backup });
             const string = templatedText.evaluate.string;
             childNode.textContent = string;
             break;
@@ -126,7 +126,7 @@ class DomUpdater {
         const backup = element.getAttribute(`nobo-backup--${name}`);
         if (!backup) break;
 
-        const templatedText = new TemplatedText({ getDatapoint, rowId, text: backup });
+        const templatedText = new TemplatedText({ getDatapoint, proxyableRowId, text: backup });
         element.setAttribute(name, templatedText.evaluate.string);
       }
     }
@@ -138,10 +138,10 @@ class DomUpdater {
       if (element == end) break;
     }
   }
-  datapointUpdated({ datapointId }) {
+  datapointUpdated({ proxyableDatapointId }) {
     const domUpdater = this,
       replacements = [];
-    for (const element of datapointTemplateElements(datapointId)) {
+    for (const element of datapointTemplateElements(proxyableDatapointId)) {
       const range = rangeForElement(element);
       replacements.push({
         replaceRange: range,
@@ -149,7 +149,7 @@ class DomUpdater {
       });
       domUpdater.markRangeAsDead(range);
     }
-    for (const element of datapointDomElements(datapointId)) {
+    for (const element of datapointDomElements(proxyableDatapointId)) {
       const range = rangeForElement(element);
       replacements.push({
         replaceRange: range,
@@ -157,26 +157,26 @@ class DomUpdater {
       });
       domUpdater.markRangeAsDead(range);
     }
-    for (const element of datapointValueElements(datapointId)) {
-      domUpdater.updateElementsWithUpdatedValueDatapoints({ element, datapointId });
+    for (const element of datapointValueElements(proxyableDatapointId)) {
+      domUpdater.updateElementsWithUpdatedValueDatapoints({ element, proxyableDatapointId });
     }
 
     return replacements;
   }
 
-  datapointMemberUpdated({ datapointId, index, change }) {
+  datapointMemberUpdated({ proxyableDatapointId, index, change }) {
     const domUpdater = this,
       replacements = [];
 
-    for (const element of childrenPlaceholders(datapointId)) {
+    for (const element of childrenPlaceholders(proxyableDatapointId)) {
       let variant = element.getAttribute("variant") || undefined,
         placeholderUid = element.getAttribute("nobo-uid"),
-        rowId = ConvertIds.rowRegex.test(change.is) ? change.is : undefined,
-        datapointId = ConvertIds.datapointRegex.test(change.is) ? change.is : undefined,
+        proxyableRowId = ConvertIds.proxyableRowRegex.test(change.is) ? change.is : undefined,
+        proxyableDatapointId = ConvertIds.proxyableDatapointRegex.test(change.is) ? change.is : undefined,
         range = childRangeAtIndex({ placeholderDiv: element, index });
-      if (datapointId) {
-        const datapointInfo = ConvertIds.decomposeId({ datapointId });
-        rowId = datapointInfo.rowId;
+      if (proxyableDatapointId) {
+        const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId });
+        proxyableRowId = datapointInfo.proxyableRowId || datapointInfo.proxyKey;
         variant = datapointInfo.fieldName;
       }
       if (change.index !== undefined) {
@@ -186,7 +186,7 @@ class DomUpdater {
             replacements.push({
               afterElement: afterRange[1],
               elements: domUpdater.domGenerator.createElementsForVariantOfRow({
-                rowId,
+                proxyableRowId,
                 variant,
                 placeholderUid
               })
@@ -197,7 +197,7 @@ class DomUpdater {
             replacements.push({
               replaceRange: range,
               elements: domUpdater.domGenerator.createElementsForVariantOfRow({
-                rowId,
+                proxyableRowId,
                 variant,
                 placeholderUid
               })
@@ -229,9 +229,9 @@ class DomUpdater {
           let previousElementSibling;
           for (let element = replaceRange[1]; element !== replaceRange[0]; element = previousElementSibling) {
             previousElementSibling = element.previousElementSibling;
-            element.parentNode.removeChild(element);
+            if (element.parentNode) element.parentNode.removeChild(element);
           }
-          replaceRange[0].parentNode.replaceChild(elements[0], replaceRange[0]);
+          if (replaceRange[0].parentNode) replaceRange[0].parentNode.replaceChild(elements[0], replaceRange[0]);
           for (let index = elements.length - 1; index > 0; index--) {
             elements[0].insertAdjacentElement("afterend", elements[index]);
           }
@@ -239,7 +239,7 @@ class DomUpdater {
           let previousElementSibling;
           for (let element = replaceRange[1]; ; element = previousElementSibling) {
             previousElementSibling = element.previousElementSibling;
-            element.parentNode.removeChild(element);
+            if (element.parentNode) element.parentNode.removeChild(element);
             if (element === replaceRange[0]) break;
           }
         }

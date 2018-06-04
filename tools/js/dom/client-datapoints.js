@@ -65,10 +65,10 @@ class WSClientDatapoints {
       onpayload: ({ messageIndex, messageType, payloadObject }) => {
         if (payloadObject.diffs) {
           SharedState.requestCommit(state => {
-            for (const [datapointId, diff] of Object.entries(payloadObject.diffs)) {
-              state.atPath("datapointsById")[datapointId] = diff;
+            for (const [proxyableDatapointId, diff] of Object.entries(payloadObject.diffs)) {
+              state.atPath("datapointsById")[proxyableDatapointId] = diff;
               // TODO...
-              // const datapoint = state.atPath('datapointsById', datapointId)
+              // const datapoint = state.atPath('datapointsById', proxyableDatapointId)
               // applyDiffToDatapoint({
               //   from: datapoint,
               //   diff
@@ -84,11 +84,11 @@ class WSClientDatapoints {
 
         let payloadObject;
 
-        for (const datapointId of Object.keys(datapointsById)) {
-          if (ConvertIds.proxyableDatapointRegex.test(datapointId)) {
+        for (const proxyableDatapointId of Object.keys(datapointsById)) {
+          if (ConvertIds.proxyableDatapointRegex.test(proxyableDatapointId)) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
-            payloadObject.datapoints[datapointId] = 1;
+            payloadObject.datapoints[proxyableDatapointId] = 1;
           }
         }
 
@@ -105,24 +105,24 @@ class WSClientDatapoints {
     return globalClientDatapoints ? globalClientDatapoints : (globalClientDatapoints = new WSClientDatapoints());
   }
 
-  getDatapoint(datapointId, defaultValue) {
+  getDatapoint(proxyableDatapointId, defaultValue) {
     const clientDatapoints = this,
       datapointsById = SharedState.global.state.datapointsById || {};
-    if (datapointsById[datapointId]) return datapointsById[datapointId];
+    if (datapointsById[proxyableDatapointId]) return datapointsById[proxyableDatapointId];
     SharedState.global.withTemporaryState(tempState => {
-      tempState.atPath("datapointsById")[datapointId] = defaultValue;
+      tempState.atPath("datapointsById")[proxyableDatapointId] = defaultValue;
     });
     return defaultValue;
   }
 
-  subscribe(datapointIds) {
+  subscribe(proxyableDatapointIds) {
     const clientDatapoints = this;
 
-    if (typeof datapointIds == "string") datapointIds = [datapointIds];
-    if (!Array.isArray(datapointIds)) datapointIds = Object.keys(datapointIds);
-    if (!datapointIds.length) return;
+    if (typeof proxyableDatapointIds == "string") proxyableDatapointIds = [proxyableDatapointIds];
+    if (!Array.isArray(proxyableDatapointIds)) proxyableDatapointIds = Object.keys(proxyableDatapointIds);
+    if (!proxyableDatapointIds.length) return;
     const datapointsById = {};
-    for (const datapointId of datapointIds) datapointsById[datapointId] = 1;
+    for (const proxyableDatapointId of proxyableDatapointIds) datapointsById[proxyableDatapointId] = 1;
     clientDatapoints.wsclient.sendPayload({
       payloadObject: { datapoints: datapointsById }
     });

@@ -144,36 +144,74 @@ function ensureDecomposed({ typeName }) {
 
 // reconstructs string ids from their component parts or throws if not possible
 // you can provide more than one argument, in which case they are combined with the last taking precidence
-function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, proxyableRowId, datapointId, permissive }) {
+function recomposeId({
+  typeName,
+  dbRowId,
+  proxyKey,
+  fieldName,
+  rowId,
+  proxyableRowId,
+  datapointId,
+  proxyableDatapointId,
+  permissive
+}) {
   if (arguments.length != 1) {
     const combined = {};
-    Array.prototype.forEach.call(arguments, argument => Object.assign(combined, argument));
+    Array.prototype.forEach.call(arguments, argument => processArg(argument, combined));
     return recomposeId(combined);
+  } else {
+    ({
+      typeName,
+      dbRowId,
+      proxyKey,
+      fieldName,
+      rowId,
+      proxyableRowId,
+      datapointId,
+      proxyableDatapointId,
+      permissive
+    } = processArg(arguments[0]));
   }
 
-  if (rowId) {
-    const args = decomposeId({ rowId, permissive: true });
-    if (args) {
-      typeName = args.typeName;
-      dbRowId = args.dbRowId;
+  function processArg(arg, into) {
+    into = into || {};
+    if (arg.rowId) {
+      const args = decomposeId({ rowId: arg.rowId, permissive: true });
+      if (args) {
+        into.typeName = args.typeName;
+        into.dbRowId = args.dbRowId;
+      }
     }
-  }
 
-  if (proxyableRowId) {
-    const args = decomposeId({ proxyableRowId, permissive: true });
-    if (args) {
-      typeName = args.typeName;
-      proxyKey = args.proxyKey;
+    if (arg.proxyableRowId) {
+      const args = decomposeId({ proxyableRowId: arg.proxyableRowId, permissive: true });
+      if (args) {
+        into.typeName = args.typeName;
+        into.proxyKey = args.proxyKey;
+        into.dbRowId = args.dbRowId;
+      }
     }
-  }
 
-  if (datapointId) {
-    const args = decomposeId({ datapointId, permissive: true });
-    if (args) {
-      typeName = args.typeName;
-      dbRowId = args.dbRowId;
-      fieldName = args.fieldName;
+    if (arg.datapointId) {
+      const args = decomposeId({ datapointId: arg.datapointId, permissive: true });
+      if (args) {
+        into.typeName = args.typeName;
+        into.dbRowId = args.dbRowId;
+        into.fieldName = args.fieldName;
+      }
     }
+
+    if (arg.proxyableDatapointId) {
+      const args = decomposeId({ proxyableDatapointId: arg.proxyableDatapointId, permissive: true });
+      if (args) {
+        into.typeName = args.typeName;
+        into.proxyKey = args.proxyKey;
+        into.dbRowId = args.dbRowId;
+        into.fieldName = args.fieldName;
+      }
+    }
+    Object.assign(into, arg);
+    return into;
   }
 
   if (!typeName) {

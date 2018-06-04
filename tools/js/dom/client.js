@@ -19,7 +19,8 @@ document.nobo = {
 document.nobo.datapoints = document.nobo.ClientDatapoints.global;
 document.nobo.domGenerator = new document.nobo.DomGenerator({
   htmlToElement,
-  getDatapoint: (datapointId, defaultValue) => document.nobo.datapoints.getDatapoint(datapointId, defaultValue)
+  getDatapoint: (proxyableDatapointId, defaultValue) =>
+    document.nobo.datapoints.getDatapoint(proxyableDatapointId, defaultValue)
 });
 document.nobo.domUpdater = new document.nobo.DomUpdater({
   domGenerator: document.nobo.domGenerator

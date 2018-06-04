@@ -68,12 +68,13 @@ class PageState {
 
   static get datapointInfoFromPath() {
     const pathName = window.location.pathname,
-      match = /^\/(\w+)\/(\d+)(?:\/(\w*))?$/.exec(pathName);
+      match = /^\/(\w+)\/(?:(\d+)|(\w+))(?:\/(\w*))?$/.exec(pathName);
     if (!match) return;
     return ConvertIds.recomposeId({
       typeName: match[1],
       dbRowId: +match[2],
-      fieldName: match[3] || ""
+      proxyKey: match[3],
+      fieldName: match[4] || ""
     });
   }
 
@@ -91,8 +92,8 @@ class PageState {
     const pageState = this;
 
     let pageDatapointInfo = ConvertIds.recomposeId({
-      rowId: rowOrDatapointId,
-      datapointId: rowOrDatapointId,
+      proxyableRowId: rowOrDatapointId,
+      proxyableDatapointId: rowOrDatapointId,
       fieldName: "",
       permissive: true
     });
@@ -102,11 +103,10 @@ class PageState {
         pageDatapointInfo = pageState.defaultPageDatapointInfo;
       }
     }
-    const pageDatapointId = pageDatapointInfo.datapointId,
-      titleDatapointId = ConvertIds.recomposeId({
-        rowId: pageDatapointInfo.rowId,
+    const pageDatapointId = pageDatapointInfo.proxyableDatapointId,
+      titleDatapointId = ConvertIds.recomposeId(pageDatapointInfo, {
         fieldName: "name"
-      }).datapointId;
+      }).proxyableDatapointId;
 
     const title = pageState.getDatapoint(titleDatapointId, "");
 
@@ -133,12 +133,12 @@ class PageState {
 
   pathNameForState(state) {
     const pageState = this,
-      datapointInfo = ConvertIds.decomposeId({ datapointId: state.pageDatapointId, permissive: true });
+      datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: state.pageDatapointId, permissive: true });
     if (!datapointInfo) return;
     const regex = /(?=((?:[\!\$&'\(\)\*\+,;=a-zA-Z0-9\-._~:@\/?]|%[0-9a-fA-F]{2})*))\1./g,
       titleForFragment = !state.title ? undefined : state.title.substring(0, 100).replace(regex, "$1-");
 
-    return `/${datapointInfo.typeName}/${datapointInfo.dbRowId}${
+    return `/${datapointInfo.typeName}/${datapointInfo.dbRowId || datapointInfo.proxyKey}${
       datapointInfo.fieldName ? `/${datapointInfo.fieldName}` : ""
     }${titleForFragment ? `#${titleForFragment}` : ""}`;
   }
