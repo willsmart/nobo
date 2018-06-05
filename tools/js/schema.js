@@ -1,8 +1,7 @@
-const strippedValues = require("./stripped-values");
+const strippedValues = require("./general/stripped-values");
 const ConvertIds = require("./convert-ids");
-const PublicApi = require("./public-api");
-const vm = require("vm");
-const jsep = require("jsep");
+const PublicApi = require("./general/public-api");
+const CodeSnippet = require("./general/code-snippet");
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -75,7 +74,9 @@ class SchemaDefn {
             (type.fields[name] = {
               _: "Field",
               stripped: function() {
-                let ret = { dataType: this.dataType.name };
+                let ret = {
+                  dataType: this.dataType.name
+                };
                 if (this.default !== undefined) ret.default = this.default;
                 if (this.get !== undefined) ret.get = this.get;
                 if (this.isVirtual) ret.isVirtual = true;
@@ -118,7 +119,11 @@ class SchemaDefn {
                   (field.links[toField.fullName] = toField.links[field.fullName] = {
                     _: "Link",
                     stripped: function() {
-                      return { left: this.left.fullName, right: this.right.fullName, linkType: this.type };
+                      return {
+                        left: this.left.fullName,
+                        right: this.right.fullName,
+                        linkType: this.type
+                      };
                     },
                     left: field,
                     right: toField,
@@ -165,12 +170,7 @@ class SchemaDefn {
           case "get":
             if (!myField) break;
             myField.isVirtual = true;
-            let parsedVal = schema.parse(val);
-            if (!parsedVal) {
-              console.log(`I couldn't parse the getter (will default to just '?') : ${val}`);
-              parsedVal = schema.parse(val);
-            }
-            myField[key] = parsedVal;
+            myField.get = new CodeSnippet({ code: val });
             break;
           case "default":
           case "unique":
@@ -180,10 +180,20 @@ class SchemaDefn {
             const match = /^(?:(--|~-|-~|~<|>~)\s*)?([\w_]+)(?:\(([\w_]+)\))?$/.exec(key);
             const linkTypes = {
               "--": {},
-              "~-": { rightIsVirtual: true },
-              "-~": { leftIsVirtual: true },
-              "~<": { rightIsVirtual: true, rightIsMultiple: true },
-              ">~": { leftIsVirtual: true, leftIsMultiple: true }
+              "~-": {
+                rightIsVirtual: true
+              },
+              "-~": {
+                leftIsVirtual: true
+              },
+              "~<": {
+                rightIsVirtual: true,
+                rightIsMultiple: true
+              },
+              ">~": {
+                leftIsVirtual: true,
+                leftIsMultiple: true
+              }
             };
             if (match) {
               const linkType = match[1],
@@ -207,7 +217,7 @@ class SchemaDefn {
                   .getType(match[3])
                   .getField(
                     myLocalFieldName,
-                    me.getEnclosingType(),
+                    me.dataType || me,
                     linkTypeInfo ? linkTypeInfo.leftIsVirtual : false,
                     linkTypeInfo ? linkTypeInfo.leftIsMultiple : false
                   );
@@ -219,81 +229,10 @@ class SchemaDefn {
     }
     return as;
   }
-
-  parse(code) {
-    let ast, ret;
-    try {
-      ret = {
-        names: {},
-        resultKey: "___result___",
-        script: new vm.Script(`___result___ = (${code})`, { displayErrors: true })
-      };
-      ast = jsep(code);
-    } catch (err) {
-      console.log(`Failed to compile getter: ${code}
-      ${err}
-`);
-      return;
-    }
-    const jsepChildKeys = {
-      left: true,
-      right: true,
-      test: true,
-      consequent: true,
-      alternate: true,
-      object: true,
-      discriminant: true,
-      argument: true,
-      body: true
-    };
-    const jsepChildArrayKeys = {
-      expressions: true,
-      arguments: true,
-      defaults: true
-    };
-
-    function addNames(ast) {
-      if (typeof ast != "object" || !ast.type) return;
-
-      if (ast.type == "Identifier" && ast.name) {
-        ret.names[ast.name] = {};
-        return;
-      }
-
-      if (ast.type == "MemberExpression") {
-        memberHandler: do {
-          const namesArray = [];
-          let object = ast;
-          for (; object.type == "MemberExpression"; object = object.object) {
-            if (object.property.type != "Identifier") break memberHandler;
-            namesArray.unshift(object.property.name);
-          }
-          if (object.type != "Identifier") break;
-          namesArray.unshift(object.name);
-
-          let names = ret.names;
-          for (const name of namesArray) {
-            names = names[name] = names[name] || {};
-          }
-          return;
-        } while (false);
-      }
-
-      if (ast.type == "CallExpression" && ast.callee.type == "MemberExpression") {
-        addNames(ast.callee.object);
-      }
-
-      for (const [key, val] of Object.entries(ast)) {
-        if (jsepChildKeys[key]) addNames(val);
-        else if (jsepChildArrayKeys[key] && Array.isArray(val)) {
-          for (const child of val) addNames(child);
-        }
-      }
-    }
-    addNames(ast);
-    return ret;
-  }
 }
 
 // API is the public facing class
-module.exports = PublicApi({ fromClass: SchemaDefn, hasExposedBackDoor: true });
+module.exports = PublicApi({
+  fromClass: SchemaDefn,
+  hasExposedBackDoor: true
+});

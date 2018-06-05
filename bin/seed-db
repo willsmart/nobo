@@ -7,4 +7,4 @@ cd "$toolsdir/js"
 npm install
 
 cd "$bindir/.."
-node "$toolsdir/js/mains/model-server.js" $args
+node "$toolsdir/js/seed-db.js" $args

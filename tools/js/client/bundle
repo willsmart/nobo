@@ -1,0 +1,6 @@
+#!/bin/bash
+
+DIR=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+cd "$DIR"
+
+browserify ../dom/client.js -o ../../page-server/app/assets/javascripts/nobo.js

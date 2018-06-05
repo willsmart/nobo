@@ -1,48 +1,130 @@
 const WebSocket = require("ws");
+const { URL } = require("url");
+const MyCrypto = require("./general/mycrypto");
+const Cookie = require("cookie");
 const ConvertIds = require("./convert-ids");
-const SchemaDefn = require("./schema");
-const PublicApi = require("./public-api");
+const PublicApi = require("./general/public-api");
+const makeClassWatchable = require("./general/watchable");
+const ServerDatapoints = require("./server-datapoints");
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class WebSocketServer {
   // public methods
   static publicMethods() {
-    return ["start", "newVersionAvailableForViews"];
+    return ["start", "cache", "watch", "stopWatching"];
   }
 
   constructor({ cache }) {
-    const wsserver = this;
-
-    if ((wsserver.cache = cache)) cache.wsserver = wsserver;
-    wsserver.views = {};
-    wsserver.proxiesByRowId = {};
-    wsserver.cache.addNewViewVersionCallback({
-      key: "wsserver",
-      callback: function(viewIds) {
-        wsserver.newVersionAvailableForViews(viewIds);
-      }
-    });
-  }
-
-  start({ port = 3100 } = {}) {
     const server = this;
 
-    this.serverParams = { port: port };
+    server._cache = cache;
+
+    server.serverDatapoints = new ServerDatapoints({
+      wsserver: server
+    })
+  }
+
+  get cache() {
+    return this._cache;
+  }
+
+  get sessionCookieName() {
+    return `_${this.appCookiePrefix}_session`;
+  }
+
+  decryptedSession(encSession) {
+    const server = this,
+      sessionString = encSession ? MyCrypto.decrypt(encSession, "session") : "{}";
+    try {
+      const ret = JSON.parse(sessionString);
+      return ret && typeof ret == "object" ? ret : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  encryptedSession(session) {
+    const server = this,
+      sessionCookie = JSON.stringify(session || {});
+    return MyCrypto.encrypt(sessionCookie, "session");
+  }
+
+  decryptedPhoenixUserId(encPhoenix) {
+    return encPhoenix ? +MyCrypto.decrypt(encPhoenix, "phoenix") : undefined;
+  }
+
+  encryptedPhoenixUserId(userId) {
+    return MyCrypto.encrypt(`${userId}`, "phoenix");
+  }
+
+  async start({ port = 3100 } = {}) {
+    const server = this;
+
+    server.appCookiePrefix = await this.cache.getOrCreateDatapoint(
+      ConvertIds.recomposeId({
+        typeName: "app",
+        dbRowId: 1,
+        fieldName: "cookiePrefix"
+      })
+    ).value;
+
     server.wss = new WebSocket.Server({
       port: port
     });
 
     var nextWsIndex = 1;
 
+    function processSession(req) {
+      const cookies = Cookie.parse(req.headers.cookie || ""),
+        session = server.decryptedSession(cookies[server.sessionCookieName]),
+        searchParams = new URL(req.url, "http://localhost").searchParams,
+        encPhoenix = searchParams.get("phoenix");
+
+      if (encPhoenix) {
+        if (encPhoenix == "out") {
+          delete session.user;
+        } else {
+          const phoenixUserId = server.decryptedPhoenixUserId(encPhoenix);
+          session.user = { id: phoenixUserId };
+        }
+      }
+
+      return { session, sessionChanged: !!encPhoenix };
+    }
+
+    server.wss.on("headers", function(headers, req) {
+      const { session, sessionChanged } = processSession(req);
+      if (sessionChanged) {
+        headers.push(
+          "Set-Cookie: " +
+            Cookie.serialize(server.sessionCookieName, String(server.encryptedSession(session)), {
+              maxAge: 60 * 60 * 24 * 7 // 1 week
+            })
+        );
+      }
+    });
+
     server.wss.on("connection", function connection(ws, req) {
-      ws.isAlive = true;
+      (ws.pongHistory = [0, 0, 0, 1]), (ws.pongCount = 1);
 
-      console.log(req.headers);
+      const { session } = processSession(req);
+      console.log(`Session: ${JSON.stringify(session)}`);
 
-      var client = new WebSocketClient({ server: server, ws: ws, index: nextWsIndex++ });
+      var client = new WebSocketClient({
+        server,
+        session,
+        ws,
+        index: nextWsIndex++,
+        userId: session.userId
+      });
 
-      ws.on("pong", heartbeat);
+      server.notifyListeners("onclientConnected", client);
+
+      ws.on("pong", () => {
+        ws.pongHistory[ws.pongHistory.length - 1]++;
+        ws.pongCount++;
+      });
 
       ws.on("message", function incoming(message) {
         client.serverReceivedMessage(message);
@@ -55,377 +137,169 @@ class WebSocketServer {
       ws.on("error", () => console.log("errored"));
     });
 
-    function heartbeat() {
-      this.isAlive = true;
-    }
-
     const interval = setInterval(function ping() {
       server.wss.clients.forEach(function each(ws) {
-        if (ws.isAlive === false) return ws.terminate();
-
-        ws.isAlive = false;
-        ws.ping("", false, true);
-      });
-    }, 30000);
-
-    console.log(`Web socket server listening on port ${port}`);
-  }
-
-  newVersionAvailableForViews(viewIds) {
-    const server = this;
-
-    const payloadByClientId = {};
-
-    const handleNewViewVersionThroughProxy = (viewIdInfo, proxyableViewIdInfo, filteredClientIds) => {
-      const viewInfo = server.views[proxyableViewIdInfo.proxyableViewId];
-      if (!viewInfo) return;
-      const clientIndexes = filteredClientIds || Object.keys(viewInfo.subscribedClients);
-      if (!clientIndexes.length) {
-        delete server.views[proxyableViewIdInfo.proxyableViewId];
-        return;
-      }
-
-      const version = server.cache.getLatestViewVersionIfAny(viewIdInfo);
-      viewInfo.latestVersionByViewId[viewIdInfo.viewId] = version;
-      const diffsByOwnershipByFromVersion = {};
-      clientIndexes.forEach(clientIndex => {
-        const client = viewInfo.subscribedClients[clientIndex];
-        if (!client) return;
-        const clientInfo = client.subscriptions[proxyableViewIdInfo.proxyableViewId];
-        const isOwner = true;
-        if (!clientInfo || clientInfo.clientHasVersion != clientInfo.clientSentVersion) return;
-        const diffsByOwnership =
-          diffsByOwnershipByFromVersion[clientInfo.clientHasVersion] ||
-          (diffsByOwnershipByFromVersion[clientInfo.clientHasVersion] = {});
-        let diff = diffsByOwnership[isOwner];
-        if (!diff) {
-          diff = diffsByOwnership[isOwner] = version; // TODO
+        if (!ws.pongCount) {
+          return ws.terminate();
         }
 
-        const clientPayload = (
-          payloadByClientId[clientIndex] ||
-          (payloadByClientId[clientIndex] = {
-            client: client,
-            payload: {}
-          })
-        ).payload;
-        clientPayload[proxyableViewIdInfo.proxyableViewId] = {
-          diff: diff,
-          from: clientInfo.clientHasVersion,
-          to: version.version
-        };
-        clientInfo.clientSentVersion = version.version;
+        ws.pongHistory.push(0);
+        ws.pongCount -= ws.pongHistory.shift();
+
+        ws.ping("", false, true);
       });
-    };
+    }, 10000);
 
-    viewIds.forEach(viewId => {
-      const viewIdInfo = ConvertIds.decomposeId({ viewId: viewId });
-      handleNewViewVersionThroughProxy(viewIdInfo, viewIdInfo);
-      const proxiesByClientIndex = server.proxiesByRowId[viewIdInfo.rowId];
-      if (proxiesByClientIndex) {
-        Object.keys(proxiesByClientIndex).forEach(clientIndex => {
-          const proxies = proxiesByClientIndex[clientIndex];
-          Object.keys(proxies).forEach(proxyRowId => {
-            const proxy = proxies[proxyRowId];
-            const proxyViewIdInfo = ConvertIds.recomposeId(proxy.proxyRowIdInfo, {
-              variant: viewIdInfo.variant
-            });
-            handleNewViewVersionThroughProxy(viewIdInfo, proxyViewIdInfo, [clientIndex]);
-          });
-        });
-      }
-    });
-
-    Object.keys(payloadByClientId).forEach(clientIndex => {
-      const payload = payloadByClientId[clientIndex];
-      const stringPayload = "Models:" + JSON.stringify(payload.payload);
-      try {
-        payload.client.ws.send(stringPayload);
-      } catch (err) {
-        console.log(err);
-      }
-    });
+    console.log(`Web socket server listening on port ${port}`);
   }
 }
 
 class WebSocketClient {
-  constructor({ server, ws, index }) {
-    this.server = server;
-    this.ws = ws;
-    this.index = index;
-    this.proxyByProxyRowId = {};
-    this.subscriptions = {};
-    this.mapProxyRowId(
-      ConvertIds.recomposeId({ typeName: "App", proxyKey: "default" }).proxyableRowId,
-      ConvertIds.recomposeId({ typeName: "App", dbRowId: 1 }).rowId
+  constructor({ server, session, ws, index }) {
+    const client = this;
+
+    client.server = server;
+    client.session = session;
+    client.ws = ws;
+    client.index = index;
+    client.mapProxyRowId(
+      ConvertIds.recomposeId({
+        typeName: "App",
+        proxyKey: "default"
+      }).proxyableRowId,
+      ConvertIds.recomposeId({
+        typeName: "App",
+        dbRowId: 1
+      }).rowId
     );
-    this.login(1);
+    client.login(1);
   }
 
   login(userId) {
+    const client = this;
+
     if (userId) {
-      this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "me" }).proxyableRowId,
-        ConvertIds.recomposeId({ typeName: "User", dbRowId: userId }).rowId
+      client.mapProxyRowId(
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "me"
+        }).proxyableRowId,
+        ConvertIds.recomposeId({
+          typeName: "User",
+          dbRowId: userId
+        }).rowId
       );
-      this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "default" }).proxyableRowId,
-        ConvertIds.recomposeId({ typeName: "User", dbRowId: userId }).rowId
+      client.mapProxyRowId(
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "default"
+        }).proxyableRowId,
+        ConvertIds.recomposeId({
+          typeName: "User",
+          dbRowId: userId
+        }).rowId
       );
     } else {
-      this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "me" }).proxyableproxyableRowIdViewId,
-        ConvertIds.recomposeId({ typeName: "App", dbRowId: 1 }).rowId
+      client.mapProxyRowId(
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "me"
+        }).proxyableproxyableRowIdViewId,
+        ConvertIds.recomposeId({
+          typeName: "App",
+          dbRowId: 1
+        }).rowId
       );
-      this.mapProxyRowId(
-        ConvertIds.recomposeId({ typeName: "User", proxyKey: "default" }).proxyableRowId,
-        ConvertIds.recomposeId({ typeName: "App", dbRowId: 1 }).rowId
+      client.mapProxyRowId(
+        ConvertIds.recomposeId({
+          typeName: "User",
+          proxyKey: "default"
+        }).proxyableRowId,
+        ConvertIds.recomposeId({
+          typeName: "App",
+          dbRowId: 1
+        }).rowId
       );
     }
+  }
+
+  mapProxyRowId(proxyRowId, rowId) {
+    // TODO
   }
 
   logout() {
     this.login();
   }
 
-  mapProxyRowId(proxyRowId, rowId) {
-    const client = this;
-    const server = client.server;
-
-    client.unmapProxyViewId(proxyRowId);
-    if (!rowId) return;
-
-    const proxy = {
-      client: client,
-      proxyRowId: proxyRowId,
-      proxyRowIdInfo: ConvertIds.decomposeId({ proxyableRowId: proxyRowId }),
-      rowId: rowId,
-      rowIdInfo: ConvertIds.decomposeId({ rowId: rowId })
-    };
-    client.proxyByProxyRowId[proxyRowId] = proxy;
-    const proxiesByClientIndex = server.proxiesByRowId[proxy.rowId] || (server.proxiesByRowId[proxy.rowId] = {});
-    const proxies = proxiesByClientIndex[client.index] || (proxiesByClientIndex[client.index] = {});
-    proxies[proxyRowId] = proxy;
-  }
-
-  unmapProxyViewId(proxyRowId) {
-    const client = this;
-
-    const proxy = client.proxyByProxyRowId[proxyRowId];
-    if (!proxy) return;
-    delete client.proxyByProxyRowId[proxyRowId];
-    const proxiesByClientIndex = server.proxiesByRowId[proxy.rowId];
-    if (proxiesByClientIndex) {
-      const proxies = proxiesByClientIndex[client.index];
-      if (proxies) {
-        delete proxies[client.index];
-        if (!Object.keys(proxies).length) {
-          delete server.proxiesByRowId[proxy.rowId][client.index];
-          if (!Object.keys(proxiesByClientIndex).length) delete server.proxiesByRowId[proxy.rowId];
-        }
-      }
-    }
-  }
-
   serverReceivedMessage(message) {
     const client = this;
 
-    console.log("Received message from client #" + this.index + ":   " + message);
+    console.log("Received message from client #" + client.index + ":   " + message);
 
-    var matches = /(\d+):/.exec(message);
-    var messageIndex = matches ? +matches[1] : -1;
+    const matches = /^(?:(\d+)|(\w+)):/.exec(message),
+      messageIndex = matches ? +matches[1] : -1,
+      messageType = matches ? matches[2] : undefined;
     if (matches) message = message.substring(matches[0].length);
-    if (message.startsWith("message:")) {
-      client.handleMessage(messageIndex, message.substring("message:".length));
-    } else if (message.startsWith("models:")) {
-      client.requestViews(messageIndex, message.substring("models:".length));
+
+    let payloadObject;
+    try {
+      payloadObject = JSON.parse(message);
+    } catch (err) {
+      payloadObject = message;
     }
+    if (Array.isArray(payloadObject)) {
+      payloadObject = {
+        array: payloadObject
+      };
+    } else if (typeof payloadObject != "object") {
+      payloadObject = {
+        message: `${payloadObject}`
+      };
+    }
+
+    if (messageType == "signin") {
+      setTimeout(() => {
+        client.sendPayload({
+          messageType: "Phoenix",
+          payloadObject: client.server.encryptedPhoenixUserId(1)
+        });
+      });
+    }
+
+    client.notifyListeners("onpayload", {
+      messageIndex,
+      messageType,
+      payloadObject,
+      session: client.session
+    });
   }
 
   closed() {
     const client = this;
     const server = client.server;
 
-    console.log("Client #" + this.index + " closed");
-    Object.keys(client.subscriptions).forEach(proxyableViewId => {
-      const viewInfo = server.views[proxyableViewId];
-      if (viewInfo) delete viewInfo.subscribedClients[client.index];
-    });
-    Object.keys(client.proxyByProxyRowId).forEach(proxyViewId => {
-      const proxy = client.proxyByProxyRowId[proxyViewId];
-      const proxiesByClientIndex = server.proxiesByRowId[proxy.rowId];
-      if (proxiesByClientIndex) delete proxiesByClientIndex[client.index];
-    });
+    console.log("Client #" + client.index + " closed");
+
+    client.notifyListeners("onclose");
   }
 
-  handleMessage(messageIndex, message) {
+  sendPayload({ messageIndex = -1, messageType, payloadObject }) {
     const client = this;
-    const server = client.server;
-    const cache = server.cache;
-    const defn = cache.schema;
 
-    console.log("Handle message: " + message);
-    const obj = JSON.parse(message);
-    if (typeof obj != "object") return;
+    const message = `${
+      messageIndex == -1 ? (messageType ? `${messageType}:` : "") : `${messageIndex}:`
+    }${JSON.stringify(payloadObject)}`;
+    console.log("Sending message to client #" + client.index + ":   " + message);
 
-    const viewId = obj.modelId;
-    if (!viewId) return;
-    let proxyableViewIdInfo = ConvertIds.decomposeId({ proxyableViewId: viewId });
-    const proxy = client.proxyByProxyRowId[proxyableViewIdInfo.proxyableRowId];
-
-    if (!(proxy || proxyableViewIdInfo.dbRowId > 0)) {
-      console.log("View id looks like proxy, but doesn't have a mapping set");
-      return;
-    }
-    const rowIdInfo = proxy ? proxy.rowIdInfo : proxyableViewIdInfo;
-
-    const type = defn.allTypes[rowIdInfo.typeName];
-    if (!type) {
-      console.log(`No type "${rowIdInfo.typeName}"`);
-      return;
-    }
-
-    const form = obj.form;
-
-    obj.message = obj.message || "save";
-
-    switch (obj.message) {
-      case "save":
-        if (!form) break;
-        Object.keys(form).forEach(fieldName => {
-          const field = type.fields[fieldName];
-          if (!field) {
-            console.log(`No field "${fieldName}" in type "${rowIdInfo.typeName}"`);
-            return;
-          }
-
-          const newValue = form[fieldName];
-          const datapointId = field.getDatapointId({ dbRowId: rowIdInfo.dbRowId });
-          cache.updateDatapointValue({ datapointId, newValue });
-        });
-        break;
-      case "add":
-        const fieldName = obj.fieldName;
-        const field = type.fields[fieldName];
-        if (!field || !field.isId) {
-          console.log(`No id field "${fieldName}" in type "${rowIdInfo.typeName}"`);
-          return;
-        }
-        cache.connection.break;
-    }
-
-    cache.commitNewlyUpdatedDatapoints();
-  }
-
-  requestViews(messageIndex, message) {
-    const client = this;
-    const server = client.server;
-
-    console.log("Request views: " + message);
-    const obj = JSON.parse(message);
-    if (typeof obj != "object") return;
-    let payload = {};
-    if (obj.subscribe) {
-      Object.keys(obj.subscribe).forEach(proxyableViewId => {
-        var version = obj.subscribe[proxyableViewId];
-        console.log(`View: ${proxyableViewId}[${version}]`);
-
-        let proxyableViewIdInfo = ConvertIds.decomposeId({ proxyableViewId: proxyableViewId });
-        if (!proxyableViewIdInfo) {
-          payload[proxyableViewId] = {
-            from: version,
-            to: version
-          };
-          console.log("Couldn't parse view id");
-          return;
-        }
-        const proxy = client.proxyByProxyRowId[proxyableViewIdInfo.proxyableRowId];
-
-        if (!(proxy || proxyableViewIdInfo.dbRowId > 0)) {
-          payload[proxyableViewId] = {
-            from: version,
-            to: version
-          };
-          console.log("View id looks like proxy, but doesn't have a mapping set");
-          return;
-        }
-        const clientRowIdInfo = proxy ? proxy.rowIdInfo : proxyableViewIdInfo;
-        const clientViewIdInfo = ConvertIds.recomposeId(clientRowIdInfo, {
-          variant: proxyableViewIdInfo.variant
-        });
-        try {
-          server.cache.ensureViewFields(clientViewIdInfo);
-        } catch (error) {
-          payload[proxyableViewId] = {
-            from: version,
-            to: version
-          };
-          console.log(error);
-          return;
-        }
-
-        var currentVersionInfo =
-          client.subscriptions[proxyableViewId] ||
-          (client.subscriptions[proxyableViewId] = {
-            client: client,
-            clientSentVersion: version
-          });
-        currentVersionInfo.clientHasVersion = version;
-
-        console.log(`Client sent version: ${currentVersionInfo.clientSentVersion}`);
-
-        if (currentVersionInfo.clientHasVersion == currentVersionInfo.clientSentVersion) {
-          let viewInfo = server.views[proxyableViewId];
-          if (!viewInfo) {
-            viewInfo = server.views[proxyableViewId] = {
-              proxyableViewId: proxyableViewId,
-              subscribedClients: {},
-              latestVersionByViewId: {}
-            };
-          }
-          if (!viewInfo.latestVersionByViewId[clientViewIdInfo.viewId]) {
-            viewInfo.latestVersionByViewId[clientViewIdInfo.viewId] = server.cache.getLatestViewVersionIfAny(
-              clientViewIdInfo
-            );
-          }
-          viewInfo.subscribedClients[client.index] = client;
-
-          const latestVersion = viewInfo.latestVersionByViewId[clientViewIdInfo.viewId];
-          if (latestVersion && latestVersion.version >= version) {
-            const latestVersionIndex = latestVersion ? latestVersion.version : 0;
-            if (currentVersionInfo.clientHasVersion == latestVersionIndex) {
-              payload[proxyableViewId] = {
-                from: currentVersionInfo.clientHasVersion,
-                to: latestVersion.version
-              };
-            } else {
-              var diff = latestVersion; // TODO
-
-              payload[proxyableViewId] = {
-                diff: diff,
-                from: currentVersionInfo.clientHasVersion,
-                to: latestVersion.version
-              };
-            }
-
-            currentVersionInfo.clientSentVersion = latestVersion.version;
-          } else {
-            console.log(`Will retrieve view ${clientViewIdInfo.viewId} asynchronously`);
-          }
-        }
-      });
-
-      console.log(payload);
-      if (Object.keys(payload).length) {
-        const payloadString =
-          (messageIndex == -1 || messageIndex == undefined ? "Models:" : messageIndex + ":") + JSON.stringify(payload);
-        client.ws.send(payloadString);
-      }
-
-      server.cache.validateNewlyInvalidDatapoints();
-    }
+    client.ws.send(message);
   }
 }
 
+makeClassWatchable(WebSocketClient);
+makeClassWatchable(WebSocketServer);
+
 // API is the public facing class
-module.exports = PublicApi({ fromClass: WebSocketServer, hasExposedBackDoor: true });
+module.exports = PublicApi({
+  fromClass: WebSocketServer,
+  hasExposedBackDoor: true
+});

@@ -1,0 +1,2 @@
+- app(App):
+    name(string): {default: "NoBo demo"}

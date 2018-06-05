@@ -3,3 +3,5 @@ tmp/
 lib/page-server/public/assets
 tools/template-manager/log
 tools/page-server/log
+tools/js/client/bundles
+tools/page-server/app/assets/javascripts/nobo.js

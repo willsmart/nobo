@@ -30,8 +30,6 @@
   %body{class: @body_class}
     = yield(:sublayout_content)
 
-    .models-container
-      .models.d-flex.justify-content-center
-        .__childOf_type-root__marker-page.__childOf_type-root__marker-page_collection-1.__childOf_type-root__marker-page_placeholder{"__collectionindex"=>1, "model_as_parent"=>1}
+    .children--page{"nobo-uid"=>"page"}
 
     = javascript_include_tag "application"
