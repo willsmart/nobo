@@ -4,4 +4,4 @@ bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
 cd "$bindir/../.." # the App's base dir
-ruby "$toolsdir/rb/joiner.rb" $args
+ruby "$toolsdir/rb/joiner.rb" $args --loop

@@ -3,7 +3,7 @@
   // ${sortOrdinal} possibly used by the wrapper, this forces it to be included in the model
   %span.anchor-link-bubble.model-draggable{draggable:'true', dragcontextmodelid:'${{contextmodel}}', dragcontextfield:'${{contextfield}}'}
     %a.model-anchor.grey-link{draggable:'false', href:'#${{__basemodel}}${{anchor|}}'}> 
-      ${breadcrumbTitle|?}
+      ${breadcrumbTitle||"?"}
   %span.model-drag-space{dragcontextmodelid:'${{contextmodel}}', dragcontextfield:'${{contextfield}}', aftermodelid:'${{__basemodel}}'}
     &nbsp;
   

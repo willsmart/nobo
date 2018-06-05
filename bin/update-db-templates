@@ -3,8 +3,37 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
+export LBLUE='\033[1;34m'
+export GREEN='\033[0;32m'
+export RED='\033[0;31m'
+export DARKGREY='\033[1;30m'
+export NC='\033[0m'
+export CLEAR='\033[2K'
+
 cd "$toolsdir/js"
 npm install
 
+export templatesdir="$bindir/../templates"
+export processedhamldir="$templatesdir/.processedHAML"
+function processHAML {
+    fn="$1"
+    ofn="$processedhamldir/${fn%.haml}"
+    if [[ ! "$ofn" =~ .html$ ]]; then ofn="$ofn.html" ; fi
+    echo -en "$CLEAR\r${DARKGREY}'$fn'$NC"
+    mkdir -p `dirname "$ofn"`
+    if ! haml "$fn" "$ofn" 2>/dev/null ; then
+        echo -e "$CLEAR$RED\r'$fn'   -->   '$ofn':"
+        echo -e "${DARKGREY}(haml --trace '$fn' '$ofn')${NC}"
+        haml --trace "$fn" "$ofn"
+        echo
+    fi
+}
+export -f processHAML
+
+
+cd "$templatesdir"
+echo "Processing haml files into html..."
+find . -name \*.html.haml -exec bash -c "processHAML '{}'" \;
+echo -e "\ndone processing HAML files.\n"
 cd "$bindir/.."
-node "$toolsdir/js/update-db-templates.js" $args
+node "$toolsdir/js/mains/update-db-templates.js" $args

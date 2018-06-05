@@ -3,5 +3,5 @@
   // ${sortOrdinal} possibly used by the wrapper, this forces it to be included in the model
   %span.anchor-link-bubble
     %a.model-anchor.grey-link{href:'#${{__basemodel}}${{anchor|}}'}>
-      ${breadcrumbTitle|?}
+      ${breadcrumbTitle||"?"}
   %span{ondragenter:"console.log('hi');"}

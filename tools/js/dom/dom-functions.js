@@ -70,7 +70,13 @@ function childrenFieldNameForElement(element) {
 function htmlToElement(html) {
   var template = document.createElement("template");
   template.innerHTML = html.trim();
-  return template.content.firstChild;
+  let element = template.content.firstChild;
+  if (element && element.nodeType == 3) {
+    let span = document.createElement("span");
+    span.innerText = element.textContent;
+    element = span;
+  }
+  return element;
 }
 
 function templateDatapointIdForRowAndVariant(proxyableRowId, variant) {
