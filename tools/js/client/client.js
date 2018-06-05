@@ -1,11 +1,12 @@
 const ClientDatapoints = require("./client-datapoints"),
-  PageState = require("../client/page-state"),
+  PageState = require("./page-state"),
   WebSocketClient = require("./web-socket-client"),
-  SharedState = require("./shared-state"),
-  DomGenerator = require("./dom-generator"),
-  DomUpdater = require("./dom-updater"),
+  SharedState = require("../general/shared-state"),
+  DomGenerator = require("../dom/dom-generator"),
+  DomUpdater = require("../dom/dom-updater"),
   ConvertIds = require("../convert-ids"),
-  { htmlToElement } = require("./dom-functions");
+  { htmlToElement } = require("../dom/dom-functions"),
+  ClientActions = require("./client-actions");
 
 document.nobo = {
   ClientDatapoints,
@@ -32,6 +33,8 @@ document.nobo.domUpdater = new document.nobo.DomUpdater({
 document.nobo.pageState = new document.nobo.PageState({
   getDatapoint
 });
+
+document.nobo.clientActions = new ClientActions({ domGenerator: document.nobo.domGenerator });
 
 SharedState.global.watch({
   onchangedstate: function(diff, changes) {

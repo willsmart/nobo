@@ -1,6 +1,6 @@
 const PublicApi = require("../general/public-api");
 const ConvertIds = require("../convert-ids");
-const SharedState = require("../dom/shared-state");
+const SharedState = require("../general/shared-state");
 
 let globalPageState;
 
@@ -30,7 +30,7 @@ class PageState {
     window.onpopstate = event => {
       const pageState = this;
 
-      visit();
+      pageState.visit();
     };
 
     pageState.callbackKey = SharedState.global.watch({
@@ -92,7 +92,7 @@ class PageState {
   updateState(rowOrDatapointId) {
     const pageState = this;
 
-    let pageDatapointInfo = rowOrDatapointId
+    let pageDatapointInfo = ConvertIds.proxyableDatapointRegex.test(rowOrDatapointId)
       ? ConvertIds.recomposeId({
           proxyableDatapointId: rowOrDatapointId,
           permissive: true

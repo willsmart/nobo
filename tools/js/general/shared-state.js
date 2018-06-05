@@ -1,7 +1,7 @@
-const PublicApi = require("../general/public-api");
-const makeClassWatchable = require("../general/watchable");
-const diffAny = require("../general/diff");
-const { shallowCopy, shallowCopyObjectIfSame } = require("../general/clone");
+const PublicApi = require("./public-api");
+const makeClassWatchable = require("./watchable");
+const diffAny = require("./diff");
+const { shallowCopy, shallowCopyObjectIfSame } = require("./clone");
 
 // API is auto-generated at the bottom from the public interface of the SharedState class
 

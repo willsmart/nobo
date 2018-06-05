@@ -1,6 +1,7 @@
 const PublicApi = require("../general/public-api");
 const ConvertIds = require("../convert-ids");
 const TemplatedText = require("./templated-text");
+const makeClassWatchable = require("../general/watchable");
 
 const {
   templateDatapointIdForRowAndVariant,
@@ -22,7 +23,9 @@ class DomGenerator {
       "createChildElements",
       "createElementsUsingTemplateDatapointId",
       "createElementsUsingDomDatapointId",
-      "getDatapoint"
+      "getDatapoint",
+      "watch",
+      "stopWatching"
     ];
   }
 
@@ -125,6 +128,8 @@ class DomGenerator {
         childElement.insertAdjacentElement("afterend", additionalChildElements[index]);
       }
     }
+
+    domGenerator.notifyListeners("onprepelement", { element, proxyableRowId });
 
     domGenerator.prepValueFields({ element, proxyableRowId });
 
@@ -236,6 +241,8 @@ class DomGenerator {
     }
   }
 }
+
+makeClassWatchable(DomGenerator);
 
 // API is the public facing class
 module.exports = PublicApi({

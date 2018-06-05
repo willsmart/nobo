@@ -2,8 +2,8 @@ const WebSocket = require("isomorphic-ws");
 const ConvertIds = require("../convert-ids");
 const PublicApi = require("../general/public-api");
 const makeClassWatchable = require("../general/watchable");
-const SharedState = require("./shared-state");
-const PageState = require("../client/page-state");
+const SharedState = require("../general/shared-state");
+const PageState = require("./page-state");
 
 // API is auto-generated at the bottom from the public interface of this class
 

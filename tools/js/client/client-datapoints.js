@@ -3,7 +3,7 @@ const PublicApi = require("../general/public-api");
 // API is auto-generated at the bottom from the public interface of the WSClientDatapoints class
 
 const ConvertIds = require("../convert-ids");
-const SharedState = require("./shared-state");
+const SharedState = require("../general/shared-state");
 const { TemporaryState } = SharedState;
 
 const callbackKey = "ClientDatapoints";
