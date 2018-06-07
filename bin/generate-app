@@ -147,6 +147,9 @@ if ! joined/bin/update-db-schema dryRun=0 ; then exit 1 ; fi
 echo -e "${DARKBLUE}... pushing the templates up to the database$DARKGREY"
 if ! joined/bin/update-db-templates ; then exit 1 ; fi
 
+echo -e "${DARKBLUE}... doing another join$DARKGREY"
+if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi
+
 echo -e "${NC}\nAll done!\n\nYou can now start the joiner and servers, then visit your site on localhost:3000/app:"
 echo -e "  Start the joiner script via:\n    joined/bin/start-joiner"
 echo -e "  Start the 'page-server' development http server via:\n    joined/bin/start-page-server"
