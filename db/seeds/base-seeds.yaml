@@ -1,5 +1,6 @@
 -   ModelChangeNotifyRequest:
-    -   name: modelchanges
+    -   id: name
+        name: modelchanges
 -   App:
     -   id: 1
         name: My NoBo app

@@ -14,6 +14,7 @@
     at(datetime): now
 
 - app(App):
+    name(string): null
     cookiePrefix(string):
         default: 'noboapp'
 
