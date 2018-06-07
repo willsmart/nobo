@@ -26,6 +26,21 @@ The aspirational goal of NoBo is to allow anyone to make a simple reactive site 
 
 NoBo is an opinionated but general framework.
 
+Quick start
+========
+
+Run the following in a terminal:
+
+    bash <(https://raw.githubusercontent.com/willsmart/nobo/master/bin/generate-app)
+
+That setup script lives in `bin/generate-app` and is used to both setup and reconfigure the app. It will go through following steps:
+1. Create the app repo
+2. Setup db connection parameters. This step requires a running postgresql host.
+3. Setup the secrets dir.
+4. Run the joiner
+5. Create the database
+6. Update database schema and templates
+
 Tools overview
 --------
 
