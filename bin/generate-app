@@ -138,6 +138,9 @@ if ! joined/bin/update-db-schema dryRun=0 ; then exit 1 ; fi
 echo -e "${DARKBLUE}... pushing the templates up to the database$DARKGREY"
 if ! joined/bin/update-db-templates ; then exit 1 ; fi
 
+echo -e "${DARKBLUE}... bundling client code$DARKGREY"
+if ! joined/tools/js/client/bundle ; then exit 1 ; fi
+
 echo -e "${DARKBLUE}... doing another join$DARKGREY"
 if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi
 
@@ -150,7 +153,7 @@ echo -en " Would you like me to start these in the background? (you can kill the
 if ! read yn ; then exit 1 ; fi
 if [[ "$yn" == 'y' || "$yn" == 'Y' ]]; then
     echo -e "${DARKBLUE}... starting the joiner and servers $DARKGREY"
-    ./startservers
+    joined/bin/start-all
 fi
 
 echo -e "Thanks for trying out NoBo. Please send feedback to ${BLUE}will.r.smart@gmail.com${NC}\n"
