@@ -50,7 +50,7 @@ if [[ ! -d '.git' ]]; then
 fi
 
 if [[ ! -f '.gitignore' ]]; then
-    echo -e "/secrets\n/joined\n/secrets.sh\nnode_modules\n" > .gitignore
+    echo -e "/secrets\n/joined\n/secrets.sh\nnode_modules\n/killservers\n/*.pid" > .gitignore
     git add .gitignore
 fi
 
@@ -72,6 +72,15 @@ mkdir -p prod
 mkdir -p deploy
 mkdir -p secrets/db
 mkdir -p secrets/secrets
+
+if [[ ! -f killservers ]]; then
+    echo -e '#!/bin/bash\cd `realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`' > killservers
+    echo "if [[ -f joiner.pid ]]; then kill -SIGINT `joiner.pid` ; fi" >> killservers
+    echo "if [[ -f model-server.pid ]]; then kill -SIGINT `model-server.pid` ; fi" >> killservers
+    echo "if [[ -f page-server.pid ]]; then kill -SIGINT `page-server.pid` ; fi" >> killservers
+    chmod +x killservers
+    git add killservers
+fi
 
 connectionfn=secrets/db/connection.json
 
@@ -131,3 +140,33 @@ fi
 
 echo -e "${DARKBLUE}... doing a join on the app$DARKGREY"
 if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi
+
+echo -e "${DARKBLUE}... updating the database schema (and creating if necessary)$DARKGREY"
+if ! joined/bin/update-db-schema dryRun=0 ; then exit 1 ; fi
+
+echo -e "${DARKBLUE}... pushing the templates up to the database$DARKGREY"
+if ! joined/bin/update-db-templates ; then exit 1 ; fi
+
+echo -e "${NC}\nAll done!\n\nYou can now start the joiner and servers, then visit your site on localhost:3000/app:"
+echo -e "  Start the joiner script via:\n    joined/bin/start-joiner"
+echo -e "  Start the 'page-server' development http server via:\n    joined/bin/start-page-server"
+echo -e "  Start the 'model-server' web socket server via:\n    joined/bin/start-model-server --prompter"
+
+echo -en " Would you like me to start these in the background? (you can kill them by running ./killservers in the app directory)\n  Start the app? [n] : "
+if ! read yn ; then exit 1 ; fi
+if [[ "$yn" == 'y' || "$yn" == 'Y' ]]; then
+    echo -e "${DARKBLUE}... starting the joiner and servers $DARKGREY"
+    joined/bin/start-joiner &
+    echo $! > joiner.pid
+    joinerpid=$!
+    joined/bin/start-page-server &
+    echo $! > page-server.pid
+    pagepid=$!
+    joined/bin/start-model-server &
+    echo $! > model-server.pid
+    modelpid=$!
+    echo -e "    kill -SIGINT $joinerpid # joiner\n    kill -SIGINT $pagepid # page-server\n    kill -SIGINT $modelpid # model-server\n" > killservers
+    echo -e "${NC}\n\nTo kill the servers run:\n    kill -SIGINT $joinerpid # joiner\n    kill -SIGINT $pagepid # page-server\n    kill -SIGINT $modelpid # model-server\n\n"
+fi
+
+echo -e "Thanks for trying out NoBo. Please send feedback to ${BLUE}will.r.smart@gmail.com${NC}\n"

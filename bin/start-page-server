@@ -3,5 +3,12 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
+pidfile="$bindir/../../page-server.pid"
+echo $$ > "$pidfile"
+function finish {
+    rm "$pidfile"
+}
+trap finish EXIT
+
 cd "$toolsdir/page-server"
 bundle exec rails s

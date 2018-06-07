@@ -3,5 +3,12 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
+pidfile="$bindir/../../joiner.pid"
+echo $$ > "$pidfile"
+function finish {
+    rm "$pidfile"
+}
+trap finish EXIT
+
 cd "$bindir/../.." # the App's base dir
 ruby "$toolsdir/rb/joiner.rb" $args --loop
