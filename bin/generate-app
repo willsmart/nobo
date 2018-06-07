@@ -84,13 +84,13 @@ if [[ ! -f "$connectionfn" ]]; then
         echo -en "Please type the DB database name [noboapp] : " 
         if ! read dbname ; then exit 1 ; fi
         if [[ "$dbname" == "" ]]; then dbname=noboapp ; fi
-        echo -en "Please type the DB username [postgresql] : " 
+        echo -en "Please type the DB username [postgres] : " 
         if ! read dbuser ; then exit 1 ; fi
-        if [[ "$dbuser" == "" ]]; then dbuser=postgresql ; fi
-        echo -en "Please type $dbuser's password [password] : " 
+        if [[ "$dbuser" == "" ]]; then dbuser=postgres ; fi
+        echo -en "Please type $dbuser's password [] : " 
 
         if ! read dbpass ; then exit 1 ; fi
-        if [[ "$dbpass" == "" ]]; then dbpass=password ; fi
+        if [[ "$dbpass" == "" ]]; then dbpass= ; fi
 
         if ! ( echo -e '{\n    "host": "'$dbhost'",\n    "database": "'$dbname'",\n    "username": "'$dbuser'",\n    "password": "'"$dbpass"'"\n}' > "$connectionfn" ) ; then
             exit 1
@@ -119,12 +119,15 @@ if [[ "$TH_SECRETS_PASSWORD" == "" ]]; then
         echo "export TH_DEEP_SECRETS_PASSWORD='$TH_DEEP_SECRETS_PASSWORD'" >> secrets.sh
 
         echo -e "${DARKBLUE}... encrypting the secrets dir$DARKGREY"
-        echo $TH_SECRETS_PASSWORD
         if ! nobo/bin/encrypt_secrets ; then exit 1 ; fi
         git add secrets.dat
     fi
 
+else
+    echo -e "${DARKBLUE}... encrypting the secrets dir$DARKGREY"
+    if ! nobo/bin/encrypt_secrets ; then exit 1 ; fi
 fi
+
 
 echo -e "${DARKBLUE}... doing a join on the app$DARKGREY"
 if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi

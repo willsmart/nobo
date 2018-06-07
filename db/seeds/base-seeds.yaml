@@ -1,0 +1,6 @@
+-   ModelChangeNotifyRequest:
+    -   name: modelchanges
+-   App:
+    -   id: 1
+        name: My NoBo app
+        cookiePrefix: noboapp

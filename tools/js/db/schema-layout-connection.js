@@ -23,10 +23,7 @@ class SchemaLayoutConnection {
     ];
   }
 
-  constructor({
-    connection,
-    verbose
-  }) {
+  constructor({ connection, verbose }) {
     Object.assign(this, {
       _connection: connection,
       verbose
@@ -69,9 +66,7 @@ class SchemaLayoutConnection {
   get currentLayoutAndConverterVersion() {
     return this.async_currentLayoutAndConverterVersion();
   }
-  async async_currentLayoutAndConverterVersion({
-    allowEmpty
-  } = {}) {
+  async async_currentLayoutAndConverterVersion({ allowEmpty } = {}) {
     const slConnection = this,
       connection = slConnection.connection;
 
@@ -87,10 +82,7 @@ class SchemaLayoutConnection {
         return (slConnection._currentLayoutAndVersion = {});
       }
 
-      const {
-        model_layout,
-        layout_to_schema_version
-      } = res.rows[0];
+      const { model_layout, layout_to_schema_version } = res.rows[0];
 
       return (slConnection._currentLayoutAndVersion = {
         source: JSON.parse(model_layout),
@@ -103,11 +95,7 @@ class SchemaLayoutConnection {
   }
 
   /// Stores a layout source into the schema_history table
-  async saveLayout({
-    sql,
-    source,
-    version
-  }) {
+  async saveLayout({ sql, source, version }) {
     const slConnection = this,
       connection = slConnection.connection,
       verbose = slConnection.verbose;
@@ -120,23 +108,22 @@ class SchemaLayoutConnection {
         .query("BEGIN;\n" + sql)
         .then((err, res) => {
           return connection.query(
-            "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());", [source, version]
+            "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());",
+            [source, version]
           );
         })
         .then((err, res) => {
           return connection.query("END;");
         });
     } else {
-      const {
-        source: sourceWas,
-        converterVersion: versionWas
-      } = await slConnection.currentLayoutAndConverterVersion;
+      const { source: sourceWas, converterVersion: versionWas } = await slConnection.currentLayoutAndConverterVersion;
       if (sourceWas == source && version == versionWas) {
         if (verbose) console.log("Layout is unchanged");
       } else {
         if (verbose) console.log("Saving layout:\n" + source);
         return connection.query(
-          "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());", [source, version]
+          "INSERT INTO schema_history(model_layout, layout_to_schema_version, at) VALUES ($1::text, $2::character varying, now());",
+          [source, version]
         );
       }
     }

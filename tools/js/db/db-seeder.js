@@ -19,11 +19,7 @@ class DbSeeder {
     return ["insertSeeds", "seeds", "connection", "seedFiles", "seeds", "seedRows"];
   }
 
-  constructor({
-    connection = undefined,
-    path = "db",
-    verbose
-  } = {}) {
+  constructor({ connection = undefined, path = "db", verbose } = {}) {
     this.verbose = verbose;
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
@@ -48,6 +44,7 @@ class DbSeeder {
     const seeder = this;
 
     const dir = seeder.seedsDir || seeder.rootSeedsDir;
+    if (!dir) return [];
     return fs
       .readdirSync(dir)
       .filter(filename => seedsFileRegex.test(filename))
@@ -75,9 +72,7 @@ class DbSeeder {
     return seeder._seeds;
   }
 
-  async seedRows({
-    seeds
-  } = {}) {
+  async seedRows({ seeds } = {}) {
     const seeder = this;
 
     const schema = await seeder.connection.schemaLayoutConnection.currentSchema;
@@ -97,13 +92,7 @@ class DbSeeder {
     return rowsById;
   }
 
-  addSeedRows({
-    seeds,
-    context,
-    type,
-    parentRowId,
-    fieldInParent
-  }) {
+  addSeedRows({ seeds, context, type, parentRowId, fieldInParent }) {
     for (const seed of seeds) {
       this.addSeedRow({
         seed,
@@ -115,18 +104,10 @@ class DbSeeder {
     }
   }
 
-  addSeedRow({
-    seed,
-    type,
-    parentRowId,
-    fieldInParent,
-    context
-  }) {
+  addSeedRow({ seed, type, parentRowId, fieldInParent, context }) {
     const seeder = this;
 
-    const {
-      schema
-    } = context;
+    const { schema } = context;
 
     if (Array.isArray(seed)) {
       seeder.addSeedRows({
@@ -164,9 +145,7 @@ class DbSeeder {
     function ensureRow() {
       if (row) return;
 
-      const {
-        rowsById
-      } = context;
+      const { rowsById } = context;
 
       const type_name = ChangeCase.snakeCase(type.name);
       rowId = `${type_name}__${dbRowId || `?${context.nextPlaceholderId++}`}`;
@@ -296,9 +275,7 @@ class DbSeeder {
     }
   }
 
-  bestSortingForSeedRows({
-    rowsById
-  }) {
+  bestSortingForSeedRows({ rowsById }) {
     const seeder = this;
 
     const sortedRowIds = [],
@@ -358,10 +335,7 @@ class DbSeeder {
     return sortedRowIds;
   }
 
-  async insertSeeds({
-    rowsById,
-    quiet
-  } = {}) {
+  async insertSeeds({ rowsById, quiet } = {}) {
     const seeder = this,
       connection = seeder.connection;
 
@@ -379,14 +353,7 @@ class DbSeeder {
 
     for (const rowId of rowIds) {
       const row = rowsById[rowId];
-      const {
-        type,
-        fields,
-        dbRowId,
-        findBy,
-        dbRowIdDependencies,
-        dbRowIdDependents
-      } = row;
+      const { type, fields, dbRowId, findBy, dbRowIdDependencies, dbRowIdDependents } = row;
       const tableName = ChangeCase.snakeCase(type.name);
 
       if (dbRowIdDependencies && Object.keys(dbRowIdDependencies).length) {
@@ -444,9 +411,7 @@ class DbSeeder {
               ", "
             )} WHERE "${tableName}"."id" = ${dbRowId} RETURNING id;`;
             log(sql, values);
-            return connection.query(sql, values).then(({
-              rows
-            }) => {
+            return connection.query(sql, values).then(({ rows }) => {
               if (rows.length) return;
               fieldNames.push("id");
               templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, "integer"));
@@ -463,9 +428,7 @@ class DbSeeder {
           }
 
           log(sql, values);
-          return connection.query(sql, values).then(({
-            rows
-          }) => {
+          return connection.query(sql, values).then(({ rows }) => {
             const dbRowId = (row.dbRowId = rows[0].id);
 
             if (dbRowIdDependents && Object.keys(dbRowIdDependents).length) {
@@ -511,9 +474,7 @@ class DbSeeder {
         const sql = `SELECT id FROM "${tableName}" WHERE ${fieldConditions.join(" AND ")} LIMIT 1;`;
         log(sql, values);
         sqlPromises.push(
-          connection.query(sql, values).then(({
-            rows
-          }) => {
+          connection.query(sql, values).then(({ rows }) => {
             const dbRowId = (row.dbRowId = rows.length ? rows[0].id : undefined);
 
             if (dbRowId && dbRowIdDependents && Object.keys(dbRowIdDependents).length) {

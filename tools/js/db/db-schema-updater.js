@@ -6,10 +6,9 @@ const SchemaDefn = require("../schema");
 const Connection = require("../db/postgresql-connection");
 const SchemaToSQL = require("../db/postgresql-schema.js");
 const fs = require("fs");
-const {
-  promisify
-} = require("util");
+const { promisify } = require("util");
 const YAML = require("yamljs");
+const DbSeeder = require("./db-seeder");
 
 const readFile_p = promisify(fs.readFile);
 const writeFile_p = promisify(fs.writeFile);
@@ -26,12 +25,9 @@ class DbSchemaUpdater {
     return ["performUpdate", "schema", "baseSchema", "connection"];
   }
 
-  constructor({
-    connection = undefined,
-    path = "db",
-    verbose
-  } = {}) {
+  constructor({ connection = undefined, path = "db", verbose } = {}) {
     this.verbose = verbose;
+    this.path = path;
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
     if (fs.existsSync(`${path}/layout`)) {
@@ -42,13 +38,15 @@ class DbSchemaUpdater {
     }
   }
 
-  get connection() {
+  async connection({ canCreate } = {}) {
     const updater = this;
 
     if (updater._connection) return updater._connection;
 
     const connectionInfo = JSON.parse(fs.readFileSync(updater.connectionFilename));
-    return (updater._connection = new Connection(connectionInfo));
+    connectionInfo.canCreate = canCreate;
+    updater._connection = await Connection.connect(connectionInfo);
+    return updater._connection;
   }
 
   get layoutFiles() {
@@ -73,9 +71,9 @@ class DbSchemaUpdater {
       }
       return baseFiles.concat(
         fs
-        .readdirSync(updater.layoutDir)
-        .filter(filename => layoutFileRegex.test(filename) && !baseLayoutFileRegex.test(filename))
-        .map(filename => `${updater.layoutDir}/${filename}`)
+          .readdirSync(updater.layoutDir)
+          .filter(filename => layoutFileRegex.test(filename) && !baseLayoutFileRegex.test(filename))
+          .map(filename => `${updater.layoutDir}/${filename}`)
       );
     }
   }
@@ -93,9 +91,7 @@ class DbSchemaUpdater {
     );
   }
 
-  getSchema({
-    onlyBase
-  } = {}) {
+  getSchema({ onlyBase } = {}) {
     const updater = this;
 
     const schema = new SchemaDefn();
@@ -116,16 +112,12 @@ class DbSchemaUpdater {
     return schema;
   }
 
-  async sqlForUpdate({
-    drop,
-    renew,
-    renewAll,
-    retrigger
-  }) {
+  async sqlForUpdate({ drop, renew, renewAll, retrigger, canCreate = true } = {}) {
     const updater = this;
 
     const schema = drop ? updater.baseSchema : updater.schema,
-      schemaWas = await updater.connection.schemaLayoutConnection.currentSchema;
+      connection = await updater.connection({ canCreate }),
+      schemaWas = await connection.schemaLayoutConnection.currentSchema;
 
     let sql;
     if (!schemaWas) {
@@ -167,16 +159,11 @@ class DbSchemaUpdater {
     };
   }
 
-  async performUpdate({
-    dryRun
-  }) {
+  async performUpdate({ dryRun, canCreate = true, canSeed = true } = {}) {
     const updater = this;
 
-    const {
-      sql,
-      schema
-    } = await updater.sqlForUpdate(arguments[0]),
-      connection = updater.connection;
+    const { sql, schema } = await updater.sqlForUpdate(arguments[0]),
+      connection = await updater.connection({ canCreate });
 
     if (!sql) {
       if (updater.verbose)
@@ -209,6 +196,15 @@ class DbSchemaUpdater {
     `);
     }
 
+    if (canSeed && !dryRun && !connection.isSeeded) {
+      if (updater.verbose) {
+        console.log(`Seeding the database seeing as it's new`);
+      }
+      let seeder = new DbSeeder({
+        path: updater.path
+      });
+      await seeder.insertSeeds();
+    }
     return {
       sql,
       schema

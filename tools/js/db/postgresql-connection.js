@@ -6,10 +6,7 @@
 //   is that nobo uses triggers as a fundamental part of its work (see schema_to_postgresql.js)
 
 const ChangeCase = require("change-case");
-const {
-  Pool,
-  Client
-} = require("pg");
+const { Pool, Client } = require("pg");
 const SchemaToPostgresql = require("../db/postgresql-schema");
 const PostgresqlListener = require("../db/postgresql-listener");
 const SchemaLayoutConnection = require("../db/schema-layout-connection");
@@ -17,6 +14,8 @@ const PublicApi = require("../general/public-api");
 const ConvertIds = require("../convert-ids");
 
 // API is auto-generated at the bottom from the public interface of this class
+
+let PostgresqlConnection_public;
 
 class PostgresqlConnection {
   // public methods
@@ -28,31 +27,37 @@ class PostgresqlConnection {
       "query",
       "newClient",
       "schemaLayoutConnection",
-      "dbListener"
+      "dbListener",
+      "connect",
+      "isSeeded"
     ];
   }
 
-  constructor({
-    host,
-    port,
-    database,
-    username,
-    password,
-    connectionString
-  }) {
-    this.connectionString = connectionString || PostgresqlConnection.connectionString(arguments[0]);
+  static sanitizedDatabase(database) {
+    return ChangeCase.snakeCase(database.replace(/[^\w_-\d]/g, ""));
+  }
+
+  constructor({ host, port, database, username, password, isSeeded = true }) {
+    database = PostgresqlConnection.sanitizedDatabase(database);
+    this.database = database;
+    this._isSeeded = isSeeded;
+    this.connectionString = PostgresqlConnection.connectionString(arguments[0]);
     this.pool = new Pool({
       connectionString: this.connectionString
     });
   }
 
-  static connectionString({
-    host,
-    port,
-    database,
-    username,
-    password
-  }) {
+  get isSeeded() {
+    return this._isSeeded;
+  }
+
+  static async connect({ host, port, database, username, password, canCreate }) {
+    const baseConnection = new PostgresqlConnection({ host, port, database: "postgres", username, password });
+    const isSeeded = !(await baseConnection.createDatabaseIfRequired({ database }));
+    return new PostgresqlConnection_public({ host, port, database, username, password, isSeeded });
+  }
+
+  static connectionString({ host, port, database, username, password }) {
     return `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port ||
       5432}/${database}`;
   }
@@ -66,19 +71,44 @@ class PostgresqlConnection {
   }
 
   get dbListener() {
-    return this._dbListener ?
-      this._dbListener :
-      (this._dbListener = new PostgresqlListener({
-        connection: this
-      }));
+    return this._dbListener
+      ? this._dbListener
+      : (this._dbListener = new PostgresqlListener({
+          connection: this
+        }));
   }
 
   get schemaLayoutConnection() {
-    return this._schemaLayoutConnection ?
-      this._schemaLayoutConnection :
-      (this._schemaLayoutConnection = new SchemaLayoutConnection({
-        connection: this
-      }));
+    return this._schemaLayoutConnection
+      ? this._schemaLayoutConnection
+      : (this._schemaLayoutConnection = new SchemaLayoutConnection({
+          connection: this
+        }));
+  }
+
+  async databaseExists({ database }) {
+    database = PostgresqlConnection.sanitizedDatabase(database);
+    const connection = this;
+
+    const { rows } = await connection.query(
+      "SELECT datname FROM pg_catalog.pg_database WHERE lower(datname) = lower($1::varchar);",
+      [database]
+    );
+
+    return rows.length > 0;
+  }
+
+  async createDatabaseIfRequired({ database }) {
+    database = PostgresqlConnection.sanitizedDatabase(database);
+    const connection = this;
+
+    if (await connection.databaseExists({ database })) return false;
+
+    await connection.query(
+      `CREATE DATABASE "${database}" WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8'`
+    );
+
+    return true;
   }
 
   async query(sql, argArray) {
@@ -89,11 +119,7 @@ class PostgresqlConnection {
   // methods to load rows and views
 
   /// Gets multiple rows from a given table with optional joins and table alias
-  async getRowsFromDB({
-    tableName,
-    fields,
-    dbRowId
-  }) {
+  async getRowsFromDB({ tableName, fields, dbRowId }) {
     const connection = this;
 
     const fieldNames = fields.map(fieldInfo => {
@@ -114,11 +140,7 @@ class PostgresqlConnection {
     });
   }
 
-  async getRowFields({
-    type,
-    dbRowId,
-    fields
-  }) {
+  async getRowFields({ type, dbRowId, fields }) {
     const connection = this;
 
     const sqlTypeTable = ChangeCase.snakeCase(type.name);
@@ -136,33 +158,33 @@ class PostgresqlConnection {
     if (fields.length) {
       promises.push(
         connection
-        .getRowsFromDB({
-          tableName: sqlTypeTable,
-          fields: fields,
-          dbRowId
-        })
-        .then(models => {
-          if (!models.length) return;
-          const model = models[0];
+          .getRowsFromDB({
+            tableName: sqlTypeTable,
+            fields: fields,
+            dbRowId
+          })
+          .then(models => {
+            if (!models.length) return;
+            const model = models[0];
 
-          let ret = {};
-          for (const i in fields) {
-            const fieldInfo = fields[i];
-            const value = model[fieldInfo.outputKey];
-            if (value === undefined || value === null) continue;
-            if (fieldInfo.sqlField.isId) {
-              ret[fieldInfo.outputKey] = [
-                ConvertIds.recomposeId({
-                  typeName: fieldInfo.field.dataType.name,
-                  dbRowId: value
-                }).rowId
-              ];
-            } else {
-              ret[fieldInfo.outputKey] = value;
+            let ret = {};
+            for (const i in fields) {
+              const fieldInfo = fields[i];
+              const value = model[fieldInfo.outputKey];
+              if (value === undefined || value === null) continue;
+              if (fieldInfo.sqlField.isId) {
+                ret[fieldInfo.outputKey] = [
+                  ConvertIds.recomposeId({
+                    typeName: fieldInfo.field.dataType.name,
+                    dbRowId: value
+                  }).rowId
+                ];
+              } else {
+                ret[fieldInfo.outputKey] = value;
+              }
             }
-          }
-          return ret;
-        })
+            return ret;
+          })
       );
     }
     return Promise.all(promises).then(fragments => {
@@ -177,11 +199,7 @@ class PostgresqlConnection {
     });
   }
 
-  async updateRowFields({
-    type,
-    dbRowId,
-    fields
-  }) {
+  async updateRowFields({ type, dbRowId, fields }) {
     const connection = this;
 
     const sqlTypeTable = ChangeCase.snakeCase(type.name);
@@ -208,11 +226,7 @@ class PostgresqlConnection {
   }
 
   /// Sets values in one row of a given table
-  updateRowInDB({
-    tableName,
-    fields,
-    dbRowId
-  }) {
+  updateRowInDB({ tableName, fields, dbRowId }) {
     const connection = this;
 
     if (!dbRowId) return;
@@ -316,7 +330,7 @@ class PostgresqlConnection {
 }
 
 // API is the public facing class
-module.exports = PublicApi({
+module.exports = PostgresqlConnection_public = PublicApi({
   fromClass: PostgresqlConnection,
   hasExposedBackDoor: true
 });
