@@ -1,30 +1,60 @@
 # NoBo - Say no to boiler-plate code
 The plan is for NoBo to end up an awesome holistic framework for writing reactive web apps with little to no non-essential code. For now it is very much under-construction.
 
-Author
---------
+## The why
 
-Hi. I'm Will. I've programmed for three decades touching on every level of the stack about half and half between academia and business.
+Hi, I'm Will. I've programmed for three decades touching on every level of the stack about half and half between academia and business. In that time I've written several small frameworks easing development for various platforms.
 
-Feedback
---------
-I'm on will.r.smart@gmail.com . Please Let me know if you like this, or have thoughts.
-
-
-Why I bothered to author NoBo?
----------
-
-I love the way things are going! Websites are slick, responsive, and reactive. Things are looking really good for coders with HTML5. JS is getting better and better.
+I love the way things are going! Websites are slick, responsive, and reactive. Things are looking really good for coders. We've got HTML5. Modern JS completely rocks.
 
 ... But *surely* we are all a little sick of writing masses of boilerplate code to support our models and views. Shouldn't that be something we can offload to the underlying system?
 
-Well, yes.
+Well, yes. Hence NoBo.
 
-What is NoBo?
-=========
+### A note on style (or, why the lack of dependencies?)
+
+I unashamedly admit that much of this code reinvents the wheel. You know ho else does? Tesla, that's who. It's not always a bad thing. 
+
+I'm not going to write my own websocket layer, but in general when faced with a programming problem that could be solved with 200 lines of code I will do that rather than using an off the shelf tool to do it for me. Call it a personal style choice that may explain some of the bespoke-code in NoBo.
+
+As the project moves on I expect some of this bespoke code will be swapped out for more convential tools.
+
+# What is NoBo?
+
 The aspirational goal of NoBo is to allow anyone to make a simple reactive site with no code, and a complex site by adding only non-generic code. To that end NoBo scraps a lot of the code that you'd write to support a framework like react.
 
 NoBo is an opinionated but general framework.
+
+Core concepts
+---------
+To make a NoBo app, you specify a model in YAML or JSON files. Something along the lines of:
+
+(db/layouts/mymodels.json)
+
+    user(User):
+        name(String): {}
+        ~< posts(Post):
+            body(string): {}
+            userName(string): {get: 'user.name'}
+            ...
+
+You also specify views via HAML or HTML files. Something along the lines of:
+
+(templates/User.html.haml)
+
+    .user
+        %h2
+            ${name||'<unnamed user>'}
+        posts-model-child{variant: 'row'}
+        
+(templates/Post[row].html.haml)
+
+    .post
+        %small
+            ${userName?'(post by '+userName+')':''}
+        ${body}
+        
+... then after starting the app
 
 Quick start
 ========
@@ -41,8 +71,16 @@ That setup script lives in `bin/generate-app` and is used to both setup and reco
 5. Create the database
 6. Update database schema and templates
 
-Tools overview
---------
+# Tools overview
+
+- Start the joiner script: `nobo/bin/start-joiner`
+- Push the model layout files up to the database: `joined/bin/update-db-schema`
+- Pushing the views up to the database: `joined/bin/update-db-templates`
+- Bundling: `joined/bin/bundle-client`
+- Start the model-server: `joined/bin/start-model-server --prompter`
+- Start the page-server: `joined/bin/start-page-server`
+- Start both in the background: `joined/bin/start-servers`
+- Kill the servers: `joined/bin/kill-servers`
 
 ## Joiner
 
@@ -94,8 +132,7 @@ If there are multiple `model-server`'s using the same connection info, other ins
 
     #> joined/bin/start-model-server
 
-Deeper dive into the parts
-=========
+# Deeper dive into the parts
 
 ## Database Schema
 
