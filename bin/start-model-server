@@ -13,7 +13,7 @@ function finish {
 trap finish EXIT INT TERM
 
 cd "$toolsdir/js"
-npm install
+if ! ret=$(npm install 2>&1) ; then echo "$ret" ; fi
 
 cd "$bindir/.."
 node "$toolsdir/js/mains/model-server.js" $args &

@@ -8,3 +8,13 @@ for fn in page-server model-server ; do
     kill -SIGINT `cat "$pidfile"`
   fi
 done
+
+sleep 2
+
+for fn in page-server model-server ; do
+  pidfile="$bindir/../../$fn.pid"
+  if [[ -f "$pidfile" ]]; then 
+    echo "Kill $pidfile : `cat "$pidfile"`"
+    kill -SIGTERM `cat "$pidfile"`
+  fi
+done

@@ -11,7 +11,7 @@ export NC='\033[0m'
 export CLEAR='\033[2K'
 
 cd "$toolsdir/js"
-npm install
+if ! ret=$(npm install 2>&1) ; then echo "$ret" ; fi
 
 export templatesdir="$bindir/../templates"
 export processedhamldir="$templatesdir/.processedHAML"

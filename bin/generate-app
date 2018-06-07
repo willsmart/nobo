@@ -144,16 +144,9 @@ if ! joined/tools/js/client/bundle ; then exit 1 ; fi
 echo -e "${DARKBLUE}... doing another join$DARKGREY"
 if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi
 
-echo -e "${NC}\nAll done!\n\nYou can now start the joiner and servers, then visit your site on localhost:3000/app:"
-echo -e "  Start the joiner script via:\n    joined/bin/start-joiner"
-echo -e "  Start the 'page-server' development http server via:\n    joined/bin/start-page-server"
-echo -e "  Start the 'model-server' web socket server via:\n    joined/bin/start-model-server --prompter"
-
-echo -en " Would you like me to start these in the background? (you can kill them by running joined/bin/killservers)\n  Start the app? [n] : "
-if ! read yn ; then exit 1 ; fi
-if [[ "$yn" == 'y' || "$yn" == 'Y' ]]; then
-    echo -e "${DARKBLUE}... starting the joiner and servers $DARKGREY"
-    joined/bin/start-all
-fi
-
-echo -e "Thanks for trying out NoBo. Please send feedback to ${BLUE}will.r.smart@gmail.com${NC}\n"
+echo -e "${NC}\nAll done!\n\nYou can now start the joiner and servers, then visit your site on localhost:3000/app"
+echo -e "  Start the joiner script via:\n                      ${GREEN}$dir/nobo/bin/start-joiner$NC"
+echo -e "  Start the 'page-server' development http server via ${GREEN}$dir/joined/bin/start-page-server$NC"
+echo -e "  Start the 'model-server' web socket server via:\n   ${GREEN}$dir/joined/bin/start-model-server --prompter$NC"
+echo -e "   .. or both in the background with:                 ${GREEN}$dir/joined/bin/start-servers$NC"
+echo -e "\nVisit ${BLUE}https://github.com/willsmart/nobo$NC for more info.\nThanks for trying out NoBo! Please send feedback to ${BLUE}will.r.smart@gmail.com${NC}\n"

@@ -1,0 +1,6 @@
+#!/bin/bash
+args=$@
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+toolsdir="$bindir/../tools"
+
+"$toolsdir/js/client/bundle"
