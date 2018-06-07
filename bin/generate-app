@@ -1,0 +1,128 @@
+#!/bin/bash
+
+export BLUE='\033[1;94m'
+export GREEN='\033[0;32m'
+export RED='\033[0;91m'
+export DARKBLUE='\033[1;34m'
+export DARKGREY='\033[1;30m'
+export NC='\033[0m'
+export CLEAR='\033[2K'
+
+deffn="$1"
+echo -en "\n${BLUE}This script will generate a new NoBo app.\n\n${NC}Please type the path to use for the app: " 
+if [[ "$deffn" != "" ]]; then echo "[$deffn] : " ; fi
+if ! read fn ; then exit 1 ; fi
+if [[ "$fn" == "" ]]; then 
+    if [[ "$deffn" != "" ]]; then fn="$deffn" ; 
+    else exit 1
+    fi
+fi
+
+dir="$(realpath "$(dirname "$fn")")"
+
+if [[ ! -d "$dir" ]] ; then
+    echo -e "${RED}!!! No such directory '$dir'$NC"
+    exit 1
+fi
+
+fn=`basename "$fn"`
+path="${dir}/${fn}"
+
+if [[ -f "$path" ]] ; then
+    echo -en "${RED}!!! '$path' is a file$NC"
+    exit 1
+fi
+
+if [[ -d "$path" ]] ; then
+    echo -en "${NC}'$path' already exists, use anyway? [y]$NC"
+    if ! read yn ; then exit 1 ; fi
+    if [[ "$yn" != '' && "$yn" != 'y' && "$yn" != 'Y' ]]; then exit 1 ; fi
+else
+    echo -e "${DARKBLUE}... creating '${path}'$DARKGREY"
+    if ! mkdir "$path" ; then exit 1 ; fi
+fi
+
+cd "$path"
+
+if [[ ! -d '.git' ]]; then
+    echo -e "${DARKBLUE}... initializing as a repo$DARKGREY"
+    if ! git init ; then exit 1 ; fi
+fi
+
+if [[ ! -f '.gitignore' ]]; then
+    echo -e "/secrets\n/joined\n/secrets.sh\nnode_modules\n" > .gitignore
+    git add .gitignore
+fi
+
+if [[ ! -d 'nobo' ]]; then
+    echo -e "${DARKBLUE}... adding the NoBo submodule$DARKGREY"
+    if ! git clone git@github.com:willsmart/nobo.git ; then exit 1 ; fi
+    if ! git submodule add git@github.com:willsmart/nobo.git ; then exit 1 ; fi
+else
+    echo -e "${DARKBLUE}... pulling the nobo submodule$DARKGREY"
+    cd nobo    
+    if [[ ! git pull ]]; then exit 1 ; fi
+    cd ..
+fi
+
+echo -e "${DARKBLUE}... prepping the directory structure$DARKGREY"
+mkdir -p app/db
+mkdir -p dev
+mkdir -p prod
+mkdir -p deploy
+mkdir -p secrets/db
+mkdir -p secrets/secrets
+
+connectionfn=secrets/db/connection.json
+
+if [[ ! -f "$connectionfn" ]]; then
+    echo -e "\n${BLUE}Setting up the database"
+    echo -e "${RED}(note that this connection info will be saved in the secrets folder, which is committed to the repo as the encrypted file secrets.dat. A following step will set up the passwords for this file)$NC"
+    echo -ne "${NC}Please type the DB host name [leave blank to skip setting up the db] : " 
+    if ! read dbhost ; then exit 1 ; fi
+    if [[ "$dbhost" != "" ]]; then 
+        echo -en "Please type the DB database name [noboapp] : " 
+        if ! read dbname ; then exit 1 ; fi
+        if [[ "$dbname" == "" ]]; then dbname=noboapp ; fi
+        echo -en "Please type the DB username [postgresql] : " 
+        if ! read dbuser ; then exit 1 ; fi
+        if [[ "$dbuser" == "" ]]; then dbuser=postgresql ; fi
+        echo -en "Please type $dbuser's password [password] : " 
+
+        if ! read dbpass ; then exit 1 ; fi
+        if [[ "$dbpass" == "" ]]; then dbpass=password ; fi
+
+        if ! ( echo -e '{\n    "host": "'$dbhost'",\n    "database": "'$dbname'",\n    "username": "'$dbuser'",\n    "password": "'"$dbpass"'"\n}' > "$connectionfn" ) ; then
+            exit 1
+        fi
+    fi
+fi
+
+if [[ -f secrets.sh ]]; then 
+   if ! source secrets.sh ; then exit 1 ; fi
+fi
+
+if [[ "$TH_SECRETS_PASSWORD" == "" ]]; then
+    echo -en "\n${BLUE}Setting up the secrets folder\n${NC}Please type the password to use for encrypting the shallow secrets. [leave blank to skip this step] : " 
+    if ! read TH_SECRETS_PASSWORD ; then exit 1 ; fi
+
+    if [[ "$TH_SECRETS_PASSWORD" != "" ]]; then 
+        export TH_SECRETS_PASSWORD
+
+        echo -en "Please type the password to use for encrypting the deep secrets    [leave blank to skip this step] : " 
+        if ! read TH_DEEP_SECRETS_PASSWORD ; then exit 1 ; fi
+        if [[ "$TH_DEEP_SECRETS_PASSWORD" != "" ]]; then  
+            export TH_DEEP_SECRETS_PASSWORD
+            mkdir secrets/secrets
+        fi
+        echo -e "${DARKBLUE}... encrypting an empty secrets dir$DARKGREY"
+        if ! nobo/bin/encrypt_secrets ; then exit 1 ; fi
+        git add secrets.dat
+    fi
+
+    echo "export TH_SECRETS_PASSWORD='$TH_SECRETS_PASSWORD'" > secrets.sh
+    echo "export TH_DEEP_SECRETS_PASSWORD='$TH_DEEP_SECRETS_PASSWORD'" >> secrets.sh
+fi
+
+echo -e "${DARKBLUE}... doing a join on the app$DARKGREY"
+if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi

@@ -2,6 +2,7 @@ const PublicApi = require("../general/public-api");
 const ConvertIds = require("../convert-ids");
 const TemplatedText = require("./templated-text");
 const SharedState = require("../general/shared-state");
+const { elementForUniquePath } = require("../dom/dom-functions");
 
 const {
   templateDatapointIdForRowAndVariant,
@@ -45,6 +46,22 @@ class DomUpdater {
         const replacements = [];
 
         forEachChangedKeyPath((keyPath, change) => {
+          if (!keyPath.length) return true;
+
+          if (keyPath[0] == "overriddenElementDatapoints") {
+            if (keyPath.length != 2) return true;
+            const path = keyPath[1],
+              element = elementForUniquePath(path);
+            if (!element) return;
+            const range = rangeForElement(element);
+            replacements.push({
+              replaceRange: range,
+              elements: domUpdater.recreateElements({ element })
+            });
+            domUpdater.markRangeAsDead(range);
+          }
+          while (0);
+
           if (!keyPath.length || keyPath[0] != "datapointsById") return;
           if (keyPath.length < 2) return true;
 
@@ -67,29 +84,21 @@ class DomUpdater {
     });
   }
 
-  createElementsWithUpdatedTemplateDatapoint({ element }) {
-    const domUpdater = this,
-      templateDatapointId = element.getAttribute("nobo-template-dpid"),
-      placeholderUid = element.getAttribute("nobo-placeholder-uid");
-    if (!templateDatapointId) return;
+  recreateElements({ element }) {
+    return this.domGenerator.createElementsUsingTemplateDatapointId({
+      basedOnElement: element
+    });
+  }
 
-    return domUpdater.domGenerator.createElementsUsingTemplateDatapointId({ templateDatapointId, placeholderUid });
+  createElementsWithUpdatedTemplateDatapoint({ element }) {
+    return this.domGenerator.createElementsUsingTemplateDatapointId({
+      basedOnElement: element
+    });
   }
 
   createElementsWithUpdatedDomDatapoint({ element }) {
-    const domUpdater = this,
-      templateDatapointId = element.getAttribute("nobo-template-dpid"),
-      domDatapointId = element.getAttribute("nobo-dom-dpid"),
-      placeholderUid = element.getAttribute("nobo-placeholder-uid");
-    if (!(templateDatapointId && domDatapointId)) return;
-
-    const proxyableRowId = ConvertIds.decomposeId({ proxyableDatapointId: templateDatapointId }).proxyableRowId;
-
-    return domUpdater.domGenerator.createElementsUsingDomDatapointId({
-      templateDatapointId,
-      domDatapointId,
-      proxyableRowId,
-      placeholderUid
+    return this.domGenerator.createElementsUsingDomDatapointId({
+      basedOnElement: element
     });
   }
 

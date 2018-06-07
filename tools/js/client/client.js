@@ -4,6 +4,7 @@ const ClientDatapoints = require("./client-datapoints"),
   SharedState = require("../general/shared-state"),
   DomGenerator = require("../dom/dom-generator"),
   DomUpdater = require("../dom/dom-updater"),
+  DomFunctions = require("../dom/dom-functions"),
   ConvertIds = require("../convert-ids"),
   { htmlToElement } = require("../dom/dom-functions"),
   ClientActions = require("./client-actions");
@@ -14,6 +15,7 @@ document.nobo = {
   WebSocketClient,
   SharedState,
   DomGenerator,
+  DomFunctions,
   DomUpdater
 };
 

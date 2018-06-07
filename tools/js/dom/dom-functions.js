@@ -22,7 +22,9 @@ module.exports = {
   _skipAllChildren,
   _skipChildren,
   rangeForElement,
-  childRangeAtIndex
+  childRangeAtIndex,
+  elementForUniquePath,
+  uniquePathForElement
 };
 
 function datapointChildrenClass(proxyableDatapointId) {
@@ -142,4 +144,85 @@ function childRangeAtIndex({ placeholderDiv, index }) {
   const currentChildElementArray = [startElement];
   _nextChild(placeholderUid, currentChildElementArray);
   return [startElement, currentChildElementArray[1]];
+}
+
+function findPlaceholderDescendent(element, lid) {
+  if (!lid) {
+    for (let sib = element.nextElementSibling; sib; sib = sib.nextElementSibling) {
+      const childLid = child.getAttribute("nobo-lid");
+      if (child.getAttribute("nobo-lid") == lid) return sib;
+    }
+  } else
+    for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
+      const childLid = child.getAttribute("nobo-lid");
+      if (childLid) {
+        if (childLid == lid) return child;
+      } else {
+        const lids = child.getAttribute("nobo-child-lids");
+        if (lids && lids.includes(` ${lid} `)) {
+          const ret = findPlaceholderDescendent(child, lid);
+          if (ret) return ret;
+        }
+      }
+    }
+}
+
+function elementForUniquePath(path) {
+  path = path.split(" ");
+  const roots = childrenPlaceholders("page");
+  if (!roots.length) return;
+  let element = roots[0];
+  for (const pathComponent of path) {
+    const match = /^([^_]+)__(.*)__#(\d+)$/.exec(pathComponent);
+    if (!match) return;
+    const lid = match[1],
+      templateDatapointId = match[2];
+    let index = +match[3];
+
+    let placeholderElement = element.hasAttribute("nobo-uid") ? element : findPlaceholderDescendent(element, lid);
+    if (!placeholderElement) return;
+    const placeholderUid = placeholderElement.getAttribute("nobo-uid");
+
+    element = undefined;
+    for (let sib = placeholderElement.nextElementSibling; sib; sib = sib.nextElementSibling) {
+      if (
+        sib.getAttribute("nobo-placeholder-uid") == placeholderUid &&
+        sib.getAttribute("nobo-orig-template-dpid") == templateDatapointId
+      ) {
+        if (index--) continue;
+        element = sib;
+        break;
+      }
+    }
+    if (!element) return;
+  }
+  return element;
+}
+
+function uniquePathForElement(element) {
+  while (!(element.hasAttribute("nobo-placeholder-uid") && element.hasAttribute("nobo-orig-template-dpid"))) {
+    if (!(element = element.parentElement)) return;
+  }
+  const placeholderUid = element.getAttribute("nobo-placeholder-uid"),
+    templateDatapointId = element.getAttribute("nobo-orig-template-dpid");
+  let index = 0;
+  for (let sib = element.previousElementSibling; sib; sib = sib.previousElementSibling) {
+    const sibUid = sib.getAttribute("nobo-uid"),
+      sibLid = sib.getAttribute("nobo-lid");
+    if (sibUid == "page") {
+      return `0__${templateDatapointId}__#${index}`;
+    }
+    if (sibUid == placeholderUid) {
+      const sibPath = uniquePathForElement(sib);
+      if (sibPath === undefined) return;
+      return `${sibPath} ${sibLid}__${templateDatapointId}__#${index}`;
+    }
+    if (
+      sib.getAttribute("nobo-placeholder-uid") == placeholderUid &&
+      sib.getAttribute("nobo-orig-template-dpid") == templateDatapointId
+    ) {
+      index++;
+    }
+  }
+  return;
 }
