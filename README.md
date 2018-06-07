@@ -31,7 +31,7 @@ Quick start
 
 Run the following in a terminal:
 
-    bash <(https://raw.githubusercontent.com/willsmart/nobo/master/bin/generate-app)
+    bash <(curl -s https://raw.githubusercontent.com/willsmart/nobo/master/bin/generate-app)
 
 That setup script lives in `bin/generate-app` and is used to both setup and reconfigure the app. It will go through following steps:
 1. Create the app repo
