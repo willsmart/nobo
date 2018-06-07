@@ -336,29 +336,29 @@ else
       puts "... #{Time.now.to_s}\n"
     end
     begin
-      system("stty raw -echo") #=> Raw mode, no echo
-      char = STDIN.read_nonblock(1)
-      system("stty -raw echo")
-      unless char.nil?
-        print "Input: #{char} >> " 
-        case char
+    #   system("stty raw -echo") #=> Raw mode, no echo
+    #   char = STDIN.read_nonblock(1)
+    #   system("stty -raw echo")
+    #   unless char.nil?
+    #     print "Input: #{char} >> " 
+    #     case char
 
-        when 'q'
-          quit = true 
-          puts "Quitting"
-        when ' '
-          if (paused = !paused)
-            puts "Syncing is paused, press space again to unpause"
-          else
-            puts "Syncing is now active"
-          end
-        else
-          puts "??"
-        end
-      end
-    rescue Exception => ex
-      system("stty -raw echo")
-    end
+    #     when 'q'
+    #       quit = true 
+    #       puts "Quitting"
+    #     when ' '
+    #       if (paused = !paused)
+    #         puts "Syncing is paused, press space again to unpause"
+    #       else
+    #         puts "Syncing is now active"
+    #       end
+    #     else
+    #       puts "??"
+    #     end
+    #   end
+    # rescue Exception => ex
+    #   system("stty -raw echo")
+    # end
     sleep loop_time unless quit
   end
 end
