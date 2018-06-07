@@ -10,7 +10,7 @@ export CLEAR='\033[2K'
 
 deffn="$1"
 echo -en "\n${BLUE}This script will generate a new NoBo app.\n\n${NC}Please type the path to use for the app: " 
-if [[ "$deffn" != "" ]]; then echo "[$deffn] : " ; fi
+if [[ "$deffn" != "" ]]; then echo -n "[$deffn] : " ; fi
 if ! read fn ; then exit 1 ; fi
 if [[ "$fn" == "" ]]; then 
     if [[ "$deffn" != "" ]]; then fn="$deffn" ; 
@@ -61,7 +61,7 @@ if [[ ! -d 'nobo' ]]; then
 else
     echo -e "${DARKBLUE}... pulling the nobo submodule$DARKGREY"
     cd nobo    
-    if [[ ! git pull ]]; then exit 1 ; fi
+    if ! git pull ; then exit 1 ; fi
     cd ..
 fi
 
@@ -109,19 +109,21 @@ if [[ "$TH_SECRETS_PASSWORD" == "" ]]; then
     if [[ "$TH_SECRETS_PASSWORD" != "" ]]; then 
         export TH_SECRETS_PASSWORD
 
-        echo -en "Please type the password to use for encrypting the deep secrets    [leave blank to skip this step] : " 
+        echo -en "Please type the password to use for encrypting the deep secrets.    [leave blank to skip this step] : " 
         if ! read TH_DEEP_SECRETS_PASSWORD ; then exit 1 ; fi
         if [[ "$TH_DEEP_SECRETS_PASSWORD" != "" ]]; then  
             export TH_DEEP_SECRETS_PASSWORD
-            mkdir secrets/secrets
         fi
-        echo -e "${DARKBLUE}... encrypting an empty secrets dir$DARKGREY"
+
+        echo "export TH_SECRETS_PASSWORD='$TH_SECRETS_PASSWORD'" > secrets.sh
+        echo "export TH_DEEP_SECRETS_PASSWORD='$TH_DEEP_SECRETS_PASSWORD'" >> secrets.sh
+
+        echo -e "${DARKBLUE}... encrypting the secrets dir$DARKGREY"
+        echo $TH_SECRETS_PASSWORD
         if ! nobo/bin/encrypt_secrets ; then exit 1 ; fi
         git add secrets.dat
     fi
 
-    echo "export TH_SECRETS_PASSWORD='$TH_SECRETS_PASSWORD'" > secrets.sh
-    echo "export TH_DEEP_SECRETS_PASSWORD='$TH_DEEP_SECRETS_PASSWORD'" >> secrets.sh
 fi
 
 echo -e "${DARKBLUE}... doing a join on the app$DARKGREY"
