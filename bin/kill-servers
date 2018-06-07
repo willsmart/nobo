@@ -1,7 +1,7 @@
 #!/bin/bash
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 
-for fn in joiner page-server model-server ; do
+for fn in page-server model-server ; do
   pidfile="$bindir/../../$fn.pid"
   if [[ -f "$pidfile" ]]; then 
     echo "Kill $pidfile : `cat "$pidfile"`"

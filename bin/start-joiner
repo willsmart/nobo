@@ -3,12 +3,17 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
-pidfile="$bindir/../../joiner.pid"
-echo $$ > "$pidfile"
+export pidfile="$bindir/../../joiner.pid"
 function finish {
-    rm "$pidfile"
+    res=$?
+    rm -f "$pidfile"
+    echo "joiner out"
+    exit $res
 }
-trap finish EXIT
+trap finish EXIT INT TERM
 
 cd "$bindir/../.." # the App's base dir
-ruby "$toolsdir/rb/joiner.rb" $args --loop
+ruby "$toolsdir/rb/joiner.rb" $args --loop &
+child=$!
+echo $child > "$pidfile"
+wait $child

@@ -3,12 +3,17 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
-pidfile="$bindir/../../page-server.pid"
-echo $$ > "$pidfile"
+export pidfile="$bindir/../../page-server.pid"
 function finish {
-    rm "$pidfile"
+    res=$?
+    rm -f "$pidfile"
+    echo "page-server out"
+    exit $res
 }
-trap finish EXIT
+trap finish EXIT INT TERM
 
 cd "$toolsdir/page-server"
-bundle exec rails s
+bundle exec rails s &
+child=$!
+echo $child > "$pidfile"
+wait $child

@@ -1,0 +1,10 @@
+#!/bin/bash
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+pidfile="$bindir/../../model-server.pid"
+if [[ ! -f "$pidfile" ]] ; then 
+  joined/bin/start-model-server --prompter &
+fi
+pidfile="$bindir/../../page-server.pid"
+if [[ ! -f "$pidfile" ]] ; then 
+  joined/bin/start-page-server &
+fi
