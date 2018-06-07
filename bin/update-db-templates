@@ -33,7 +33,7 @@ export -f processHAML
 
 cd "$templatesdir"
 echo "Processing haml files into html..."
-find . -name \*.html.haml -exec bash -c "processHAML '{}'" \;
+find . -name \*.haml -exec bash -c "processHAML '{}'" \;
 echo -e "\ndone processing HAML files.\n"
 cd "$bindir/.."
 node "$toolsdir/js/mains/update-db-templates.js" $args

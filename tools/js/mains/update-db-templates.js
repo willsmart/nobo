@@ -39,7 +39,7 @@ async function forEachPromise(iterable, callback) {
   console.log("Read the template files and update the db templates");
   console.log("   args: " + JSON.stringify(args));
 
-  const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)\.html(\.haml)?/;
+  const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)\.(html(?:\.haml)?|haml)/;
 
   const templateDir = "templates";
   const connectionFilename = "db/connection.json";
@@ -66,7 +66,7 @@ async function forEachPromise(iterable, callback) {
       return;
     }
 
-    const isHaml = match[5];
+    const isHaml = match[5].endsWith("haml");
 
     let body = await readFile_p(path, "utf8");
     if (isHaml) {

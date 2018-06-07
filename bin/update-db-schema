@@ -7,4 +7,5 @@ cd "$toolsdir/js"
 npm install
 
 cd "$bindir/.."
-node "$toolsdir/js/mains/update-db-schema.js" $args
+
+node "$toolsdir/js/mains/update-db-schema.js" dryRun=0 $args
