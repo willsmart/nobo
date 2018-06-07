@@ -335,7 +335,7 @@ else
     if !paused and sync>0
       puts "... #{Time.now.to_s}\n"
     end
-    begin
+    # begin
     #   system("stty raw -echo") #=> Raw mode, no echo
     #   char = STDIN.read_nonblock(1)
     #   system("stty -raw echo")
