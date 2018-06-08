@@ -1,9 +1,11 @@
 # NoBo - Say no to boiler-plate code
-The plan is for NoBo to end up an awesome holistic framework for writing reactive web apps with little to no non-essential code. For now it is very much under-construction.
+For now it is very much under-construction, but the plan is for NoBo to end up an awesome holistic framework for writing reactive web apps with little to no non-essential code. 
 
-## The why
+[(skip to quick start)](#quick-start)
 
-Hi, I'm Will. I've programmed for three decades touching on every level of the stack about half and half between academia and business. In that time I've written several small frameworks easing development for various platforms.
+# Why?
+
+I'm Will. I've programmed for three decades touching on every level of the stack about half and half between academia and business. In that time I've written several small frameworks easing development for various platforms. Nowdays I know what I like and for frameworks it mostly centers around letting users of it stay nicely DRY and KISS.
 
 I love the way things are going! Websites are slick, responsive, and reactive. Things are looking really good for coders. We've got HTML5. Modern JS completely rocks.
 
@@ -15,7 +17,7 @@ Well, yes. Hence NoBo.
 
 I unashamedly admit that much of this code reinvents the wheel. You know ho else does? Tesla, that's who. It's not always a bad thing. 
 
-I'm not going to write my own websocket layer, but in general when faced with a programming problem that could be solved with 200 lines of code I will do that rather than using an off the shelf tool to do it for me. Call it a personal style choice that may explain some of the bespoke-code in NoBo.
+I'm not going to write my own websocket layer (well, not this time!) but in general when faced with a programming problem that could be solved with 200 lines of code I will do that rather than using an off the shelf tool to do it for me. Call it a personal style choice that may explain some of the bespoke-code in NoBo.
 
 As the project moves on I expect some of this bespoke code will be swapped out for more convential tools.
 
@@ -29,7 +31,7 @@ Core concepts
 ---------
 To make a NoBo app, you specify a model in YAML or JSON files. Something along the lines of:
 
-(db/layouts/mymodels.json)
+(db/layout/mymodels.json)
 
     user(User):
         name(String): {}
@@ -38,26 +40,27 @@ To make a NoBo app, you specify a model in YAML or JSON files. Something along t
             userName(string): {get: 'user.name'}
             ...
 
-You also specify views via HAML or HTML files. Something along the lines of:
+... then you also specify views via HAML or HTML files. Something along the lines of:
 
-(templates/User.html.haml)
+(templates/User.haml)
 
     .user
         %h2
             ${name||'<unnamed user>'}
-        posts-model-child{variant: 'row'}
+        .posts-model-child{variant: 'row'}
         
-(templates/Post[row].html.haml)
+(templates/Post[row].haml)
 
     .post
         %small
             ${userName?'(post by '+userName+')':''}
         ${body}
         
-... then after starting the app
+... then you start your app
 
-Quick start
-========
+The above code is enough to show a 
+
+# Quick start
 
 Run the following in a terminal:
 
@@ -99,7 +102,7 @@ To develop or run NoBo as an app, the joiner script must be running. Use the fol
 ## Database 
 
 NoBo works is currently tightly coupled with postgresql.
-Database setup and migration is handled by the `joined/bin/update-db-schema` script which tweaks the db schema to match the combined contents of layout files in the `joined/db/layouts` directory. I.e. to migrate or setup the db, run:
+Database setup and migration is handled by the `joined/bin/update-db-schema` script which tweaks the db schema to match the combined contents of layout files in the `joined/db/layout` directory. I.e. to migrate or setup the db, run:
 
     #> joined/bin/update-db-schema
 
