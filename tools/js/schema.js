@@ -1,14 +1,13 @@
-const strippedValues = require("./general/stripped-values");
-const ConvertIds = require("./convert-ids");
-const PublicApi = require("./general/public-api");
-const CodeSnippet = require("./general/code-snippet");
+const strippedValues = require('./general/stripped-values');
+const ConvertIds = require('./convert-ids');
+const PublicApi = require('./general/public-api');
+const CodeSnippet = require('./general/code-snippet');
 
 // API is auto-generated at the bottom from the public interface of this class
-
 class SchemaDefn {
   // public methods
   static publicMethods() {
-    return ["allTypes", "source", "addLayout", "loadSource", "clear", "fieldForDatapoint"];
+    return ['allTypes', 'source', 'addLayout', 'loadSource', 'clear', 'fieldForDatapoint'];
   }
 
   constructor() {
@@ -48,11 +47,11 @@ class SchemaDefn {
 
   getType(name) {
     let schema = this;
-    if (typeof name == "object") return name.getEnclosingType();
+    if (typeof name == 'object') return name.getEnclosingType();
     return (
       this._allTypes[name] ||
       (this._allTypes[name] = {
-        _: "Type",
+        _: 'Type',
         stripped: function() {
           let ret = {};
           if (Object.keys(this.fields).length) ret.fields = strippedValues(this.fields);
@@ -72,10 +71,10 @@ class SchemaDefn {
           return (
             type.fields[name] ||
             (type.fields[name] = {
-              _: "Field",
+              _: 'Field',
               stripped: function() {
                 let ret = {
-                  dataType: this.dataType.name
+                  dataType: this.dataType.name,
                 };
                 if (this.default !== undefined) ret.default = this.default;
                 if (this.get !== undefined) ret.get = this.get;
@@ -91,7 +90,7 @@ class SchemaDefn {
               isId: /^[A-Z]/.test(dataType.name),
               enclosingType: type,
               links: {},
-              fullName: type.name + "::" + name,
+              fullName: type.name + '::' + name,
               getEnclosingType: function() {
                 return type;
               },
@@ -103,7 +102,7 @@ class SchemaDefn {
                 return ConvertIds.recomposeId({
                   typeName: this.enclosingType.name,
                   dbRowId: dbRowId,
-                  fieldName: this.name
+                  fieldName: this.name,
                 }).datapointId;
               },
               getLinkedToField: function() {
@@ -117,23 +116,23 @@ class SchemaDefn {
                 return (
                   field.links[toField.fullName] ||
                   (field.links[toField.fullName] = toField.links[field.fullName] = {
-                    _: "Link",
+                    _: 'Link',
                     stripped: function() {
                       return {
                         left: this.left.fullName,
                         right: this.right.fullName,
-                        linkType: this.type
+                        linkType: this.type,
                       };
                     },
                     left: field,
                     right: toField,
-                    type: linkType
+                    type: linkType,
                   })
                 );
-              }
+              },
             })
           );
-        }
+        },
       })
     );
   }
@@ -152,48 +151,48 @@ class SchemaDefn {
       let array = object;
       object = {};
       array.forEach(val => {
-        if (typeof val == "string") object[val] = null;
+        if (typeof val == 'string') object[val] = null;
       });
     }
 
-    if (typeof object == "string" || typeof object == "number" || typeof object == "boolean") {
+    if (typeof object == 'string' || typeof object == 'number' || typeof object == 'boolean') {
       if (myField) {
         myField.default = object;
       }
-    } else if (object && typeof object == "object") {
+    } else if (object && typeof object == 'object') {
       Object.keys(object).forEach(key => {
         let val = object[key];
         switch (key) {
-          case "as":
-            if (typeof val == "string") as = val;
+          case 'as':
+            if (typeof val == 'string') as = val;
             break;
-          case "get":
+          case 'get':
             if (!myField) break;
             myField.isVirtual = true;
             myField.get = new CodeSnippet({ code: val });
             break;
-          case "default":
-          case "unique":
+          case 'default':
+          case 'unique':
             if (myField) myField[key] = val;
             break;
           default:
             const match = /^(?:(--|~-|-~|~<|>~)\s*)?([\w_]+)(?:\(([\w_]+)\))?$/.exec(key);
             const linkTypes = {
-              "--": {},
-              "~-": {
-                rightIsVirtual: true
-              },
-              "-~": {
-                leftIsVirtual: true
-              },
-              "~<": {
+              '--': {},
+              '~-': {
                 rightIsVirtual: true,
-                rightIsMultiple: true
               },
-              ">~": {
+              '-~': {
                 leftIsVirtual: true,
-                leftIsMultiple: true
-              }
+              },
+              '~<': {
+                rightIsVirtual: true,
+                rightIsMultiple: true,
+              },
+              '>~': {
+                leftIsVirtual: true,
+                leftIsMultiple: true,
+              },
             };
             if (match) {
               const linkType = match[1],
@@ -234,5 +233,5 @@ class SchemaDefn {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: SchemaDefn,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

@@ -1,25 +1,24 @@
 // model_server
 // © Will Smart 2018. Licence: MIT
 
-const SchemaDefn = require("../schema");
-const WebSocketServer = require("../web-socket-server");
-const DatapointCache = require("../datapoint-cache");
-const Templates = require("../templates");
-const Connection = require("../db/postgresql-connection");
-const fs = require("fs");
-const processArgs = require("../general/process-args");
+const fs = require('fs');
+const processArgs = require('../general/process-args');
+
+const WebSocketServer = require('../web-socket-server');
+const Connection = require('../db/postgresql-connection');
+const { makeCache } = require('../datapoint-cache-module');
 
 (async function() {
   var args = processArgs();
 
-  console.log("Load a model from the db");
-  console.log("   args: " + JSON.stringify(args));
+  console.log('Load a model from the db');
+  console.log('   args: ' + JSON.stringify(args));
 
-  const connectionFilename = "db/connection.json";
+  const connectionFilename = 'db/connection.json';
 
   let connection;
   try {
-    const connectionInfo = JSON.parse(fs.readFileSync(connectionFilename, "utf8"));
+    const connectionInfo = JSON.parse(fs.readFileSync(connectionFilename, 'utf8'));
     connection = new Connection(connectionInfo);
   } catch (err) {
     console.log(`
@@ -30,30 +29,28 @@ const processArgs = require("../general/process-args");
     return;
   }
 
-  const schema = await connection.schemaLayoutConnection.currentSchema;
-
-  const cache = new DatapointCache({
-    schema,
-    connection
+  const { cache } = makeCache({
+    schema: await connection.schemaLayoutConnection.currentSchema,
+    connection,
   });
 
   await connection.dbListener.listenForDatapointChanges({
-    cache
+    cache,
   });
-  console.log("Listening for DB model changes");
+  console.log('Listening for DB model changes');
 
-  if (args["--prompter"]) {
+  if (args['--prompter']) {
     await connection.dbListener.startDBChangeNotificationPrompter({
-      cache
+      cache,
     });
-    console.log("Listening and responding as the DB change notification prompter");
+    console.log('Listening and responding as the DB change notification prompter');
   } else {
     console.log(
       "This server hasn't been started as the DB change notification prompter (there must be, but can only be one). To start as the DBCNP use the '--prompter' command line flag"
     );
   }
   const wsserver = new WebSocketServer({
-    cache
+    cache,
   });
   await wsserver.start();
 })();

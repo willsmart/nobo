@@ -1,13 +1,14 @@
-const ClientDatapoints = require("./client-datapoints"),
-  PageState = require("./page-state"),
-  WebSocketClient = require("./web-socket-client"),
-  SharedState = require("../general/shared-state"),
-  DomGenerator = require("../dom/dom-generator"),
-  DomUpdater = require("../dom/dom-updater"),
-  DomFunctions = require("../dom/dom-functions"),
-  ConvertIds = require("../convert-ids"),
-  { htmlToElement } = require("../dom/dom-functions"),
-  ClientActions = require("./client-actions");
+const ClientDatapoints = require('./client-datapoints'),
+  PageState = require('./page-state'),
+  WebSocketClient = require('./web-socket-client'),
+  SharedState = require('../general/shared-state'),
+  DomGenerator = require('../dom/dom-generator'),
+  DomUpdater = require('../dom/dom-updater'),
+  DomFunctions = require('../dom/dom-functions'),
+  ConvertIds = require('../convert-ids'),
+  { htmlToElement } = require('../dom/dom-functions'),
+  ClientActions = require('./client-actions'),
+  { makeCache } = require('../datapoint-cache-module');
 
 document.nobo = {
   ClientDatapoints,
@@ -16,7 +17,7 @@ document.nobo = {
   SharedState,
   DomGenerator,
   DomFunctions,
-  DomUpdater
+  DomUpdater,
 };
 
 document.nobo.wsclient = new WebSocketClient();
@@ -27,13 +28,13 @@ const getDatapoint = (proxyableDatapointId, defaultValue) =>
 
 document.nobo.domGenerator = new document.nobo.DomGenerator({
   htmlToElement,
-  getDatapoint
+  getDatapoint,
 });
 document.nobo.domUpdater = new document.nobo.DomUpdater({
-  domGenerator: document.nobo.domGenerator
+  domGenerator: document.nobo.domGenerator,
 });
 document.nobo.pageState = new document.nobo.PageState({
-  getDatapoint
+  getDatapoint,
 });
 
 document.nobo.clientActions = new ClientActions({ domGenerator: document.nobo.domGenerator });
@@ -41,7 +42,7 @@ document.nobo.clientActions = new ClientActions({ domGenerator: document.nobo.do
 SharedState.global.watch({
   onchangedstate: function(diff, changes) {
     console.log(`>> State change: ${JSON.stringify(diff)}`);
-  }
+  },
 });
 
 document.nobo.pageState.visit();
