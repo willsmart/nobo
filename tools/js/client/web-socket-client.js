@@ -1,16 +1,16 @@
-const WebSocket = require("isomorphic-ws");
-const ConvertIds = require("../convert-ids");
-const PublicApi = require("../general/public-api");
-const makeClassWatchable = require("../general/watchable");
-const SharedState = require("../general/shared-state");
-const PageState = require("./page-state");
+const WebSocket = require('isomorphic-ws');
+const ConvertIds = require('../convert-ids');
+const PublicApi = require('../general/public-api');
+const makeClassWatchable = require('../general/watchable');
+const SharedState = require('../general/shared-state');
+const PageState = require('./page-state');
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class WebSocketClient {
   // public methods
   static publicMethods() {
-    return ["sendMessage", "sendPayload", "isOpen", "watch", "stopWatching", "signOut"];
+    return ['sendMessage', 'sendPayload', 'isOpen', 'watch', 'stopWatching', 'signOut'];
   }
 
   constructor({ port = 3100 } = {}) {
@@ -19,17 +19,17 @@ class WebSocketClient {
     client._isOpen = false;
     client.nextMessageIndex = 1;
     client.clientParams = {
-      port: port
+      port: port,
     };
 
     function open() {
       const ws = (client.ws = new WebSocket(
-        `ws://localhost:${port}${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ""}`
+        `ws://localhost:${port}${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
       ));
       delete client.phoenix;
       ws.onopen = function open() {
         client._isOpen = true;
-        client.notifyListeners("onopen");
+        client.notifyListeners('onopen');
 
         (client.pongHistory = [0, 0, 0, 1]), (client.pongCount = 1);
       };
@@ -37,13 +37,13 @@ class WebSocketClient {
       ws.onclose = function close() {
         clearInterval(ws.pingInterval);
         client._isOpen = false;
-        client.notifyListeners("onclose");
+        client.notifyListeners('onclose');
         delete client.intentionalClose;
         setTimeout(() => open(), client.intentionalClose ? 100 : 2000);
       };
 
       if (ws.on) {
-        ws.on("pong", () => {
+        ws.on('pong', () => {
           ws.pongHistory[ws.pongHistory.length - 1]++;
           ws.pongCount++;
         });
@@ -59,9 +59,9 @@ class WebSocketClient {
         }
 
         client.notifyListeners(
-          "onpayload",
+          'onpayload',
           WebSocketClient.decodeMessage({
-            message: message.data
+            message: message.data,
           })
         );
       };
@@ -80,7 +80,7 @@ class WebSocketClient {
           ws.pongHistory.push(0);
           clwsient.pongCount -= ws.pongHistory.shift();
 
-          ws.ping("", false, true);
+          ws.ping('', false, true);
         }, 10000);
       }
     }
@@ -107,18 +107,18 @@ class WebSocketClient {
     }
     if (Array.isArray(payloadObject)) {
       payloadObject = {
-        array: payloadObject
+        array: payloadObject,
       };
-    } else if (typeof payloadObject != "object") {
+    } else if (typeof payloadObject != 'object') {
       payloadObject = {
-        message: `${payloadObject}`
+        message: `${payloadObject}`,
       };
     }
 
     return {
       messageIndex,
       messageType,
-      payloadObject
+      payloadObject,
     };
   }
   get cache() {
@@ -128,7 +128,7 @@ class WebSocketClient {
   sendMessage({ message }) {
     this.sendPayload(
       WebSocketClient.decodeMessage({
-        message
+        message,
       })
     );
   }
@@ -140,9 +140,9 @@ class WebSocketClient {
 
     if (messageIndex == -1 && !messageType) messageIndex = client.nextMessageIndex++;
     const message = `${
-      messageIndex == -1 ? (messageType ? `${messageType}:` : "") : `${messageIndex}:`
+      messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
     }${JSON.stringify(payloadObject)}`;
-    console.log("Sending message to server:   " + message);
+    console.log('Sending message to server:   ' + message);
 
     client.ws.send(message);
   }
@@ -153,11 +153,11 @@ class WebSocketClient {
     SharedState.global.withTemporaryState(tempState => {
       tempState.atPath().datapointsById = {};
     });
-    client.phoenix = "out";
+    client.phoenix = 'out';
     client.intentionalClose = true;
     client.ws.close();
 
-    PageState.global.visit("app__default");
+    PageState.global.visit('app__default');
   }
 }
 
@@ -166,5 +166,5 @@ makeClassWatchable(WebSocketClient);
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: WebSocketClient,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

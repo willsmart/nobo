@@ -1,7 +1,7 @@
-const PublicApi = require("./public-api");
-const makeClassWatchable = require("./watchable");
-const diffAny = require("./diff");
-const { shallowCopy, shallowCopyObjectIfSame } = require("./clone");
+const PublicApi = require('./public-api');
+const makeClassWatchable = require('./watchable');
+const diffAny = require('./diff');
+const { shallowCopy, shallowCopyObjectIfSame } = require('./clone');
 
 // API is auto-generated at the bottom from the public interface of the SharedState class
 
@@ -13,7 +13,7 @@ const { shallowCopy, shallowCopyObjectIfSame } = require("./clone");
 //  SharedState.requestCommit(temp=>{temp.atPath('datapoints',proxyableDatapointId).name = 'newName'})
 class TemporaryState {
   static publicMethods() {
-    return ["atPath", "state", "current"];
+    return ['atPath', 'state', 'current'];
   }
 
   static get current() {
@@ -34,7 +34,7 @@ class TemporaryState {
     const temporaryState = this;
 
     let fromState = temporaryState.fromState,
-      state = shallowCopyObjectIfSame(fromState, temporaryState, "_state");
+      state = shallowCopyObjectIfSame(fromState, temporaryState, '_state');
     for (const key of keyPath) {
       state = shallowCopyObjectIfSame((fromState = fromState[key]), state, key);
     }
@@ -44,14 +44,14 @@ class TemporaryState {
 
 const TemporaryState_public = PublicApi({
   fromClass: TemporaryState,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });
 
 let globalSharedState;
 
 class SharedState {
   static publicMethods() {
-    return ["global", "requestCommit", "state", "watch", "stopWatching", "currentTemporaryState", "withTemporaryState"];
+    return ['global', 'requestCommit', 'state', 'watch', 'stopWatching', 'currentTemporaryState', 'withTemporaryState'];
   }
 
   constructor() {
@@ -97,7 +97,7 @@ class SharedState {
 
     sharedState.commitPromise = sharedState.commitPromise.then(() => {
       let temporaryState = new TemporaryState({
-        fromState: sharedState.state
+        fromState: sharedState.state,
       });
       sharedState._currentTemporaryState = temporaryState;
       modifyStateCallback(temporaryState);
@@ -105,12 +105,12 @@ class SharedState {
       let commitTemporaryState;
       while (true) {
         commitTemporaryState = sharedState._currentTemporaryState = new TemporaryState({
-          fromState: temporaryState.state
+          fromState: temporaryState.state,
         });
 
         if (
           sharedState.commit({
-            toState: temporaryState.state
+            toState: temporaryState.state,
           }) === undefined
         )
           break;
@@ -144,13 +144,13 @@ class SharedState {
         }
         if (callback(keyPath, change)) {
           switch (change.type) {
-            case "delete":
+            case 'delete':
               forEachDeletedElement(change.depth, keyPath, change.was, callback);
               break;
-            case "change":
+            case 'change':
               // TODO the way diffs are handled is getting a little messy. Refactor
               if (Array.isArray(change.was) == Array.isArray(change.is)) break; // an array to array diff will already include diffs for children
-            case "insert":
+            case 'insert':
               forEachInsertedElement(change.depth, keyPath, change.is, callback);
               break;
           }
@@ -159,12 +159,12 @@ class SharedState {
 
       function forEachDeletedElement(depth, keyPath, arrayOrObject, callback) {
         if (Array.isArray(arrayOrObject)) forEachDeletedArrayElement(depth, keyPath, arrayOrObject, callback);
-        if (typeof arrayOrObject == "object") forEachDeletedObjectElement(depth, keyPath, arrayOrObject, callback);
+        if (typeof arrayOrObject == 'object') forEachDeletedObjectElement(depth, keyPath, arrayOrObject, callback);
       }
 
       function forEachInsertedElement(depth, keyPath, arrayOrObject, callback) {
         if (Array.isArray(arrayOrObject)) forEachInsertedArrayElement(depth, keyPath, arrayOrObject, callback);
-        if (typeof arrayOrObject == "object") forEachInsertedObjectElement(depth, keyPath, arrayOrObject, callback);
+        if (typeof arrayOrObject == 'object') forEachInsertedObjectElement(depth, keyPath, arrayOrObject, callback);
       }
 
       function forEachDeletedArrayElement(depth, keyPath, array, callback) {
@@ -174,10 +174,10 @@ class SharedState {
           keyPath[keyPath.length - 1] = index;
           if (
             callback(keyPath, {
-              type: "delete",
+              type: 'delete',
               depth,
               index,
-              was: array[index]
+              was: array[index],
             })
           ) {
             forEachDeletedElement(depth, keyPath, array[index], callback);
@@ -193,10 +193,10 @@ class SharedState {
           keyPath[keyPath.length - 1] = 0;
           if (
             callback(keyPath, {
-              type: "insert",
+              type: 'insert',
               depth,
               index: 0,
-              is: array[index]
+              is: array[index],
             })
           ) {
             forEachInsertedElement(depth, keyPath, array[index], callback);
@@ -212,10 +212,10 @@ class SharedState {
           keyPath[keyPath.length - 1] = key;
           if (
             callback(keyPath, {
-              type: "delete",
+              type: 'delete',
               depth,
               key,
-              was: value
+              was: value,
             })
           ) {
             forEachDeletedElement(depth, keyPath, value, callback);
@@ -231,10 +231,10 @@ class SharedState {
           keyPath[keyPath.length - 1] = key;
           if (
             callback(keyPath, {
-              type: "insert",
+              type: 'insert',
               depth,
               key,
-              is: value
+              is: value,
             })
           ) {
             forEachInsertedElement(depth, keyPath, value, callback);
@@ -244,9 +244,9 @@ class SharedState {
       }
     };
 
-    sharedState.notifyListeners("onwillchangesate", diff, changes, forEachChangedKeyPath, fromState, toState);
+    sharedState.notifyListeners('onwillchangesate', diff, changes, forEachChangedKeyPath, fromState, toState);
     sharedState._state = toState;
-    sharedState.notifyListeners("onchangedstate", diff, changes, forEachChangedKeyPath, fromState, toState);
+    sharedState.notifyListeners('onchangedstate', diff, changes, forEachChangedKeyPath, fromState, toState);
 
     return toState;
   }
@@ -260,9 +260,9 @@ class SharedState {
     if (!depth) {
       retChanges.push({
         depth: -1,
-        type: "change",
+        type: 'change',
         was,
-        is
+        is,
       });
     }
 
@@ -270,15 +270,15 @@ class SharedState {
 
     if (diff.objectDiff) {
       for (const [key, childDiff] of Object.entries(diff.objectDiff)) {
-        const wasChild = typeof was == "object" && !Array.isArray(was) ? was[key] : undefined,
-          isChild = typeof is == "object" && !Array.isArray(is) ? is[key] : undefined;
+        const wasChild = typeof was == 'object' && !Array.isArray(was) ? was[key] : undefined,
+          isChild = typeof is == 'object' && !Array.isArray(is) ? is[key] : undefined;
 
         retChanges.push({
           depth,
-          type: wasChild === undefined ? "insert" : isChild === undefined ? "delete" : "change",
+          type: wasChild === undefined ? 'insert' : isChild === undefined ? 'delete' : 'change',
           key,
           was: wasChild,
-          is: isChild
+          is: isChild,
         });
 
         if (isChild === undefined || wasChild === undefined) {
@@ -301,10 +301,10 @@ class SharedState {
 
           retChanges.push({
             depth,
-            type: "change",
+            type: 'change',
             index: wasIndex,
             was: wasChild,
-            is: isChild
+            is: isChild,
           });
           sharedState.changeListFromDiff(childDiff, wasChild, isChild, retChanges, depth + 1);
         } else if (childDiff.deleteAt !== undefined) {
@@ -313,9 +313,9 @@ class SharedState {
 
           retChanges.push({
             depth,
-            type: "delete",
+            type: 'delete',
             index: wasIndex,
-            was: wasChild
+            was: wasChild,
           });
 
           deletes++;
@@ -326,9 +326,9 @@ class SharedState {
 
           retChanges.push({
             depth,
-            type: "insert",
+            type: 'insert',
             index: wasIndex,
-            is: isChild
+            is: isChild,
           });
 
           inserts++;
@@ -344,11 +344,11 @@ makeClassWatchable(SharedState);
 
 const SharedState_public = PublicApi({
   fromClass: SharedState,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });
 SharedState_public.TemporaryState = PublicApi({
   fromClass: TemporaryState,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });
 
 // API is the public facing class

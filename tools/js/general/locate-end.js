@@ -32,12 +32,12 @@ module.exports = locateEnd;
 locateEnd.locateEndOfString = locateEndOfString;
 
 function locateEndOfString(string, closeChar, openIndex) {
-  if (closeChar !== false && (typeof closeChar != "string" || closeChar.length != 1)) {
+  if (closeChar !== false && (typeof closeChar != 'string' || closeChar.length != 1)) {
     closeChar = string.charAt(openIndex);
     switch (closeChar) {
       case '"':
       case "'":
-      case "`":
+      case '`':
         break;
       default:
         return locateEnd(string, undefined, openIndex);
@@ -48,7 +48,7 @@ function locateEndOfString(string, closeChar, openIndex) {
   let regex;
   switch (closeChar) {
     case false:
-    case "`":
+    case '`':
       regex = /(?:\\`|\\$|(?!\$\{)[^`])*/g;
       break;
     case "'":
@@ -62,9 +62,9 @@ function locateEndOfString(string, closeChar, openIndex) {
   }
   const ret = {
     range: [openIndex, undefined],
-    type: closeChar === false ? "...`" : `${closeChar}${closeChar}`
+    type: closeChar === false ? '...`' : `${closeChar}${closeChar}`,
   };
-  if (closeChar !== false && closeChar != "`") {
+  if (closeChar !== false && closeChar != '`') {
     regex.lastIndex = openIndex;
     const match = regex.exec(string);
     if (match) ret.range[1] = regex.lastIndex;
@@ -84,8 +84,8 @@ function locateEndOfString(string, closeChar, openIndex) {
     // must be a ${
     const child = locateEnd(string, undefined, regex.lastIndex + 1);
     if (!child) return;
-    if (child.type == "{}") {
-      child.type = "${}";
+    if (child.type == '{}') {
+      child.type = '${}';
       child.range[0]--;
     }
     ret.children = ret.children || [];
@@ -96,23 +96,23 @@ function locateEndOfString(string, closeChar, openIndex) {
 }
 
 const bracketTypes = {
-  "(": ")",
-  "[": "]",
-  "{": "}"
+  '(': ')',
+  '[': ']',
+  '{': '}',
 };
 
 function locateEnd(string, closeChar, openIndex = 0) {
   const ret = {
-    range: [openIndex, undefined]
+    range: [openIndex, undefined],
   };
-  let closeCharClass = "";
-  if (closeChar !== false && (typeof closeChar != "string" || closeChar.length != 1)) {
+  let closeCharClass = '';
+  if (closeChar !== false && (typeof closeChar != 'string' || closeChar.length != 1)) {
     const openChar = string.charAt(openIndex);
     closeChar = bracketTypes[openChar];
     switch (openChar) {
       case '"':
       case "'":
-      case "`":
+      case '`':
         return locateEndOfString(string, undefined, openIndex);
     }
     if (!closeChar) return;
@@ -120,20 +120,20 @@ function locateEnd(string, closeChar, openIndex = 0) {
   }
   switch (closeChar) {
     case false:
-      ret.type = "...";
+      ret.type = '...';
       break;
     case '"':
     case "'":
-    case "`":
+    case '`':
       return locateEndOfString(string, closeChar, openIndex);
-    case "}":
-      ret.type = "{}";
+    case '}':
+      ret.type = '{}';
       break;
-    case ")":
-      ret.type = "()";
+    case ')':
+      ret.type = '()';
       break;
-    case "]":
-      ret.type = "[]";
+    case ']':
+      ret.type = '[]';
       break;
     default:
       ret.type = closeChar;
@@ -141,7 +141,7 @@ function locateEnd(string, closeChar, openIndex = 0) {
       break;
   }
 
-  const regex = new RegExp(`[^'"\\\`{}()[\\]${closeCharClass}]*`, "g");
+  const regex = new RegExp(`[^'"\\\`{}()[\\]${closeCharClass}]*`, 'g');
 
   regex.lastIndex = openIndex;
   while (true) {
@@ -154,14 +154,14 @@ function locateEnd(string, closeChar, openIndex = 0) {
     }
     let child;
     switch (endChar) {
-      case "`":
+      case '`':
       case "'":
       case '"':
         child = locateEndOfString(string, undefined, regex.lastIndex);
         break;
-      case "[":
-      case "{":
-      case "(":
+      case '[':
+      case '{':
+      case '(':
         child = locateEnd(string, undefined, regex.lastIndex);
         break;
       default:

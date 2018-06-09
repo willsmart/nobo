@@ -1,13 +1,13 @@
 // db-seeder
 // © Will Smart 2018. Licence: MIT
 
-const ChangeCase = require("change-case");
-const PublicApi = require("../general/public-api");
-const SchemaDefn = require("../schema");
-const Connection = require("../db/postgresql-connection");
-const SchemaToSQL = require("../db/postgresql-schema.js");
-const fs = require("fs");
-const YAML = require("yamljs");
+const ChangeCase = require('change-case');
+const PublicApi = require('../general/public-api');
+const SchemaDefn = require('../schema');
+const Connection = require('../db/postgresql-connection');
+const SchemaToSQL = require('../db/postgresql-schema.js');
+const fs = require('fs');
+const YAML = require('yamljs');
 
 const seedsFileRegex = /\.(?:yaml|yml|YAML|YML|json)$/;
 
@@ -16,18 +16,18 @@ const seedsFileRegex = /\.(?:yaml|yml|YAML|YML|json)$/;
 class DbSeeder {
   // public methods
   static publicMethods() {
-    return ["insertSeeds", "seeds", "connection", "seedFiles", "seeds", "seedRows"];
+    return ['insertSeeds', 'seeds', 'connection', 'seedFiles', 'seeds', 'seedRows'];
   }
 
-  constructor({ connection = undefined, path = "db", verbose } = {}) {
+  constructor({ connection = undefined, path = 'db', verbose } = {}) {
     this.verbose = verbose;
     this._connection = connection;
     this.connectionFilename = fs.realpathSync(`${path}/connection.json`);
     if (fs.existsSync(`${path}/seeds`)) {
       this.seedsDir = fs.realpathSync(`${path}/seeds`);
     }
-    if (fs.existsSync("db/seeds")) {
-      this.rootSeedsDir = fs.realpathSync("db/seeds");
+    if (fs.existsSync('db/seeds')) {
+      this.rootSeedsDir = fs.realpathSync('db/seeds');
     }
   }
 
@@ -60,13 +60,13 @@ class DbSeeder {
 
     for (const filename of seeder.seedFiles) {
       let seeds;
-      if (filename.endsWith(".json")) {
+      if (filename.endsWith('.json')) {
         seeds = JSON.parse(fs.readFileSync(filename));
       } else {
         seeds = YAML.load(filename);
       }
       if (Array.isArray(seeds)) seeder._seeds.push(...seeds);
-      else if (typeof seeds == "object") seeder._seeds.push(seeds);
+      else if (typeof seeds == 'object') seeder._seeds.push(seeds);
     }
 
     return seeder._seeds;
@@ -85,8 +85,8 @@ class DbSeeder {
       context: {
         rowsById,
         nextPlaceholderId: 1,
-        schema
-      }
+        schema,
+      },
     });
 
     return rowsById;
@@ -99,7 +99,7 @@ class DbSeeder {
         context,
         type,
         parentRowId,
-        fieldInParent
+        fieldInParent,
       });
     }
   }
@@ -115,17 +115,17 @@ class DbSeeder {
         type,
         parentRowId,
         fieldInParent,
-        context
+        context,
       });
       return;
     }
 
     let row, rowId, dbRowId, findBy;
 
-    if (typeof seed.id == "number") {
+    if (typeof seed.id == 'number') {
       dbRowId = seed.id;
     }
-    if (typeof seed.id == "string") seed.id = [seed.id];
+    if (typeof seed.id == 'string') seed.id = [seed.id];
     if (Array.isArray(seed.id)) {
       findBy = {};
       for (const fieldName of seed.id) {
@@ -133,7 +133,7 @@ class DbSeeder {
           findBy[fieldName] = [];
         }
       }
-    } else if (typeof seed.id == "object") {
+    } else if (typeof seed.id == 'object') {
       findBy = {};
       for (const [fieldName, value] of Object.entries(seed.id)) {
         if (type.fields[fieldName]) {
@@ -155,7 +155,7 @@ class DbSeeder {
           type,
           dbRowId,
           findBy,
-          fields: {}
+          fields: {},
         };
       }
       row = rowsById[rowId];
@@ -172,7 +172,7 @@ class DbSeeder {
             } else {
               parentRow.fields[fieldInParent.name] = rowId;
             }
-            if (rowId.includes("__?")) {
+            if (rowId.includes('__?')) {
               const dbRowIdDependents = (row.dbRowIdDependents = row.dbRowIdDependents || {});
               let fields = (dbRowIdDependents[parentRowId] = dbRowIdDependents[parentRowId] || {});
               fields[fieldInParent.name] = true;
@@ -190,7 +190,7 @@ class DbSeeder {
             } else {
               row.fields[fieldForParent.name] = parentRowId;
             }
-            if (parentRowId.includes("__?")) {
+            if (parentRowId.includes('__?')) {
               const dbRowIdDependents = (parentRow.dbRowIdDependents = parentRow.dbRowIdDependents || {});
               let fields = (dbRowIdDependents[rowId] = dbRowIdDependents[rowId] || {});
               fields[fieldForParent.name] = true;
@@ -214,7 +214,7 @@ class DbSeeder {
         seeder.addSeedRow({
           seed: value,
           type,
-          context
+          context,
         });
         continue;
       }
@@ -228,7 +228,7 @@ class DbSeeder {
 
       ensureRow();
 
-      if (key == "id") continue;
+      if (key == 'id') continue;
 
       const field = type.fields[key];
       if (!field) {
@@ -238,7 +238,7 @@ class DbSeeder {
 
       if (!field.isId) {
         if (field.isVirtual) continue;
-        if (typeof value != "string" && typeof value != "number" && typeof value != "boolean") {
+        if (typeof value != 'string' && typeof value != 'number' && typeof value != 'boolean') {
           console.log(
             `Cannot set field ${field.name} in type '${
               type.name
@@ -250,13 +250,13 @@ class DbSeeder {
         continue;
       }
 
-      if (typeof value == "number") {
+      if (typeof value == 'number') {
         value = {
-          id: value
+          id: value,
         };
       }
 
-      if (typeof value != "object") {
+      if (typeof value != 'object') {
         console.log(
           `Cannot set id-typed field ${field.name}, in type '${
             type.name
@@ -270,7 +270,7 @@ class DbSeeder {
         type: field.dataType,
         parentRowId: rowId,
         fieldInParent: field,
-        context
+        context,
       });
     }
   }
@@ -345,7 +345,7 @@ class DbSeeder {
 
     rowsById = rowsById || (await seeder.seedRows());
     const rowIds = seeder.bestSortingForSeedRows({
-      rowsById
+      rowsById,
     });
 
     let sqlPromises = [],
@@ -389,9 +389,9 @@ class DbSeeder {
         fieldNames.push(`"${SchemaToSQL.sqlFieldForField(field).sqlName}"`);
         if (field.isId) {
           if (field.isMultiple) continue;
-          templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, "integer"));
+          templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, 'integer'));
           if (value) {
-            if (typeof value != "number") {
+            if (typeof value != 'number') {
               value = rowsById[value].dbRowId || null;
             }
           } else value = null;
@@ -408,13 +408,13 @@ class DbSeeder {
             const fieldSettings = fieldNames.map((fieldName, index) => `${fieldName}=${templates[index]}`);
 
             const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(
-              ", "
+              ', '
             )} WHERE "${tableName}"."id" = ${dbRowId} RETURNING id;`;
             log(sql, values);
             return connection.query(sql, values).then(({ rows }) => {
               if (rows.length) return;
-              fieldNames.push("id");
-              templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, "integer"));
+              fieldNames.push('id');
+              templates.push(SchemaToSQL.sqlArgTemplateForValue(values.length, 'integer'));
               values.push(dbRowId);
               return performInsertOrUpdate();
             });
@@ -424,7 +424,7 @@ class DbSeeder {
           if (!fieldNames.length) {
             sql = `INSERT INTO "${tableName}" DEFAULT VALUES RETURNING id;`;
           } else {
-            sql = `INSERT INTO "${tableName}" (${fieldNames.join(",")}) VALUES (${templates.join(", ")}) RETURNING id;`;
+            sql = `INSERT INTO "${tableName}" (${fieldNames.join(',')}) VALUES (${templates.join(', ')}) RETURNING id;`;
           }
 
           log(sql, values);
@@ -454,7 +454,7 @@ class DbSeeder {
           if (field.isId) {
             if (field.isMultiple) continue;
             if (value) {
-              if (typeof value != "number") {
+              if (typeof value != 'number') {
                 value = rowsById[value].dbRowId || null;
               }
             } else value = null;
@@ -465,13 +465,13 @@ class DbSeeder {
             continue;
           }
 
-          const dataTypeName = field.isId ? "integer" : field.dataType.name;
+          const dataTypeName = field.isId ? 'integer' : field.dataType.name;
           const template = SchemaToSQL.sqlArgTemplateForValue(values.length, dataTypeName);
           fieldConditions.push(`${fieldName} = ${template}`);
           values.push(value);
         }
 
-        const sql = `SELECT id FROM "${tableName}" WHERE ${fieldConditions.join(" AND ")} LIMIT 1;`;
+        const sql = `SELECT id FROM "${tableName}" WHERE ${fieldConditions.join(' AND ')} LIMIT 1;`;
         log(sql, values);
         sqlPromises.push(
           connection.query(sql, values).then(({ rows }) => {
@@ -502,5 +502,5 @@ class DbSeeder {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: DbSeeder,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

@@ -3,25 +3,22 @@
 
 // TODO describe
 
-const PostgresqlConnection = require("../db/postgresql-connection");
-const PublicApi = require("../general/public-api");
+const PostgresqlConnection = require('../db/postgresql-connection');
+const PublicApi = require('../general/public-api');
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class PostgresqlListener {
   // public methods
   static publicMethods() {
-    return ["listenForDatapointChanges", "startDBChangeNotificationPrompter", "listen", "connection"];
+    return ['listenForDatapointChanges', 'startDBChangeNotificationPrompter', 'listen', 'connection'];
   }
 
-  constructor({
-    connection,
-    verbose
-  }) {
+  constructor({ connection, verbose }) {
     Object.assign(this, {
       _connection: connection,
       verbose,
-      listeningChannels: {}
+      listeningChannels: {},
     });
   }
 
@@ -29,58 +26,52 @@ class PostgresqlListener {
     return this._connection;
   }
 
-  async listenForDatapointChanges({
-    cache
-  }) {
+  async listenForDatapointChanges({ cache }) {
     return this.listen({
-      channel: "modelchanges",
-      callbackKey: "listenForDatapointChanges",
+      channel: 'modelchanges',
+      callbackKey: 'listenForDatapointChanges',
       callback: changes => {
         try {
           changes = JSON.parse(changes);
           if (Array.isArray(changes)) {
             changes.forEach(datapointId => {
-              if (datapointId.endsWith('_id')) datapointId = datapointId.substring(0, datapointId.length - 3)
+              if (datapointId.endsWith('_id')) datapointId = datapointId.substring(0, datapointId.length - 3);
               const datapoint = cache.getExistingDatapoint({
-                datapointId
-              })
-              if (datapoint) datapoint.invalidate({
-                queueValidationJob: true
+                datapointId,
               });
+              if (datapoint) datapoint.invalidate();
             });
           }
         } catch (error) {
-          console.log(`Error while handling db model change: ${error.message}`)
+          console.log(`Error while handling db model change: ${error.message}`);
         }
-      }
+      },
     });
   }
 
-  async startDBChangeNotificationPrompter({
-    delay = 500
-  }) {
+  async startDBChangeNotificationPrompter({ delay = 500 }) {
     const pgListener = this,
       connection = pgListener.connection;
 
     await pgListener.listen({
-      channel: "modelchanges",
-      callbackKey: "startDBChangeNotificationPrompter",
+      channel: 'modelchanges',
+      callbackKey: 'startDBChangeNotificationPrompter',
       callback: changes => {
         if (pgListener.dbcnpTimeout === undefined) return;
         clearTimeout(pgListener.dbcnpTimeout);
-      }
+      },
     });
     await pgListener.listen({
-      channel: "prompterscript",
-      callbackKey: "startDBChangeNotificationPrompter",
+      channel: 'prompterscript',
+      callbackKey: 'startDBChangeNotificationPrompter',
       callback: changes => {
         if (pgListener.dbcnpTimeout !== undefined) return;
         pgListener.dbcnpTimeout = setTimeout(() => {
           delete pgListener.dbcnpTimeout;
-          console.log("Telling the db to notify others of the outstanding change");
+          console.log('Telling the db to notify others of the outstanding change');
           connection.query("UPDATE model_change_notify_request SET model_change_id = 0 WHERE name = 'modelchanges';");
         }, delay);
-      }
+      },
     });
   }
 
@@ -91,7 +82,7 @@ class PostgresqlListener {
     if (pgListener._listeningClient) return pgListener._listeningClient;
 
     pgListener._listeningClient = connection.newConnectedClient();
-    pgListener._listeningClient.on("notification", msg => {
+    pgListener._listeningClient.on('notification', msg => {
       if (pgListener.verbose) console.log(`Received message from db on ${msg.channel}: "${msg.payload}"`);
       const callbacks = pgListener.listeningChannels[msg.channel];
       if (callbacks)
@@ -103,16 +94,12 @@ class PostgresqlListener {
     return pgListener._listeningClient;
   }
 
-  async listen({
-    channel,
-    callback,
-    callbackKey
-  }) {
+  async listen({ channel, callback, callbackKey }) {
     const pgListener = this;
 
-    if (!channel) throw new Error("Please supply a channel");
-    if (typeof callback != "function") throw new Error("Please supply a callback function");
-    callbackKey = callbackKey || "default";
+    if (!channel) throw new Error('Please supply a channel');
+    if (typeof callback != 'function') throw new Error('Please supply a callback function');
+    callbackKey = callbackKey || 'default';
 
     if (!pgListener.listeningChannels[channel]) {
       pgListener.listeningChannels[channel] = {};
@@ -129,5 +116,5 @@ class PostgresqlListener {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: PostgresqlListener,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

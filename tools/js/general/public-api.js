@@ -65,9 +65,12 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
     if (hasExposedBackDoor) this.__private = private;
     else {
       publicInstanceGetterMethods.forEach(({ methodName, method }) => {
-        this.__defineGetter__(methodName, function() {
-          return method.apply(private, arguments);
-        });
+        this.__defineGetter__(
+          methodName,
+          function() {
+            return method.apply(private, arguments);
+          }
+        );
       });
       publicInstanceMethods.forEach(({ methodName, method }) => {
         this[methodName] = function() {
@@ -80,9 +83,12 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
   fromClass.publicMethods().forEach(methodName => {
     if (fromClass.__lookupGetter__(methodName)) {
       let method = fromClass.__lookupGetter__(methodName);
-      PublicClass.__defineGetter__(methodName, function() {
-        return method.apply(fromClass, arguments);
-      });
+      PublicClass.__defineGetter__(
+        methodName,
+        function() {
+          return method.apply(fromClass, arguments);
+        }
+      );
     } else if (fromClass[methodName]) {
       let method = fromClass[methodName];
       PublicClass[methodName] = function() {
@@ -91,9 +97,12 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
     }
 
     publicInstanceGetterMethods.forEach(({ methodName, method }) => {
-      PublicClass.prototype.__defineGetter__(methodName, function() {
-        return method.apply(this.__private, arguments);
-      });
+      PublicClass.prototype.__defineGetter__(
+        methodName,
+        function() {
+          return method.apply(this.__private, arguments);
+        }
+      );
     });
     publicInstanceMethods.forEach(({ methodName, method }) => {
       PublicClass.prototype[methodName] = function() {

@@ -1,8 +1,8 @@
-const PublicApi = require("../general/public-api");
-const ConvertIds = require("../convert-ids");
-const TemplatedText = require("./templated-text");
-const makeClassWatchable = require("../general/watchable");
-const SharedState = require("../general/shared-state");
+const PublicApi = require('../general/public-api');
+const ConvertIds = require('../convert-ids');
+const TemplatedText = require('./templated-text');
+const makeClassWatchable = require('../general/watchable');
+const SharedState = require('../general/shared-state');
 
 const {
   templateDatapointIdForRowAndVariant,
@@ -12,8 +12,8 @@ const {
   datapointChildrenClass,
   datapointValueFieldClass,
   childrenFieldNameForElement,
-  uniquePathForElement
-} = require("./dom-functions");
+  uniquePathForElement,
+} = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -21,13 +21,13 @@ class DomGenerator {
   // public methods
   static publicMethods() {
     return [
-      "createElementsForVariantOfRow",
-      "createChildElements",
-      "createElementsUsingTemplateDatapointId",
-      "createElementsUsingDomDatapointId",
-      "getDatapoint",
-      "watch",
-      "stopWatching"
+      'createElementsForVariantOfRow',
+      'createChildElements',
+      'createElementsUsingTemplateDatapointId',
+      'createElementsUsingDomDatapointId',
+      'getDatapoint',
+      'watch',
+      'stopWatching',
     ];
   }
 
@@ -44,13 +44,13 @@ class DomGenerator {
   }
 
   createElementsForVariantOfRow({ variant, proxyableRowId, placeholderUid, basedOnElement }) {
-    variant = variant || "";
-    if (typeof proxyableRowId == "string" && ConvertIds.proxyableDatapointRegex.test(proxyableRowId)) {
+    variant = variant || '';
+    if (typeof proxyableRowId == 'string' && ConvertIds.proxyableDatapointRegex.test(proxyableRowId)) {
       ({ proxyableRowId, fieldName: variant } = ConvertIds.decomposeId({ proxyableDatapointId: proxyableRowId }));
     }
     const domGenerator = this,
       templateDatapointId =
-        typeof proxyableRowId == "string" && ConvertIds.proxyableRowRegex.test(proxyableRowId)
+        typeof proxyableRowId == 'string' && ConvertIds.proxyableRowRegex.test(proxyableRowId)
           ? templateDatapointIdForRowAndVariant(proxyableRowId, variant)
           : undefined;
     return domGenerator.createElementsUsingTemplateDatapointId({ templateDatapointId, placeholderUid, basedOnElement });
@@ -60,13 +60,13 @@ class DomGenerator {
     const domGenerator = this;
 
     if (basedOnElement) {
-      if (!templateDatapointId) templateDatapointId = basedOnElement.getAttribute("nobo-template-dpid");
+      if (!templateDatapointId) templateDatapointId = basedOnElement.getAttribute('nobo-template-dpid');
 
       const path = uniquePathForElement(basedOnElement),
         overrides = SharedState.global.state.overriddenElementDatapoints,
         override = overrides && path ? overrides[path] : undefined;
 
-      if (override && typeof override == "string") {
+      if (override && typeof override == 'string') {
         if (ConvertIds.fieldNameRegex.test(override)) {
           const { proxyableRowId } = ConvertIds.decomposeId({ proxyableDatapointId: templateDatapointId });
           templateDatapointId = templateDatapointIdForRowAndVariant(proxyableRowId, override);
@@ -77,8 +77,8 @@ class DomGenerator {
       }
     }
 
-    if (basedOnElement && (!templateDatapointId || typeof templateDatapointId != "string")) {
-      templateDatapointId = basedOnElement.getAttribute("nobo-orig-template-dpid");
+    if (basedOnElement && (!templateDatapointId || typeof templateDatapointId != 'string')) {
+      templateDatapointId = basedOnElement.getAttribute('nobo-orig-template-dpid');
     }
 
     let domDatapointId, proxyableRowId;
@@ -90,7 +90,7 @@ class DomGenerator {
         templateDatapoint.length == 1 &&
         ConvertIds.proxyableRowRegex.test(templateDatapoint[0])
       ) {
-        domDatapointId = ConvertIds.recomposeId({ proxyableRowId: templateDatapoint[0], fieldName: "dom" })
+        domDatapointId = ConvertIds.recomposeId({ proxyableRowId: templateDatapoint[0], fieldName: 'dom' })
           .proxyableDatapointId;
       }
     }
@@ -100,7 +100,7 @@ class DomGenerator {
       domDatapointId,
       proxyableRowId,
       placeholderUid,
-      basedOnElement
+      basedOnElement,
     });
 
     return elements;
@@ -111,12 +111,12 @@ class DomGenerator {
     domDatapointId,
     proxyableRowId,
     placeholderUid,
-    basedOnElement
+    basedOnElement,
   }) {
     if (basedOnElement) {
-      if (!placeholderUid) placeholderUid = basedOnElement.getAttribute("nobo-placeholder-uid");
-      if (!domDatapointId) domDatapointId = basedOnElement.getAttribute("nobo-dom-dpid");
-      if (!templateDatapointId) templateDatapointId = basedOnElement.getAttribute("nobo-template-dpid");
+      if (!placeholderUid) placeholderUid = basedOnElement.getAttribute('nobo-placeholder-uid');
+      if (!domDatapointId) domDatapointId = basedOnElement.getAttribute('nobo-dom-dpid');
+      if (!templateDatapointId) templateDatapointId = basedOnElement.getAttribute('nobo-template-dpid');
     }
 
     if (templateDatapointId && !proxyableRowId) {
@@ -125,28 +125,28 @@ class DomGenerator {
 
     const domGenerator = this,
       domString =
-        (domDatapointId ? domGenerator.getDatapoint(domDatapointId, "<div></div>") : undefined) || "<div></div>";
+        (domDatapointId ? domGenerator.getDatapoint(domDatapointId, '<div></div>') : undefined) || '<div></div>';
 
     let element = (domGenerator.htmlToElement || htmlToElement)(domString);
-    if (!element) element = (domGenerator.htmlToElement || htmlToElement)("<div></div>");
+    if (!element) element = (domGenerator.htmlToElement || htmlToElement)('<div></div>');
 
     if (basedOnElement) {
-      element.setAttribute("nobo-orig-template-dpid", basedOnElement.getAttribute("nobo-orig-template-dpid"));
+      element.setAttribute('nobo-orig-template-dpid', basedOnElement.getAttribute('nobo-orig-template-dpid'));
     } else {
-      if (templateDatapointId) element.setAttribute("nobo-orig-template-dpid", templateDatapointId);
+      if (templateDatapointId) element.setAttribute('nobo-orig-template-dpid', templateDatapointId);
     }
 
-    if (placeholderUid) element.setAttribute("nobo-placeholder-uid", placeholderUid);
+    if (placeholderUid) element.setAttribute('nobo-placeholder-uid', placeholderUid);
 
-    element.classList.add("nobodom"); // a coverall class for any element that is the root of a nobo dom tree,
+    element.classList.add('nobodom'); // a coverall class for any element that is the root of a nobo dom tree,
 
     if (domDatapointId) {
-      element.setAttribute("nobo-dom-dpid", domDatapointId);
+      element.setAttribute('nobo-dom-dpid', domDatapointId);
       element.classList.add(datapointDomFieldClass(domDatapointId));
     }
 
     if (templateDatapointId) {
-      element.setAttribute("nobo-template-dpid", templateDatapointId);
+      element.setAttribute('nobo-template-dpid', templateDatapointId);
       element.classList.add(datapointTemplateFieldClass(templateDatapointId));
     }
 
@@ -154,7 +154,7 @@ class DomGenerator {
     if (proxyableRowId) {
       const { additionalSiblings } = domGenerator.prepDomTreeAndCreateChildren({
         element,
-        proxyableRowId
+        proxyableRowId,
       });
       elements.push(...additionalSiblings);
     }
@@ -173,31 +173,31 @@ class DomGenerator {
       nextElementSibling = childElement.nextElementSibling;
       const {
         additionalSiblings: additionalChildElements,
-        lids: childLids
+        lids: childLids,
       } = domGenerator.prepDomTreeAndCreateChildren({
         element: childElement,
         proxyableRowId,
-        lidCounter: childLidCounter
+        lidCounter: childLidCounter,
       });
       if (childLids) {
         if (!lids) lids = childLids;
         else lids.push(...childLids);
       }
       for (let index = additionalChildElements.length - 1; index >= 0; index--) {
-        childElement.insertAdjacentElement("afterend", additionalChildElements[index]);
+        childElement.insertAdjacentElement('afterend', additionalChildElements[index]);
       }
     }
 
-    if (lids) element.setAttribute("nobo-child-lids", ` ${lids.join(" ")} `);
+    if (lids) element.setAttribute('nobo-child-lids', ` ${lids.join(' ')} `);
 
-    domGenerator.notifyListeners("onprepelement", { element, proxyableRowId });
+    domGenerator.notifyListeners('onprepelement', { element, proxyableRowId });
 
     domGenerator.prepValueFields({ element, proxyableRowId });
 
     const { additionalSiblings, lids: sibLids } = domGenerator.prepChildrenPlaceholderAndCreateChildren({
       element,
       proxyableRowId,
-      lidCounter
+      lidCounter,
     });
     if (sibLids) {
       if (!lids) lids = sibLids;
@@ -217,12 +217,12 @@ class DomGenerator {
     let lid = lidCounter ? lidCounter[0]++ : 0;
 
     const placeholderUid = domGenerator.nextUid++;
-    element.setAttribute("nobo-children-dpid", proxyableDatapointId);
-    element.setAttribute("nobo-uid", placeholderUid);
-    element.setAttribute("nobo-lid", lid);
-    element.classList.add("noboplaceholder", datapointChildrenClass(proxyableDatapointId));
+    element.setAttribute('nobo-children-dpid', proxyableDatapointId);
+    element.setAttribute('nobo-uid', placeholderUid);
+    element.setAttribute('nobo-lid', lid);
+    element.classList.add('noboplaceholder', datapointChildrenClass(proxyableDatapointId));
 
-    const variant = element.getAttribute("variant") || undefined,
+    const variant = element.getAttribute('variant') || undefined,
       additionalSiblings = domGenerator.createChildElements({ proxyableDatapointId, variant, placeholderUid });
     return { additionalSiblings, lids: lid ? [lid] : undefined };
   }
@@ -237,7 +237,7 @@ class DomGenerator {
     for (const rowOrDatapointId of rowOrDatapointIds) {
       let proxyableRowId,
         localVariant = variant;
-      if (typeof rowOrDatapointId == "string") {
+      if (typeof rowOrDatapointId == 'string') {
         if (ConvertIds.proxyableRowRegex.test(rowOrDatapointId)) proxyableRowId = rowOrDatapointId;
         if (ConvertIds.proxyableDatapointRegex.test(rowOrDatapointId)) {
           const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: rowOrDatapointId });
@@ -249,7 +249,7 @@ class DomGenerator {
         ...domGenerator.createElementsForVariantOfRow({
           variant: localVariant,
           proxyableRowId,
-          placeholderUid
+          placeholderUid,
         })
       );
     }
@@ -285,7 +285,7 @@ class DomGenerator {
 
     if (element.hasAttributes())
       for (const { name, value } of element.attributes) {
-        if (name.startsWith("nobo-") || name == "class" || name == "id") continue;
+        if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
 
         const backupName = `nobo-backup--${name}`;
         if (element.hasAttribute(backupName)) continue;
@@ -303,14 +303,14 @@ class DomGenerator {
       }
 
     if (Object.keys(usesByDatapointId).length) {
-      element.setAttribute("nobo-row-id", proxyableRowId);
+      element.setAttribute('nobo-row-id', proxyableRowId);
     }
     for (const [proxyableDatapointId, uses] of Object.entries(usesByDatapointId)) {
       const usesName = `nobo-uses-${proxyableDatapointId}`;
       if (element.hasAttribute(usesName)) continue;
 
       element.classList.add(datapointValueFieldClass(proxyableDatapointId));
-      element.setAttribute(usesName, Object.keys(uses).join(" "));
+      element.setAttribute(usesName, Object.keys(uses).join(' '));
     }
   }
 }
@@ -320,5 +320,5 @@ makeClassWatchable(DomGenerator);
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: DomGenerator,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

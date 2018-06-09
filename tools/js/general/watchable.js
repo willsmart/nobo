@@ -10,7 +10,7 @@
 
 module.exports = makeClassWatchable;
 
-let g_nextUniqueCallbackIndex = 1
+let g_nextUniqueCallbackIndex = 1;
 
 function uniqueCallbackKey() {
   return `callback__${g_nextUniqueCallbackIndex++}`;
@@ -18,41 +18,39 @@ function uniqueCallbackKey() {
 
 function makeClassWatchable(watchableClass) {
   Object.assign(watchableClass.prototype, {
-    watch: function (listener) {
+    watch: function(listener) {
       const me = this;
       if (!listener.callbackKey) listener.callbackKey = uniqueCallbackKey();
       if (me.listeners === undefined) {
-        me.listeners = [listener]
-        if (typeof (me.firstListenerAdded) == 'function') {
-          me.firstListenerAdded.call(me)
+        me.listeners = [listener];
+        if (typeof me.firstListenerAdded == 'function') {
+          me.firstListenerAdded.call(me);
         }
       } else {
-        let index = me.listeners.findIndex(listener2 => listener.callbackKey == listener2.callbackKey)
+        let index = me.listeners.findIndex(listener2 => listener.callbackKey == listener2.callbackKey);
         if (index == -1) me.listeners.push(listener);
-        else me.listeners[index] = listener
+        else me.listeners[index] = listener;
       }
       return listener.callbackKey;
     },
 
-    stopWatching: function ({
-      callbackKey
-    }) {
+    stopWatching: function({ callbackKey }) {
       const me = this;
 
       if (!me.listeners) return;
-      let index = me.listeners.findIndex(listener => listener.callbackKey == callbackKey)
-      if (index == -1) return
-      const listener = me.listeners.splice(index, 1)[0]
+      let index = me.listeners.findIndex(listener => listener.callbackKey == callbackKey);
+      if (index == -1) return;
+      const listener = me.listeners.splice(index, 1)[0];
       if (!me.listeners.length) {
         delete me.listeners;
-        if (typeof (me.lastListenerRemoved) == 'function') {
-          me.lastListenerRemoved.call(me)
+        if (typeof me.lastListenerRemoved == 'function') {
+          me.lastListenerRemoved.call(me);
         }
       }
-      return listener
+      return listener;
     },
 
-    forEachListener: function (type, callback) {
+    forEachListener: function(type, callback) {
       const me = this;
 
       if (!me.listeners) return;
@@ -62,13 +60,13 @@ function makeClassWatchable(watchableClass) {
       }
 
       for (const listener of me.listeners) {
-        if (typeof (listener[type]) == 'function') callback.call(me, listener)
+        if (typeof listener[type] == 'function') callback.call(me, listener);
       }
     },
 
-    notifyListeners: function (type, ...args) {
+    notifyListeners: function(type, ...args) {
       const me = this;
-      me.forEachListener(type, listener => listener[type].apply(me, args))
-    }
-  })
+      me.forEachListener(type, listener => listener[type].apply(me, args));
+    },
+  });
 }

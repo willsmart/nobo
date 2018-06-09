@@ -54,9 +54,7 @@ class Datapoint {
     if (field && field.get) {
       datapoint.setupDependencyFields();
     }
-    datapoint.invalidate({
-      queueValidationJob: true,
-    });
+    datapoint.invalidate();
   }
 
   get valueIfAny() {
@@ -84,7 +82,7 @@ class Datapoint {
     return ret;
   }
 
-  invalidate({ queueValidationJob = false } = {}) {
+  invalidate({ queueValidationJob = true } = {}) {
     const datapoint = this,
       { cache } = datapoint;
 
@@ -97,7 +95,7 @@ class Datapoint {
     if (datapoint.dependentDatapointsById) {
       for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
         if (!dependentDatapoint.invalidDependencyDatapointCount++) {
-          dependentDatapoint.invalidate();
+          dependentDatapoint.invalidate({ queueValidationJob });
         }
 
         if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {

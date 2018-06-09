@@ -29,13 +29,13 @@ function diffAny(was, is) {
     return Array.isArray(was)
       ? diffArray(was, is)
       : {
-          value: is
+          value: is,
         };
   }
-  if (typeof is == "object") return diffObject(typeof was == "object" ? was : undefined, is);
+  if (typeof is == 'object') return diffObject(typeof was == 'object' ? was : undefined, is);
   if (typeof was == typeof is && was == is) return;
   return {
-    value: is
+    value: is,
   };
 }
 
@@ -67,13 +67,13 @@ function diffObject(was, is) {
 
       if (!diff) diff = {};
       diff[key] = {
-        value: isChild
+        value: isChild,
       };
     }
   }
   return diff
     ? {
-        objectDiff: diff
+        objectDiff: diff,
       }
     : undefined;
 }
@@ -91,11 +91,11 @@ function diffArray(was, is) {
     if (diffChild) {
       if (!diff)
         diff = {
-          arrayDiff: []
+          arrayDiff: [],
         };
       diff.arrayDiff.push(
         Object.assign(diffChild, {
-          at: index
+          at: index,
         })
       );
     }
@@ -107,10 +107,10 @@ function diffArray(was, is) {
     if (diffChild) {
       if (!diff)
         diff = {
-          arrayDiff: []
+          arrayDiff: [],
         };
       diff.arrayDiff.push({
-        deleteAt: index
+        deleteAt: index,
       });
     }
   }
@@ -119,12 +119,12 @@ function diffArray(was, is) {
 
     if (!diff)
       diff = {
-        arrayDiff: []
+        arrayDiff: [],
       };
     diff.arrayDiff.push(
       Object.assign({
         insertAt: was.length,
-        value: isChild
+        value: isChild,
       })
     );
   }

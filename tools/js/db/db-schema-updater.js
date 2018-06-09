@@ -1,14 +1,14 @@
 // db-schema-updater
 // © Will Smart 2018. Licence: MIT
 
-const PublicApi = require("../general/public-api");
-const SchemaDefn = require("../schema");
-const Connection = require("../db/postgresql-connection");
-const SchemaToSQL = require("../db/postgresql-schema.js");
-const fs = require("fs");
-const { promisify } = require("util");
-const YAML = require("yamljs");
-const DbSeeder = require("./db-seeder");
+const PublicApi = require('../general/public-api');
+const SchemaDefn = require('../schema');
+const Connection = require('../db/postgresql-connection');
+const SchemaToSQL = require('../db/postgresql-schema.js');
+const fs = require('fs');
+const { promisify } = require('util');
+const YAML = require('yamljs');
+const DbSeeder = require('./db-seeder');
 
 const readFile_p = promisify(fs.readFile);
 const writeFile_p = promisify(fs.writeFile);
@@ -22,10 +22,10 @@ const baseLayoutFileRegex = /(?:^|\/)base-layout\.(?:yaml|yml|YAML|YML|json)$/;
 class DbSchemaUpdater {
   // public methods
   static publicMethods() {
-    return ["performUpdate", "schema", "baseSchema", "connection"];
+    return ['performUpdate', 'schema', 'baseSchema', 'connection'];
   }
 
-  constructor({ connection = undefined, path = "db", verbose } = {}) {
+  constructor({ connection = undefined, path = 'db', verbose } = {}) {
     this.verbose = verbose;
     this.path = path;
     this._connection = connection;
@@ -33,7 +33,7 @@ class DbSchemaUpdater {
     if (fs.existsSync(`${path}/layout`)) {
       this.layoutDir = fs.realpathSync(`${path}/layout`);
     }
-    if (fs.existsSync("db/layout")) {
+    if (fs.existsSync('db/layout')) {
       this.rootLayoutDir = fs.realpathSync(`db/layout`);
     }
   }
@@ -86,7 +86,7 @@ class DbSchemaUpdater {
     return (
       this._baseSchema ||
       (this._baseSchema = this.getSchema({
-        onlyBase: true
+        onlyBase: true,
       }))
     );
   }
@@ -101,7 +101,7 @@ class DbSchemaUpdater {
       if (!isBase && onlyBase) break;
 
       let layout;
-      if (filename.endsWith(".json")) {
+      if (filename.endsWith('.json')) {
         layout = JSON.parse(fs.readFileSync(filename));
       } else {
         layout = YAML.load(filename);
@@ -123,39 +123,39 @@ class DbSchemaUpdater {
     if (!schemaWas) {
       sql = SchemaToSQL.getCreationSql({
         schema: schema,
-        retrigger: retrigger
+        retrigger: retrigger,
       });
     } else if (renewAll) {
       sql =
         SchemaToSQL.getDropSql({
-          schema: schemaWas
+          schema: schemaWas,
         }) +
         SchemaToSQL.getCreationSql({
-          schema: schema
+          schema: schema,
         });
     } else if (renew) {
       sql =
         SchemaToSQL.getDiffSql({
           schema: updater.baseSchema,
           fromSchema: schemaWas,
-          retrigger: retrigger
+          retrigger: retrigger,
         }) +
         SchemaToSQL.getDiffSql({
           schema: schema,
           fromSchema: updater.baseSchema,
-          retrigger: retrigger
+          retrigger: retrigger,
         });
     } else {
       sql = SchemaToSQL.getDiffSql({
         schema: schema,
         fromSchema: schemaWas,
-        retrigger: retrigger
+        retrigger: retrigger,
       });
     }
 
     return {
       sql,
-      schema
+      schema,
     };
   }
 
@@ -173,8 +173,8 @@ class DbSchemaUpdater {
       if (!dryRun) {
         await connection.schemaLayoutConnection.saveLayout({
           source: schema.source,
-          version: "1",
-          quiet: !updater.verbose
+          version: '1',
+          quiet: !updater.verbose,
         });
       }
     } else if (!dryRun) {
@@ -182,10 +182,10 @@ class DbSchemaUpdater {
       await connection.schemaLayoutConnection.saveLayout({
         sql: sql,
         source: schema.source,
-        version: "1",
-        quiet: !updater.verbose
+        version: '1',
+        quiet: !updater.verbose,
       });
-      if (updater.verbose) console.log("All done!");
+      if (updater.verbose) console.log('All done!');
     } else if (updater.verbose) {
       console.log(`SQL:
     ${sql}
@@ -201,13 +201,13 @@ class DbSchemaUpdater {
         console.log(`Seeding the database seeing as it's new`);
       }
       let seeder = new DbSeeder({
-        path: updater.path
+        path: updater.path,
       });
       await seeder.insertSeeds();
     }
     return {
       sql,
-      schema
+      schema,
     };
   }
 }
@@ -215,5 +215,5 @@ class DbSchemaUpdater {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: DbSchemaUpdater,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

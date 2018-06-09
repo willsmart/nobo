@@ -8,9 +8,9 @@
 //   propagated into a central table, and will result in interested parties being notified
 //
 
-const ChangeCase = require("change-case");
-const ModelChangeLog = "ModelChangeLog";
-const ModelChangeNotifyRequest = "ModelChangeNotifyRequest";
+const ChangeCase = require('change-case');
+const ModelChangeLog = 'ModelChangeLog';
+const ModelChangeNotifyRequest = 'ModelChangeNotifyRequest';
 const SchemaDefn = this.SchemaDefn;
 
 module.exports = {
@@ -19,20 +19,20 @@ module.exports = {
   getDiffSql: getDiffSql,
 
   sqlFieldForField: sqlFieldForField,
-  sqlArgTemplateForValue: sqlArgTemplateForValue
+  sqlArgTemplateForValue: sqlArgTemplateForValue,
 };
 
 const prompterDelay = 0.5;
 
 function sqlTypeForDatatype(dataType) {
   switch (dataType) {
-    case "string":
-      return "character varying";
-    case "datetime":
-      return "timestamp without time zone"; // TODO convert dates
-    case "text":
-    case "boolean":
-    case "integer":
+    case 'string':
+      return 'character varying';
+    case 'datetime':
+      return 'timestamp without time zone'; // TODO convert dates
+    case 'text':
+    case 'boolean':
+    case 'integer':
       return dataType;
     default:
       return;
@@ -48,20 +48,20 @@ function sqlArgTemplateForValue(index, dataType) {
 function sqlValueForValue(value, dataType) {
   // TODO!! This is just incredibly horrible in so many ways
   if (value === undefined) return;
-  else if (value === null) return "NULL";
+  else if (value === null) return 'NULL';
   else
     switch (dataType) {
-      case "string":
+      case 'string':
         return "'" + value + "'::character varying";
-      case "datetime":
-        if (value == "now") return '"now"()';
+      case 'datetime':
+        if (value == 'now') return '"now"()';
         else return "'" + value + "'::timestamp without time zone"; // TODO convert dates
-      case "text":
+      case 'text':
         return "'" + value + "'::text";
-      case "boolean":
-        return value ? "TRUE" : "FALSE";
-      case "integer":
-        return "" + +value;
+      case 'boolean':
+        return value ? 'TRUE' : 'FALSE';
+      case 'integer':
+        return '' + +value;
       default:
         return;
     }
@@ -74,29 +74,29 @@ function sqlFieldForField(field) {
 function sqlFieldForField_noCache(field) {
   let ret = {
     sqlName: ChangeCase.snakeCase(field.name),
-    sqlEnclosingTable: ChangeCase.snakeCase(field.enclosingType.name)
+    sqlEnclosingTable: ChangeCase.snakeCase(field.enclosingType.name),
   };
   if (field.isId) {
     if (field.isVirtual) {
       ret.sqlName = ret.sqlName;
       ret.isVirtual = true;
     } else {
-      ret.sqlName += "_id";
+      ret.sqlName += '_id';
       ret.isId = true;
-      ret.sqlDataType = "integer";
+      ret.sqlDataType = 'integer';
     }
   } else {
     ret.isVirtual = field.isVirtual;
     switch (field.dataType.name) {
-      case "string":
-        ret.sqlDataType = "character varying";
+      case 'string':
+        ret.sqlDataType = 'character varying';
         break;
-      case "datetime":
-        ret.sqlDataType = "timestamp without time zone";
+      case 'datetime':
+        ret.sqlDataType = 'timestamp without time zone';
         break;
-      case "text":
-      case "boolean":
-      case "integer":
+      case 'text':
+      case 'boolean':
+      case 'integer':
         ret.sqlDataType = field.dataType.name;
         break;
       default:
@@ -105,42 +105,29 @@ function sqlFieldForField_noCache(field) {
     ret.sqlDefault = sqlValueForValue(field.default, field.dataType.name);
   }
   ret.sql =
-    '"' + ret.sqlName + '" ' + ret.sqlDataType + (ret.sqlDefault === undefined ? "" : " DEFAULT " + ret.sqlDefault);
+    '"' + ret.sqlName + '" ' + ret.sqlDataType + (ret.sqlDefault === undefined ? '' : ' DEFAULT ' + ret.sqlDefault);
 
   return ret;
 }
 
-function getCreationSql({
-  schema,
-  retrigger
-}) {
+function getCreationSql({ schema, retrigger }) {
   return new TempSchema(arguments[0]).getCreationSql(arguments[0]);
 }
 
-function getDropSql({
-  schema
-}) {
+function getDropSql({ schema }) {
   return new TempSchema(arguments[0]).getDropSql();
 }
 
-function getDiffSql({
-  schema,
-  fromSchema,
-  retrigger
-}) {
+function getDiffSql({ schema, fromSchema, retrigger }) {
   return new TempSchema(arguments[0]).getDiffSql(arguments[0]);
 }
 
 class TempSchema {
-  constructor({
-    schema
-  }) {
+  constructor({ schema }) {
     this.schema = schema;
   }
 
-  getCreationSql({
-    retrigger
-  }) {
+  getCreationSql({ retrigger }) {
     const schema = this.schema;
 
     delete this.sql;
@@ -169,10 +156,7 @@ class TempSchema {
     return this.sql.getFullSql();
   }
 
-  getDiffSql({
-    fromSchema,
-    retrigger
-  }) {
+  getDiffSql({ fromSchema, retrigger }) {
     const schema = this.schema;
 
     if (!fromSchema) return this.getCreationSql();
@@ -184,7 +168,7 @@ class TempSchema {
     const sqlObj = this.getSqlObject();
     sqlObj.retrigger = retrigger;
     sqlObj.fromTempSchema = new TempSchema({
-      schema: fromSchema
+      schema: fromSchema,
     });
     sqlObj.fromTempSchema.isFrom = true;
 
@@ -224,30 +208,28 @@ class TempSchema {
   getSqlObject() {
     this.sql = this.sql || {
       tables: {},
-      getFullSql: function ({
-        includeChangeNotifiers = true
-      } = {}) {
-        let ret = "";
+      getFullSql: function({ includeChangeNotifiers = true } = {}) {
+        let ret = '';
         if (!this.isFrom && this.fromTempSchema) {
           ret += this.fromTempSchema.getSqlObject().getFullSql({
-            includeChangeNotifiers: false
+            includeChangeNotifiers: false,
           });
         }
         Object.keys(this.tables).forEach(k => {
           const table = this.tables[k];
-          let tableSQL = "";
+          let tableSQL = '';
           if (table.dropTable) {
             tableSQL += table.dropTable;
             if (includeChangeNotifiers) {
               Object.keys(table.changeNotifier).forEach(name => {
                 const trigger = table.changeNotifier[name];
-                if (typeof trigger == "object" && trigger.dropSql) tableSQL += trigger.dropSql;
+                if (typeof trigger == 'object' && trigger.dropSql) tableSQL += trigger.dropSql;
               });
             }
           } else if (includeChangeNotifiers) {
             Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
-              if (typeof trigger == "object" && trigger.sql) tableSQL += trigger.sql;
+              if (typeof trigger == 'object' && trigger.sql) tableSQL += trigger.sql;
             });
           }
           if (table.createTable) tableSQL += table.createTable;
@@ -283,19 +265,20 @@ ${tableSQL}`;
           }
         });
         return ret;
-      }
+      },
     };
     return this.sql;
   }
 
   static wrapAsTrigger(name, declarationsOrBody, body) {
-    const declarations = body === undefined ? "" : declarationsOrBody;
+    const declarations = body === undefined ? '' : declarationsOrBody;
     body = body === undefined ? declarationsOrBody : body;
 
     return {
       functionName: name,
-      triggerName: name + "_trigger",
-      sql: `
+      triggerName: name + '_trigger',
+      sql:
+        `
 CREATE OR REPLACE FUNCTION "` +
         name +
         `"() RETURNS "trigger"
@@ -315,11 +298,12 @@ ALTER FUNCTION "` +
         name +
         `"() OWNER TO "postgres";
 `,
-      dropSql: `
+      dropSql:
+        `
 DROP FUNCTION "` +
         name +
         `"();
-`
+`,
     };
   }
 
@@ -330,17 +314,17 @@ DROP FUNCTION "` +
 
     let changeNotifier = {};
 
-    let declarations = "";
+    let declarations = '';
 
     const sqlName = ChangeCase.snakeCase(type.name);
 
-    const changeIdSequenceName = ChangeCase.snakeCase(ModelChangeLog) + "_id_seq";
+    const changeIdSequenceName = ChangeCase.snakeCase(ModelChangeLog) + '_id_seq';
 
     if (type.name == ModelChangeLog) {
-      const functionName = sqlName + "_notify_changes";
+      const functionName = sqlName + '_notify_changes';
 
       changeNotifier.insert = TempSchema.wrapAsTrigger(
-        functionName + "__insert",
+        functionName + '__insert',
         `
       DECLARE
         now timestamp without time zone;
@@ -353,7 +337,7 @@ DROP FUNCTION "` +
       );
 
       changeNotifier.afterInsert = TempSchema.wrapAsTrigger(
-        functionName + "__after_insert",
+        functionName + '__after_insert',
         `
       DECLARE
         since_last_change double precision;
@@ -362,12 +346,12 @@ DROP FUNCTION "` +
         IF NEW.id > 1 THEN
 
           SELECT EXTRACT(EPOCH FROM (NEW.at - "at")) INTO since_last_change FROM  "` +
-        sqlName +
-        `" WHERE id = NEW.id - 1;
+          sqlName +
+          `" WHERE id = NEW.id - 1;
 
           IF since_last_change < ` +
-        prompterDelay +
-        ` THEN
+          prompterDelay +
+          ` THEN
             -- Rapid changes, so use the prompter script to enforce a delay
             NOTIFY prompterscript;
           ELSE
@@ -381,10 +365,10 @@ DROP FUNCTION "` +
 `
       );
     } else if (type.name == ModelChangeNotifyRequest) {
-      const functionName = sqlName + "_check_changes";
+      const functionName = sqlName + '_check_changes';
 
       changeNotifier.update = TempSchema.wrapAsTrigger(
-        functionName + "__update",
+        functionName + '__update',
         `
       DECLARE
         now timestamp without time zone;
@@ -400,8 +384,8 @@ DROP FUNCTION "` +
 
       -- check if there are new model changes listeners might be interested in
         SELECT last_value INTO latest_model_change_id FROM  ` +
-        changeIdSequenceName +
-        `;
+          changeIdSequenceName +
+          `;
         IF FOUND THEN
 
           NEW.model_change_id = latest_model_change_id;
@@ -424,7 +408,7 @@ DROP FUNCTION "` +
       );
 
       changeNotifier.insert = TempSchema.wrapAsTrigger(
-        functionName + "__insert",
+        functionName + '__insert',
         `
       DECLARE
         now timestamp without time zone;
@@ -436,12 +420,12 @@ DROP FUNCTION "` +
 `
       );
     } else {
-      const functionName = sqlName + "_model_maintanence";
+      const functionName = sqlName + '_model_maintanence';
 
       let bodySql = {
-        delete: "",
-        insert: "",
-        update: ""
+        delete: '',
+        insert: '',
+        update: '',
       };
       Object.keys(type.fields).forEach(k => {
         const field = type.fields[k];
@@ -461,9 +445,9 @@ DROP FUNCTION "` +
       });
 
       changeNotifier.delete = TempSchema.wrapAsTrigger(
-        functionName + "__delete",
+        functionName + '__delete',
         bodySql.delete +
-        `
+          `
 
       -- Row deletion
           INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, OLD.id, '-') ON CONFLICT DO NOTHING;
@@ -472,9 +456,9 @@ DROP FUNCTION "` +
       );
 
       changeNotifier.insert = TempSchema.wrapAsTrigger(
-        functionName + "__insert",
+        functionName + '__insert',
         bodySql.insert +
-        `
+          `
 
       -- Row insertion
           INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '+') ON CONFLICT DO NOTHING;
@@ -483,9 +467,9 @@ DROP FUNCTION "` +
       );
 
       changeNotifier.update = TempSchema.wrapAsTrigger(
-        functionName + "__update",
+        functionName + '__update',
         bodySql.update +
-        `
+          `
 
           RETURN NEW;
 `
@@ -508,7 +492,7 @@ DROP FUNCTION "` +
 
     return (sql.tables[type.name] = {
       sqlName: ChangeCase.snakeCase(type.name),
-      changeNotifier: changeNotifier
+      changeNotifier: changeNotifier,
     });
   }
 
@@ -520,7 +504,7 @@ DROP FUNCTION "` +
     delete sql.addFields;
     delete sql.alterFields;
 
-    const idSequenceName = sql.sqlName + "_id_seq";
+    const idSequenceName = sql.sqlName + '_id_seq';
 
     sql.createTable =
       `
@@ -558,42 +542,42 @@ ALTER TABLE ONLY "` +
       `_pkey" PRIMARY KEY (id);
 
     ` +
-      (!sql.changeNotifier.delete ?
-        "" :
-        'CREATE TRIGGER "' +
-        sql.changeNotifier.delete.triggerName +
-        '" BEFORE DELETE ON "' +
-        sql.sqlName +
-        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-        sql.changeNotifier.delete.functionName +
-        '"();\n') +
-      (!sql.changeNotifier.insert ?
-        "" :
-        'CREATE TRIGGER "' +
-        sql.changeNotifier.insert.triggerName +
-        '" BEFORE INSERT ON "' +
-        sql.sqlName +
-        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-        sql.changeNotifier.insert.functionName +
-        '"();\n') +
-      (!sql.changeNotifier.afterInsert ?
-        "" :
-        'CREATE TRIGGER "' +
-        sql.changeNotifier.afterInsert.triggerName +
-        '" AFTER INSERT ON "' +
-        sql.sqlName +
-        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-        sql.changeNotifier.afterInsert.functionName +
-        '"();\n') +
-      (!sql.changeNotifier.update ?
-        "" :
-        'CREATE TRIGGER "' +
-        sql.changeNotifier.update.triggerName +
-        '" BEFORE UPDATE ON "' +
-        sql.sqlName +
-        '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-        sql.changeNotifier.update.functionName +
-        '"();\n') +
+      (!sql.changeNotifier.delete
+        ? ''
+        : 'CREATE TRIGGER "' +
+          sql.changeNotifier.delete.triggerName +
+          '" BEFORE DELETE ON "' +
+          sql.sqlName +
+          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+          sql.changeNotifier.delete.functionName +
+          '"();\n') +
+      (!sql.changeNotifier.insert
+        ? ''
+        : 'CREATE TRIGGER "' +
+          sql.changeNotifier.insert.triggerName +
+          '" BEFORE INSERT ON "' +
+          sql.sqlName +
+          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+          sql.changeNotifier.insert.functionName +
+          '"();\n') +
+      (!sql.changeNotifier.afterInsert
+        ? ''
+        : 'CREATE TRIGGER "' +
+          sql.changeNotifier.afterInsert.triggerName +
+          '" AFTER INSERT ON "' +
+          sql.sqlName +
+          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+          sql.changeNotifier.afterInsert.functionName +
+          '"();\n') +
+      (!sql.changeNotifier.update
+        ? ''
+        : 'CREATE TRIGGER "' +
+          sql.changeNotifier.update.triggerName +
+          '" BEFORE UPDATE ON "' +
+          sql.sqlName +
+          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
+          sql.changeNotifier.update.functionName +
+          '"();\n') +
       `
 ALTER SEQUENCE "` +
       idSequenceName +
@@ -614,7 +598,7 @@ ALTER SEQUENCE "` +
     if (sqlField && !sqlField.isVirtual) {
       sql.addFields = sql.addFields || {};
 
-      sql.addFields[field.name] = 'ALTER TABLE "' + sqlField.sqlEnclosingTable + '" ADD COLUMN ' + sqlField.sql + ";\n";
+      sql.addFields[field.name] = 'ALTER TABLE "' + sqlField.sqlEnclosingTable + '" ADD COLUMN ' + sqlField.sql + ';\n';
     }
   }
 
@@ -648,7 +632,7 @@ ALTER SEQUENCE "` +
     delete sql.dropTable;
     if (sql.dropFields) delete sql.dropFields[field.name];
 
-    let alterSql = "";
+    let alterSql = '';
     if (sqlField.sqlName !== sqlFromField.sqlName) {
       alterSql +=
         'ALTER TABLE "' +
@@ -663,18 +647,18 @@ ALTER SEQUENCE "` +
     let alters = [];
     if (sqlField.sqlDefault !== sqlFromField.sqlDefault) {
       if (sqlField.sqlDefault === undefined) {
-        alters.push("DROP DEFAULT");
+        alters.push('DROP DEFAULT');
       } else {
-        alters.push("SET DEFAULT " + sqlField.sqlDefault);
+        alters.push('SET DEFAULT ' + sqlField.sqlDefault);
       }
     }
     if (sqlField.sqlDataType !== sqlFromField.sqlDataType) {
-      alters.push("TYPE " + sqlField.sqlDataType);
+      alters.push('TYPE ' + sqlField.sqlDataType);
     }
 
     alters.forEach(alter => {
       alterSql +=
-        'ALTER TABLE "' + sqlField.sqlEnclosingTable + '" ALTER COLUMN "' + sqlField.sqlName + '" ' + alter + ";\n";
+        'ALTER TABLE "' + sqlField.sqlEnclosingTable + '" ALTER COLUMN "' + sqlField.sqlName + '" ' + alter + ';\n';
     });
     if (alterSql.length) {
       sql.alterFields = sql.alterFields || {};
@@ -713,7 +697,7 @@ ALTER SEQUENCE "` +
 
   static sqlChangeNotifierForField(field) {
     const sqlField = sqlFieldForField(field);
-    if (!sqlField || sqlField.isVirtual) return "";
+    if (!sqlField || sqlField.isVirtual) return '';
     if (sqlField.isId) {
       const linkFieldNames = Object.keys(field.links);
       if (linkFieldNames.length) {
@@ -722,7 +706,8 @@ ALTER SEQUENCE "` +
         const sqlLinkedField = sqlFieldForField(linkedField);
 
         return {
-          delete: `
+          delete:
+            `
         -- ` +
             sqlField.sqlName +
             `
@@ -738,7 +723,8 @@ ALTER SEQUENCE "` +
             `') ON CONFLICT DO NOTHING;
             END IF;
 `,
-          insert: `
+          insert:
+            `
         -- ` +
             sqlField.sqlName +
             `
@@ -754,7 +740,8 @@ ALTER SEQUENCE "` +
             `') ON CONFLICT DO NOTHING;
             END IF;
 `,
-          update: `
+          update:
+            `
         -- ` +
             sqlField.sqlName +
             `
@@ -797,13 +784,14 @@ ALTER SEQUENCE "` +
             sqlField.sqlName +
             `') ON CONFLICT DO NOTHING;
             END IF;
-`
+`,
         };
       }
     }
 
     return {
-      update: `
+      update:
+        `
         -- ` +
         sqlField.sqlName +
         `
@@ -824,7 +812,7 @@ ALTER SEQUENCE "` +
         sqlField.sqlName +
         `') ON CONFLICT DO NOTHING;
             END IF;
-`
+`,
     };
   }
 }

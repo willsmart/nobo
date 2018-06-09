@@ -1,18 +1,18 @@
-const PublicApi = require("../general/public-api");
-const ConvertIds = require("../convert-ids");
-const SharedState = require("../general/shared-state");
-const PageState = require("./page-state");
-const { elementForUniquePath, uniquePathForElement } = require("../dom/dom-functions");
+const PublicApi = require('../general/public-api');
+const ConvertIds = require('../convert-ids');
+const SharedState = require('../general/shared-state');
+const PageState = require('./page-state');
+const { elementForUniquePath, uniquePathForElement } = require('../dom/dom-functions');
 
 let globalClientActions;
-const callbackKey = "client-actions";
+const callbackKey = 'client-actions';
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class ClientActions {
   // public methods
   static publicMethods() {
-    return ["installOnElement"];
+    return ['installOnElement'];
   }
 
   constructor({ domGenerator } = {}) {
@@ -27,7 +27,7 @@ class ClientActions {
       callbackKey,
       onprepelement: ({ element, proxyableRowId }) => {
         clientActions.installOnElement({ element, proxyableRowId });
-      }
+      },
     });
   }
 
@@ -41,17 +41,17 @@ class ClientActions {
     }
     for (const className of element.classList) {
       switch (className) {
-        case "pushModel":
-          element.addEventListener("click", () => {
+        case 'pushModel':
+          element.addEventListener('click', () => {
             if (proxyableRowId) PageState.global.visit(proxyableRowId);
           });
       }
     }
     let value;
-    if ((value = element.getAttribute("clickvariant")) && ConvertIds.fieldNameRegex.test(value)) {
-      element.addEventListener("click", () => {
+    if ((value = element.getAttribute('clickvariant')) && ConvertIds.fieldNameRegex.test(value)) {
+      element.addEventListener('click', () => {
         const path = uniquePathForElement(element);
-        SharedState.global.withTemporaryState(state => (state.atPath("overriddenElementDatapoints")[path] = value));
+        SharedState.global.withTemporaryState(state => (state.atPath('overriddenElementDatapoints')[path] = value));
       });
     }
   }
@@ -60,5 +60,5 @@ class ClientActions {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: ClientActions,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

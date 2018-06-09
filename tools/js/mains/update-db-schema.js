@@ -1,10 +1,10 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DbSchemaUpdater = require("../db/db-schema-updater");
-const processArgs = require("../general/process-args");
-const fs = require("fs");
-const { promisify } = require("util");
+const DbSchemaUpdater = require('../db/db-schema-updater');
+const processArgs = require('../general/process-args');
+const fs = require('fs');
+const { promisify } = require('util');
 const writeFile_p = promisify(fs.writeFile);
 
 (async function() {
@@ -26,7 +26,7 @@ const writeFile_p = promisify(fs.writeFile);
   try {
     let updater = new DbSchemaUpdater({
       path: args.path,
-      verbose: !args.quiet
+      verbose: !args.quiet,
     });
     // note implicit optional flag arguments: dryRun, retrigger, renew, renewAll, drop
     let { sql } = await updater.performUpdate(args);

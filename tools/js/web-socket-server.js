@@ -1,18 +1,18 @@
-const WebSocket = require("ws");
-const { URL } = require("url");
-const MyCrypto = require("./general/mycrypto");
-const Cookie = require("cookie");
-const ConvertIds = require("./convert-ids");
-const PublicApi = require("./general/public-api");
-const makeClassWatchable = require("./general/watchable");
-const ServerDatapoints = require("./server-datapoints");
+const WebSocket = require('ws');
+const { URL } = require('url');
+const MyCrypto = require('./general/mycrypto');
+const Cookie = require('cookie');
+const ConvertIds = require('./convert-ids');
+const PublicApi = require('./general/public-api');
+const makeClassWatchable = require('./general/watchable');
+const ServerDatapoints = require('./server-datapoints');
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class WebSocketServer {
   // public methods
   static publicMethods() {
-    return ["start", "cache", "watch", "stopWatching"];
+    return ['start', 'cache', 'watch', 'stopWatching'];
   }
 
   constructor({ cache }) {
@@ -21,8 +21,8 @@ class WebSocketServer {
     server._cache = cache;
 
     server.serverDatapoints = new ServerDatapoints({
-      wsserver: server
-    })
+      wsserver: server,
+    });
   }
 
   get cache() {
@@ -35,10 +35,10 @@ class WebSocketServer {
 
   decryptedSession(encSession) {
     const server = this,
-      sessionString = encSession ? MyCrypto.decrypt(encSession, "session") : "{}";
+      sessionString = encSession ? MyCrypto.decrypt(encSession, 'session') : '{}';
     try {
       const ret = JSON.parse(sessionString);
-      return ret && typeof ret == "object" ? ret : {};
+      return ret && typeof ret == 'object' ? ret : {};
     } catch (err) {
       return {};
     }
@@ -47,15 +47,15 @@ class WebSocketServer {
   encryptedSession(session) {
     const server = this,
       sessionCookie = JSON.stringify(session || {});
-    return MyCrypto.encrypt(sessionCookie, "session");
+    return MyCrypto.encrypt(sessionCookie, 'session');
   }
 
   decryptedPhoenixUserId(encPhoenix) {
-    return encPhoenix ? +MyCrypto.decrypt(encPhoenix, "phoenix") : undefined;
+    return encPhoenix ? +MyCrypto.decrypt(encPhoenix, 'phoenix') : undefined;
   }
 
   encryptedPhoenixUserId(userId) {
-    return MyCrypto.encrypt(`${userId}`, "phoenix");
+    return MyCrypto.encrypt(`${userId}`, 'phoenix');
   }
 
   async start({ port = 3100 } = {}) {
@@ -63,26 +63,26 @@ class WebSocketServer {
 
     server.appCookiePrefix = await this.cache.getOrCreateDatapoint(
       ConvertIds.recomposeId({
-        typeName: "app",
+        typeName: 'app',
         dbRowId: 1,
-        fieldName: "cookiePrefix"
+        fieldName: 'cookiePrefix',
       })
     ).value;
 
     server.wss = new WebSocket.Server({
-      port: port
+      port: port,
     });
 
     var nextWsIndex = 1;
 
     function processSession(req) {
-      const cookies = Cookie.parse(req.headers.cookie || ""),
+      const cookies = Cookie.parse(req.headers.cookie || ''),
         session = server.decryptedSession(cookies[server.sessionCookieName]),
-        searchParams = new URL(req.url, "http://localhost").searchParams,
-        encPhoenix = searchParams.get("phoenix");
+        searchParams = new URL(req.url, 'http://localhost').searchParams,
+        encPhoenix = searchParams.get('phoenix');
 
       if (encPhoenix) {
-        if (encPhoenix == "out") {
+        if (encPhoenix == 'out') {
           delete session.user;
         } else {
           const phoenixUserId = server.decryptedPhoenixUserId(encPhoenix);
@@ -93,19 +93,19 @@ class WebSocketServer {
       return { session, sessionChanged: !!encPhoenix };
     }
 
-    server.wss.on("headers", function(headers, req) {
+    server.wss.on('headers', function(headers, req) {
       const { session, sessionChanged } = processSession(req);
       if (sessionChanged) {
         headers.push(
-          "Set-Cookie: " +
+          'Set-Cookie: ' +
             Cookie.serialize(server.sessionCookieName, String(server.encryptedSession(session)), {
-              maxAge: 60 * 60 * 24 * 7 // 1 week
+              maxAge: 60 * 60 * 24 * 7, // 1 week
             })
         );
       }
     });
 
-    server.wss.on("connection", function connection(ws, req) {
+    server.wss.on('connection', function connection(ws, req) {
       (ws.pongHistory = [0, 0, 0, 1]), (ws.pongCount = 1);
 
       const { session } = processSession(req);
@@ -116,25 +116,25 @@ class WebSocketServer {
         session,
         ws,
         index: nextWsIndex++,
-        userId: session.userId
+        userId: session.userId,
       });
 
-      server.notifyListeners("onclientConnected", client);
+      server.notifyListeners('onclientConnected', client);
 
-      ws.on("pong", () => {
+      ws.on('pong', () => {
         ws.pongHistory[ws.pongHistory.length - 1]++;
         ws.pongCount++;
       });
 
-      ws.on("message", function incoming(message) {
+      ws.on('message', function incoming(message) {
         client.serverReceivedMessage(message);
       });
 
-      ws.on("close", function close() {
+      ws.on('close', function close() {
         client.closed();
       });
 
-      ws.on("error", () => console.log("errored"));
+      ws.on('error', () => console.log('errored'));
     });
 
     const interval = setInterval(function ping() {
@@ -146,7 +146,7 @@ class WebSocketServer {
         ws.pongHistory.push(0);
         ws.pongCount -= ws.pongHistory.shift();
 
-        ws.ping("", false, true);
+        ws.ping('', false, true);
       });
     }, 10000);
 
@@ -164,12 +164,12 @@ class WebSocketClient {
     client.index = index;
     client.mapProxyRowId(
       ConvertIds.recomposeId({
-        typeName: "App",
-        proxyKey: "default"
+        typeName: 'App',
+        proxyKey: 'default',
       }).proxyableRowId,
       ConvertIds.recomposeId({
-        typeName: "App",
-        dbRowId: 1
+        typeName: 'App',
+        dbRowId: 1,
       }).rowId
     );
     client.login(1);
@@ -181,43 +181,43 @@ class WebSocketClient {
     if (userId) {
       client.mapProxyRowId(
         ConvertIds.recomposeId({
-          typeName: "User",
-          proxyKey: "me"
+          typeName: 'User',
+          proxyKey: 'me',
         }).proxyableRowId,
         ConvertIds.recomposeId({
-          typeName: "User",
-          dbRowId: userId
+          typeName: 'User',
+          dbRowId: userId,
         }).rowId
       );
       client.mapProxyRowId(
         ConvertIds.recomposeId({
-          typeName: "User",
-          proxyKey: "default"
+          typeName: 'User',
+          proxyKey: 'default',
         }).proxyableRowId,
         ConvertIds.recomposeId({
-          typeName: "User",
-          dbRowId: userId
+          typeName: 'User',
+          dbRowId: userId,
         }).rowId
       );
     } else {
       client.mapProxyRowId(
         ConvertIds.recomposeId({
-          typeName: "User",
-          proxyKey: "me"
+          typeName: 'User',
+          proxyKey: 'me',
         }).proxyableproxyableRowIdViewId,
         ConvertIds.recomposeId({
-          typeName: "App",
-          dbRowId: 1
+          typeName: 'App',
+          dbRowId: 1,
         }).rowId
       );
       client.mapProxyRowId(
         ConvertIds.recomposeId({
-          typeName: "User",
-          proxyKey: "default"
+          typeName: 'User',
+          proxyKey: 'default',
         }).proxyableRowId,
         ConvertIds.recomposeId({
-          typeName: "App",
-          dbRowId: 1
+          typeName: 'App',
+          dbRowId: 1,
         }).rowId
       );
     }
@@ -234,7 +234,7 @@ class WebSocketClient {
   serverReceivedMessage(message) {
     const client = this;
 
-    console.log("Received message from client #" + client.index + ":   " + message);
+    console.log('Received message from client #' + client.index + ':   ' + message);
 
     const matches = /^(?:(\d+)|(\w+)):/.exec(message),
       messageIndex = matches ? +matches[1] : -1,
@@ -249,28 +249,28 @@ class WebSocketClient {
     }
     if (Array.isArray(payloadObject)) {
       payloadObject = {
-        array: payloadObject
+        array: payloadObject,
       };
-    } else if (typeof payloadObject != "object") {
+    } else if (typeof payloadObject != 'object') {
       payloadObject = {
-        message: `${payloadObject}`
+        message: `${payloadObject}`,
       };
     }
 
-    if (messageType == "signin") {
+    if (messageType == 'signin') {
       setTimeout(() => {
         client.sendPayload({
-          messageType: "Phoenix",
-          payloadObject: client.server.encryptedPhoenixUserId(1)
+          messageType: 'Phoenix',
+          payloadObject: client.server.encryptedPhoenixUserId(1),
         });
       });
     }
 
-    client.notifyListeners("onpayload", {
+    client.notifyListeners('onpayload', {
       messageIndex,
       messageType,
       payloadObject,
-      session: client.session
+      session: client.session,
     });
   }
 
@@ -278,18 +278,18 @@ class WebSocketClient {
     const client = this;
     const server = client.server;
 
-    console.log("Client #" + client.index + " closed");
+    console.log('Client #' + client.index + ' closed');
 
-    client.notifyListeners("onclose");
+    client.notifyListeners('onclose');
   }
 
   sendPayload({ messageIndex = -1, messageType, payloadObject }) {
     const client = this;
 
     const message = `${
-      messageIndex == -1 ? (messageType ? `${messageType}:` : "") : `${messageIndex}:`
+      messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
     }${JSON.stringify(payloadObject)}`;
-    console.log("Sending message to client #" + client.index + ":   " + message);
+    console.log('Sending message to client #' + client.index + ':   ' + message);
 
     client.ws.send(message);
   }
@@ -301,5 +301,5 @@ makeClassWatchable(WebSocketServer);
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: WebSocketServer,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

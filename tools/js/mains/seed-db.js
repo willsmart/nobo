@@ -1,10 +1,10 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DbSeeder = require("../db/db-seeder");
-const processArgs = require("../general/process-args");
-const fs = require("fs");
-const { promisify } = require("util");
+const DbSeeder = require('../db/db-seeder');
+const processArgs = require('../general/process-args');
+const fs = require('fs');
+const { promisify } = require('util');
 const writeFile_p = promisify(fs.writeFile);
 
 (async function() {
@@ -19,7 +19,7 @@ const writeFile_p = promisify(fs.writeFile);
 
   try {
     let seeder = new DbSeeder({
-      path: args.path
+      path: args.path,
     });
     await seeder.insertSeeds();
   } catch (err) {

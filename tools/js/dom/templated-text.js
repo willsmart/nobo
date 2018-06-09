@@ -1,17 +1,17 @@
-const PublicApi = require("../general/public-api");
-const locateEnd = require("../general/locate-end");
-const CodeSnippet = require("../general/code-snippet");
+const PublicApi = require('../general/public-api');
+const locateEnd = require('../general/locate-end');
+const CodeSnippet = require('../general/code-snippet');
 
 const { locateEndOfString } = locateEnd;
 
-const ConvertIds = require("../convert-ids");
+const ConvertIds = require('../convert-ids');
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class TemplatedText {
   // public methods
   static publicMethods() {
-    return ["evaluate", "dependencyTree", "nodesByDatapointId"];
+    return ['evaluate', 'dependencyTree', 'nodesByDatapointId'];
   }
 
   constructor({ text, proxyableRowId, getDatapoint }) {
@@ -38,7 +38,7 @@ class TemplatedText {
     if (!parts) return;
 
     const root = (templatedText._dependencyTree = {
-      string: templateString
+      string: templateString,
     });
     for (const part of parts) {
       markup(part, root);
@@ -46,7 +46,7 @@ class TemplatedText {
     return root;
 
     function markup(part, parent) {
-      if (part.type != "${}") {
+      if (part.type != '${}') {
         if (part.children) for (const child of part.children) markup(child, parent);
         return;
       }
@@ -66,7 +66,7 @@ class TemplatedText {
         }
         if (proxyableRowId) {
           for (const [fieldName, subNames] of Object.entries(node.code.names)) {
-            if (typeof subNames == "object" && Object.keys(subNames).length) continue;
+            if (typeof subNames == 'object' && Object.keys(subNames).length) continue;
             node.datapointIdsByName = node.datapointIdsByName || {};
             const proxyableDatapointId = ConvertIds.recomposeId({ proxyableRowId, fieldName }).proxyableDatapointId;
             node.datapointIdsByName[fieldName] = proxyableDatapointId;
@@ -91,22 +91,22 @@ class TemplatedText {
       templateString = templatedText.templateString;
     if (!nodes) return { string: this.templateString.substring(range[0], range[1]) };
 
-    let string = "",
+    let string = '',
       wasIndex = 0,
       addIndex = 0;
 
     for (const node of nodes) {
-      let repl = "...";
+      let repl = '...';
       if (node.children) {
         // TODO
       } else if (node.code) {
         repl =
-          "" +
+          '' +
           node.code.evaluate((...names) => {
-            if (names.length > 1) return "...";
+            if (names.length > 1) return '...';
             const proxyableDatapointId = node.datapointIdsByName[names[0]];
-            if (!proxyableDatapointId) return "...";
-            const ret = this.getDatapoint(proxyableDatapointId, "...");
+            if (!proxyableDatapointId) return '...';
+            const ret = this.getDatapoint(proxyableDatapointId, '...');
             return Array.isArray(ret) && !ret.length ? undefined : ret;
           });
       }
@@ -127,5 +127,5 @@ class TemplatedText {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: TemplatedText,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

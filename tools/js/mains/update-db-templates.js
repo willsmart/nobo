@@ -3,15 +3,15 @@
 
 // TODO this is the result of a rabid day's coding. Clean
 
-const Parse5 = require("parse5");
+const Parse5 = require('parse5');
 //const Haml = require("haml");
-const Connection = require("../db/postgresql-connection");
-const SchemaToSQL = require("../db/postgresql-schema.js");
-const processArgs = require("../general/process-args");
-const strippedValues = require("../general/stripped-values");
-const fs = require("fs");
-const { promisify } = require("util");
-const YAML = require("yamljs");
+const Connection = require('../db/postgresql-connection');
+const SchemaToSQL = require('../db/postgresql-schema.js');
+const processArgs = require('../general/process-args');
+const strippedValues = require('../general/stripped-values');
+const fs = require('fs');
+const { promisify } = require('util');
+const YAML = require('yamljs');
 
 const readFile_p = promisify(fs.readFile);
 const writeFile_p = promisify(fs.writeFile);
@@ -36,13 +36,13 @@ async function forEachPromise(iterable, callback) {
 (async function() {
   var args = processArgs();
 
-  console.log("Read the template files and update the db templates");
-  console.log("   args: " + JSON.stringify(args));
+  console.log('Read the template files and update the db templates');
+  console.log('   args: ' + JSON.stringify(args));
 
   const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)\.(html(?:\.haml)?|haml)/;
 
-  const templateDir = "templates";
-  const connectionFilename = "db/connection.json";
+  const templateDir = 'templates';
+  const connectionFilename = 'db/connection.json';
 
   let connection;
   try {
@@ -66,9 +66,9 @@ async function forEachPromise(iterable, callback) {
       return;
     }
 
-    const isHaml = match[5].endsWith("haml");
+    const isHaml = match[5].endsWith('haml');
 
-    let body = await readFile_p(path, "utf8");
+    let body = await readFile_p(path, 'utf8');
     if (isHaml) {
       return; // the curerent version of the HAML node module is hopelessly broken. For now the update-db-templates script uses the CMD tool
       /*      console.log(`Parsing HAML file '${filename}'`);
@@ -94,7 +94,7 @@ async function forEachPromise(iterable, callback) {
 
       mayHaveUnprocessedIncludes: true,
       dom: body,
-      roots: Parse5.parseFragment(body).childNodes
+      roots: Parse5.parseFragment(body).childNodes,
     };
 
     newTemplateInfos[template.filename] = template;
@@ -106,7 +106,7 @@ async function forEachPromise(iterable, callback) {
     stack[template.filename] = true;
 
     function checkForIncludeComment(node, index, siblings) {
-      if (node.tagName == "include") {
+      if (node.tagName == 'include') {
         const attrs = {};
         node.attrs.forEach(({ name, value }) => (attrs[name] = value));
 
@@ -146,10 +146,10 @@ async function forEachPromise(iterable, callback) {
 
     function escape(str) {
       return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/>/g, "&gt;")
-        .replace(/</g, "&lt;")
-        .replace(/"/g, "&quot;");
+        .replace(/&/g, '&amp;')
+        .replace(/>/g, '&gt;')
+        .replace(/</g, '&lt;')
+        .replace(/"/g, '&quot;');
     }
 
     const addDisplayedFieldsInString = function(string) {
@@ -159,7 +159,7 @@ async function forEachPromise(iterable, callback) {
       while ((match = fieldRegEx.exec(string))) {
         const field = match[1];
         template.displayedFields[field] = {
-          field
+          field,
         };
       }
     };
@@ -184,7 +184,7 @@ async function forEachPromise(iterable, callback) {
             template.subtemplates[domField] = {
               domField,
               variant,
-              modelView
+              modelView,
             };
           } else if ((match = /(?:^|\s)(?:subtemplate-uses-)?([\w0-9]+)-model-child(?:$|\s)/.exec(clas))) {
             const modelField = match[1];
@@ -196,7 +196,7 @@ async function forEachPromise(iterable, callback) {
             template.children[domField] = {
               domField,
               modelField,
-              variant
+              variant,
             };
           }
         }
@@ -210,10 +210,10 @@ async function forEachPromise(iterable, callback) {
       addDisplayedFieldsInString(node.value);
 
       if (node.childNodes) {
-        node.childNodes.forEach(child => gatherParts(child, indent + "  "));
+        node.childNodes.forEach(child => gatherParts(child, indent + '  '));
       }
     };
-    template.roots.forEach(node => gatherParts(node, ""));
+    template.roots.forEach(node => gatherParts(node, ''));
   }
 
   function processTemplates() {
@@ -232,19 +232,19 @@ async function forEachPromise(iterable, callback) {
       const stat = await lstat_p(filePath);
       if (stat.isDirectory()) {
         await dealWithTemplatesDirectory({
-          path: filePath
+          path: filePath,
         });
       } else if (stat.isFile()) {
         await dealWithTemplateFile({
           filename,
-          path: filePath
+          path: filePath,
         });
       }
     });
   }
 
   await dealWithTemplatesDirectory({
-    path: templateDir
+    path: templateDir,
   });
 
   const appId = 1;
@@ -252,28 +252,28 @@ async function forEachPromise(iterable, callback) {
   processTemplates();
 
   async function ensureTemplateHolder({ dbRowId = appId } = {}) {
-    const sql = "SELECT * FROM app WHERE id = $1::integer",
+    const sql = 'SELECT * FROM app WHERE id = $1::integer',
       args = [dbRowId];
     const rows = (await connection.query(sql, args)).rows;
     if (rows.length) return rows[0];
     console.log(`New template holder`);
-    await connection.query("INSERT INTO app(id) VALUES ($1::integer);", [dbRowId]);
+    await connection.query('INSERT INTO app(id) VALUES ($1::integer);', [dbRowId]);
     return (await connection.query(sql, args)).rows[0];
   }
 
   async function findTemplateBy({ variant, classFilter, ownerOnly }) {
     const args = [appId];
-    let sql = "SELECT * FROM template WHERE app_id=$1::integer";
+    let sql = 'SELECT * FROM template WHERE app_id=$1::integer';
 
     if (variant) {
       sql += ` AND variant=$${args.length + 1}::character varying`;
       args.push(variant);
-    } else sql += " AND variant IS NULL";
+    } else sql += ' AND variant IS NULL';
 
     if (classFilter) {
       sql += ` AND class_filter=$${args.length + 1}::character varying`;
       args.push(classFilter);
-    } else sql += " AND class_filter IS NULL";
+    } else sql += ' AND class_filter IS NULL';
 
     sql += ` AND owner_only=$${args.length + 1}::boolean`;
     args.push(!!ownerOnly);
@@ -285,7 +285,7 @@ async function forEachPromise(iterable, callback) {
 
   async function findDisplayedFieldBy({ templateId, field }) {
     const rows = (await connection.query(
-      "SELECT * FROM template_displayed_field WHERE template_id=$1::integer AND field=$2::character varying;",
+      'SELECT * FROM template_displayed_field WHERE template_id=$1::integer AND field=$2::character varying;',
       [templateId, field]
     )).rows;
 
@@ -294,7 +294,7 @@ async function forEachPromise(iterable, callback) {
 
   async function findSubtemplateBy({ templateId, domField }) {
     const rows = (await connection.query(
-      "SELECT * FROM subtemplate WHERE template_id=$1::integer AND dom_field=$2::character varying;",
+      'SELECT * FROM subtemplate WHERE template_id=$1::integer AND dom_field=$2::character varying;',
       [templateId, domField]
     )).rows;
 
@@ -303,7 +303,7 @@ async function forEachPromise(iterable, callback) {
 
   async function findTemplateChildBy({ templateId, domField }) {
     const rows = (await connection.query(
-      "SELECT * FROM template_child WHERE template_id=$1::integer AND dom_field=$2::character varying;",
+      'SELECT * FROM template_child WHERE template_id=$1::integer AND dom_field=$2::character varying;',
       [templateId, domField]
     )).rows;
 
@@ -316,10 +316,10 @@ async function forEachPromise(iterable, callback) {
     subtemplates: {},
     templateChildren: {},
 
-    templatesWas: (await connection.query("SELECT id from template;")).rows.map(row => row.id),
-    displayedFieldsWas: (await connection.query("SELECT id from template_displayed_field;")).rows.map(row => row.id),
-    subtemplatesWas: (await connection.query("SELECT id from subtemplate;")).rows.map(row => row.id),
-    templateChildrenWas: (await connection.query("SELECT id from template_child;")).rows.map(row => row.id)
+    templatesWas: (await connection.query('SELECT id from template;')).rows.map(row => row.id),
+    displayedFieldsWas: (await connection.query('SELECT id from template_displayed_field;')).rows.map(row => row.id),
+    subtemplatesWas: (await connection.query('SELECT id from subtemplate;')).rows.map(row => row.id),
+    templateChildrenWas: (await connection.query('SELECT id from template_child;')).rows.map(row => row.id),
   };
 
   newTemplates = [];
@@ -333,26 +333,26 @@ async function forEachPromise(iterable, callback) {
     dom,
     displayedFields,
     subtemplates,
-    children
+    children,
   }) {
     let template = await findTemplateBy({
       ownerOnly,
       classFilter,
-      variant
+      variant,
     });
     if (!template) {
       console.log(`New template: ${filename}`);
       await connection.query(
-        "INSERT INTO template(app_id, class_filter, dom, filename, owner_only, variant) VALUES ($1::integer, $2::character varying, $3::text, $4::character varying, $5::boolean, $6::character varying);",
+        'INSERT INTO template(app_id, class_filter, dom, filename, owner_only, variant) VALUES ($1::integer, $2::character varying, $3::text, $4::character varying, $5::boolean, $6::character varying);',
         [appId, classFilter, dom, filename, ownerOnly, variant]
       );
       template = await findTemplateBy({
         ownerOnly,
         classFilter,
-        variant
+        variant,
       });
       if (!template) {
-        throw new Error("Failed to save template");
+        throw new Error('Failed to save template');
       }
     }
     const templateId = template.id;
@@ -360,30 +360,30 @@ async function forEachPromise(iterable, callback) {
 
     if (template.dom != dom || template.filename != filename) {
       console.log(`Template: ${filename} has changed dom or filename`);
-      connection.query("UPDATE template SET dom=$1::text, filename=$2::character varying WHERE id=$3::integer;", [
+      connection.query('UPDATE template SET dom=$1::text, filename=$2::character varying WHERE id=$3::integer;', [
         dom,
         filename,
-        templateId
+        templateId,
       ]);
     }
 
     await forEachPromise(Object.keys(displayedFields), async function(field) {
       let displayedField = await findDisplayedFieldBy({
         templateId,
-        field
+        field,
       });
       if (!displayedField) {
         console.log(`New displayed field ${field} in template ${filename}`);
         await connection.query(
-          "INSERT INTO template_displayed_field(template_id, field) VALUES ($1::integer, $2::character varying);",
+          'INSERT INTO template_displayed_field(template_id, field) VALUES ($1::integer, $2::character varying);',
           [templateId, field]
         );
         displayedField = await findDisplayedFieldBy({
           templateId,
-          field
+          field,
         });
         if (!displayedField) {
-          throw new Error("Failed to save displayed field");
+          throw new Error('Failed to save displayed field');
         }
       }
       ids.displayedFields[displayedField.id] = true;
@@ -394,20 +394,20 @@ async function forEachPromise(iterable, callback) {
 
       let subtemplate = await findSubtemplateBy({
         templateId,
-        domField
+        domField,
       });
       if (!subtemplate) {
         console.log(`New subtemplate ${domField} in template ${filename}`);
         await connection.query(
-          "INSERT INTO subtemplate(template_id, dom_field, model_view, variant) VALUES ($1::integer, $2::character varying, $3::character varying, $4::character varying);",
+          'INSERT INTO subtemplate(template_id, dom_field, model_view, variant) VALUES ($1::integer, $2::character varying, $3::character varying, $4::character varying);',
           [templateId, domField, subtemplateInfo.modelView, subtemplateInfo.variant]
         );
         subtemplate = await findSubtemplateBy({
           templateId,
-          domField
+          domField,
         });
         if (!subtemplate) {
-          throw new Error("Failed to save subtemplate");
+          throw new Error('Failed to save subtemplate');
         }
       }
       ids.subtemplates[subtemplate.id] = true;
@@ -415,7 +415,7 @@ async function forEachPromise(iterable, callback) {
       if (subtemplate.model_view != subtemplateInfo.modelView || subtemplate.variant != subtemplateInfo.variant) {
         console.log(`Subtemplate ${domField} of template ${filename} has changed model or variant`);
         connection.query(
-          "UPDATE subtemplate SET model_view=$1::character varying, variant=$2::character varying WHERE id=$3::integer;",
+          'UPDATE subtemplate SET model_view=$1::character varying, variant=$2::character varying WHERE id=$3::integer;',
           [subtemplateInfo.modelView, subtemplateInfo.variant, subtemplate.id]
         );
       }
@@ -426,20 +426,20 @@ async function forEachPromise(iterable, callback) {
 
       let child = await findTemplateChildBy({
         templateId,
-        domField
+        domField,
       });
       if (!child) {
         console.log(`New template child ${domField} in template ${filename}`);
         await connection.query(
-          "INSERT INTO template_child(template_id, dom_field, model_field, variant) VALUES ($1::integer, $2::character varying, $3::character varying, $4::character varying);",
+          'INSERT INTO template_child(template_id, dom_field, model_field, variant) VALUES ($1::integer, $2::character varying, $3::character varying, $4::character varying);',
           [templateId, domField, childInfo.modelField, childInfo.variant]
         );
         child = await findTemplateChildBy({
           templateId,
-          domField
+          domField,
         });
         if (!child) {
-          throw new Error("Failed to save template child");
+          throw new Error('Failed to save template child');
         }
       }
       ids.templateChildren[child.id] = true;
@@ -447,7 +447,7 @@ async function forEachPromise(iterable, callback) {
       if (child.model_field != childInfo.modelField || child.variant != childInfo.variant) {
         console.log(`Child ${domField} of template ${filename} has changed field or variant`);
         connection.query(
-          "UPDATE template_child SET model_field=$1::character varying, variant=$2::character varying WHERE id=$3::integer;",
+          'UPDATE template_child SET model_field=$1::character varying, variant=$2::character varying WHERE id=$3::integer;',
           [childInfo.modelField, childInfo.variant, child.id]
         );
       }
@@ -461,22 +461,22 @@ async function forEachPromise(iterable, callback) {
 
   if (ids.deleteTemplates.length) {
     console.log(`Deleting ${ids.deleteTemplates.length} template rows`);
-    await connection.query("DELETE FROM template WHERE id = ANY ($1::integer[]);", [ids.deleteTemplates]);
+    await connection.query('DELETE FROM template WHERE id = ANY ($1::integer[]);', [ids.deleteTemplates]);
   }
   if (ids.deleteDisplayedFields.length) {
     console.log(`Deleting ${ids.deleteDisplayedFields.length} displayed field rows`);
-    await connection.query("DELETE FROM template_displayed_field WHERE id = ANY ($1::integer[]);", [
-      ids.deleteDisplayedFields
+    await connection.query('DELETE FROM template_displayed_field WHERE id = ANY ($1::integer[]);', [
+      ids.deleteDisplayedFields,
     ]);
   }
   if (ids.deleteSubtemplates.length) {
     console.log(`Deleting ${ids.deleteSubtemplates.length} subtemplate rows`);
-    await connection.query("DELETE FROM subtemplate WHERE id = ANY ($1::integer[]);", [ids.deleteSubtemplates]);
+    await connection.query('DELETE FROM subtemplate WHERE id = ANY ($1::integer[]);', [ids.deleteSubtemplates]);
   }
   if (ids.deleteTemplateChildren.length) {
     console.log(`Deleting ${ids.deleteTemplateChildren.length} template child rows`);
-    await connection.query("DELETE FROM template_child WHERE id = ANY ($1::integer[]);", [ids.deleteTemplateChildren]);
+    await connection.query('DELETE FROM template_child WHERE id = ANY ($1::integer[]);', [ids.deleteTemplateChildren]);
   }
 
-  console.log("Done");
+  console.log('Done');
 })();

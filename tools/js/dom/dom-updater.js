@@ -1,8 +1,8 @@
-const PublicApi = require("../general/public-api");
-const ConvertIds = require("../convert-ids");
-const TemplatedText = require("./templated-text");
-const SharedState = require("../general/shared-state");
-const { elementForUniquePath } = require("../dom/dom-functions");
+const PublicApi = require('../general/public-api');
+const ConvertIds = require('../convert-ids');
+const TemplatedText = require('./templated-text');
+const SharedState = require('../general/shared-state');
+const { elementForUniquePath } = require('../dom/dom-functions');
 
 const {
   templateDatapointIdForRowAndVariant,
@@ -17,15 +17,15 @@ const {
   datapointTemplateElements,
   datapointDomElements,
   rangeForElement,
-  childRangeAtIndex
-} = require("./dom-functions");
+  childRangeAtIndex,
+} = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class DomUpdater {
   // public methods
   static publicMethods() {
-    return ["datapointUpdated"];
+    return ['datapointUpdated'];
   }
 
   constructor({ domGenerator }) {
@@ -41,14 +41,14 @@ class DomUpdater {
     const domUpdater = this;
 
     SharedState.global.watch({
-      callbackKey: "dom-updater",
+      callbackKey: 'dom-updater',
       onchangedstate: (diff, changes, forEachChangedKeyPath) => {
         const replacements = [];
 
         forEachChangedKeyPath((keyPath, change) => {
           if (!keyPath.length) return true;
 
-          if (keyPath[0] == "overriddenElementDatapoints") {
+          if (keyPath[0] == 'overriddenElementDatapoints') {
             if (keyPath.length != 2) return true;
             const path = keyPath[1],
               element = elementForUniquePath(path);
@@ -56,13 +56,13 @@ class DomUpdater {
             const range = rangeForElement(element);
             replacements.push({
               replaceRange: range,
-              elements: domUpdater.recreateElements({ element })
+              elements: domUpdater.recreateElements({ element }),
             });
             domUpdater.markRangeAsDead(range);
           }
           while (0);
 
-          if (!keyPath.length || keyPath[0] != "datapointsById") return;
+          if (!keyPath.length || keyPath[0] != 'datapointsById') return;
           if (keyPath.length < 2) return true;
 
           const proxyableDatapointId = keyPath[1];
@@ -70,7 +70,7 @@ class DomUpdater {
           if (keyPath.length == 2) {
             replacements.push(...domUpdater.datapointUpdated({ proxyableDatapointId: keyPath[1], change }));
             if (Array.isArray(change.is)) return true;
-          } else if (keyPath.length == 3 && typeof keyPath[2] == "number") {
+          } else if (keyPath.length == 3 && typeof keyPath[2] == 'number') {
             replacements.push(
               ...domUpdater.datapointMemberUpdated({ proxyableDatapointId: keyPath[1], index: +keyPath[2], change })
             );
@@ -80,25 +80,25 @@ class DomUpdater {
         if (replacements.length) {
           domUpdater.commitDomReplacements({ replacements });
         }
-      }
+      },
     });
   }
 
   recreateElements({ element }) {
     return this.domGenerator.createElementsUsingTemplateDatapointId({
-      basedOnElement: element
+      basedOnElement: element,
     });
   }
 
   createElementsWithUpdatedTemplateDatapoint({ element }) {
     return this.domGenerator.createElementsUsingTemplateDatapointId({
-      basedOnElement: element
+      basedOnElement: element,
     });
   }
 
   createElementsWithUpdatedDomDatapoint({ element }) {
     return this.domGenerator.createElementsUsingDomDatapointId({
-      basedOnElement: element
+      basedOnElement: element,
     });
   }
 
@@ -143,7 +143,7 @@ class DomUpdater {
 
   markRangeAsDead([start, end]) {
     for (let element = start; ; element = element.nextElementSibling) {
-      element.classList.add("nobo-dead");
+      element.classList.add('nobo-dead');
       if (element == end) break;
     }
   }
@@ -154,7 +154,7 @@ class DomUpdater {
       const range = rangeForElement(element);
       replacements.push({
         replaceRange: range,
-        elements: domUpdater.createElementsWithUpdatedTemplateDatapoint({ element })
+        elements: domUpdater.createElementsWithUpdatedTemplateDatapoint({ element }),
       });
       domUpdater.markRangeAsDead(range);
     }
@@ -162,7 +162,7 @@ class DomUpdater {
       const range = rangeForElement(element);
       replacements.push({
         replaceRange: range,
-        elements: domUpdater.createElementsWithUpdatedDomDatapoint({ element })
+        elements: domUpdater.createElementsWithUpdatedDomDatapoint({ element }),
       });
       domUpdater.markRangeAsDead(range);
     }
@@ -178,8 +178,8 @@ class DomUpdater {
       replacements = [];
 
     for (const element of childrenPlaceholders(proxyableDatapointId)) {
-      let variant = element.getAttribute("variant") || undefined,
-        placeholderUid = element.getAttribute("nobo-uid"),
+      let variant = element.getAttribute('variant') || undefined,
+        placeholderUid = element.getAttribute('nobo-uid'),
         proxyableRowId = ConvertIds.proxyableRowRegex.test(change.is) ? change.is : undefined,
         proxyableDatapointId = ConvertIds.proxyableDatapointRegex.test(change.is) ? change.is : undefined,
         range = childRangeAtIndex({ placeholderDiv: element, index });
@@ -190,32 +190,32 @@ class DomUpdater {
       }
       if (change.index !== undefined) {
         switch (change.type) {
-          case "insert":
+          case 'insert':
             const afterRange = childRangeAtIndex({ placeholderDiv: element, index: index - 1 });
             replacements.push({
               afterElement: afterRange[1],
               elements: domUpdater.domGenerator.createElementsForVariantOfRow({
                 proxyableRowId,
                 variant,
-                placeholderUid
-              })
+                placeholderUid,
+              }),
             });
             break;
-          case "change":
+          case 'change':
             domUpdater.markRangeAsDead(range);
             replacements.push({
               replaceRange: range,
               elements: domUpdater.domGenerator.createElementsForVariantOfRow({
                 proxyableRowId,
                 variant,
-                placeholderUid
-              })
+                placeholderUid,
+              }),
             });
             break;
-          case "delete":
+          case 'delete':
             domUpdater.markRangeAsDead(range);
             replacements.push({
-              replaceRange: range
+              replaceRange: range,
             });
             break;
         }
@@ -231,7 +231,7 @@ class DomUpdater {
 
       if (afterElement) {
         for (let index = elements.length - 1; index >= 0; index--) {
-          afterElement.insertAdjacentElement("afterend", elements[index]);
+          afterElement.insertAdjacentElement('afterend', elements[index]);
         }
       } else if (replaceRange) {
         if (elements && elements.length) {
@@ -242,7 +242,7 @@ class DomUpdater {
           }
           if (replaceRange[0].parentNode) replaceRange[0].parentNode.replaceChild(elements[0], replaceRange[0]);
           for (let index = elements.length - 1; index > 0; index--) {
-            elements[0].insertAdjacentElement("afterend", elements[index]);
+            elements[0].insertAdjacentElement('afterend', elements[index]);
           }
         } else {
           let previousElementSibling;
@@ -260,5 +260,5 @@ class DomUpdater {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: DomUpdater,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

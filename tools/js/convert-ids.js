@@ -109,10 +109,10 @@ module.exports = {
   proxyRowRegex,
   proxyDatapointRegex,
   proxyableRowRegex,
-  proxyableDatapointRegex
+  proxyableDatapointRegex,
 };
 
-const ChangeCase = require("change-case");
+const ChangeCase = require('change-case');
 
 // deconstructs a string id into its component parts or throws if not possible
 //  arguments object with one key of:
@@ -135,7 +135,7 @@ function decomposeId({ rowId, proxyableRowId, proxyableDatapointId, datapointId,
     if (ret) return ret;
   }
   if (permissive) return;
-  throw new Error("No id to decompose");
+  throw new Error('No id to decompose');
 }
 
 function ensureDecomposed({ typeName }) {
@@ -153,7 +153,7 @@ function recomposeId({
   proxyableRowId,
   datapointId,
   proxyableDatapointId,
-  permissive
+  permissive,
 }) {
   if (arguments.length != 1) {
     const combined = {};
@@ -169,7 +169,7 @@ function recomposeId({
       proxyableRowId,
       datapointId,
       proxyableDatapointId,
-      permissive
+      permissive,
     } = processArg(arguments[0]));
   }
 
@@ -220,35 +220,35 @@ function recomposeId({
   }
 
   const ret = {
-    typeName: ChangeCase.snakeCase(typeName)
+    typeName: ChangeCase.snakeCase(typeName),
   };
-  if (!typeNameRegex.test(ret.typeName)) throw new Error("Type name has invalid characters or format");
+  if (!typeNameRegex.test(ret.typeName)) throw new Error('Type name has invalid characters or format');
 
   if (dbRowId) {
-    if (!dbRowIdRegex.test(dbRowId)) throw new Error("Db row id has invalid characters or format");
+    if (!dbRowIdRegex.test(dbRowId)) throw new Error('Db row id has invalid characters or format');
     ret.dbRowId = +dbRowId;
     ret.rowId = ret.proxyableRowId = `${ret.typeName}__${ret.dbRowId}`;
 
     if (fieldName !== undefined) {
       ret.fieldName = ChangeCase.snakeCase(fieldName);
-      if (!fieldNameRegex.test(ret.fieldName)) throw new Error("Field name has invalid characters or format");
+      if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = ret.proxyableDatapointId = `${ret.rowId}__${ret.fieldName}`;
     }
   } else if (proxyKey) {
     ret.proxyKey = proxyKey;
-    if (!proxyKeyRegex.test(ret.proxyKey)) throw new Error("Proxy key has invalid characters or format");
+    if (!proxyKeyRegex.test(ret.proxyKey)) throw new Error('Proxy key has invalid characters or format');
     ret.proxyRowId = ret.proxyableRowId = `${ret.typeName}__${ret.proxyKey}`;
 
     if (fieldName !== undefined) {
       ret.fieldName = ChangeCase.snakeCase(fieldName);
-      if (!fieldNameRegex.test(ret.fieldName)) throw new Error("Field name has invalid characters or format");
+      if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.proxyDatapointId = ret.proxyableDatapointId = `${ret.proxyRowId}__${ret.fieldName}`;
     }
   } else {
     if (permissive) return;
-    throw new Error("Must have either a dbRowId or a proxyKey");
+    throw new Error('Must have either a dbRowId or a proxyKey');
   }
 
   ret.typeName = ChangeCase.pascalCase(ret.typeName);
@@ -271,7 +271,7 @@ function stringToRow(rowId, permissive) {
     proxyableRowId: rowId, // strictly, this row is proxyable too, and therefore has a proxyable id
     //  similar in methods below
     typeName: ChangeCase.pascalCase(match[1]),
-    dbRowId: +match[2]
+    dbRowId: +match[2],
   };
 }
 
@@ -290,7 +290,7 @@ function stringToDatapoint(datapointId, permissive) {
 
     typeName: ChangeCase.pascalCase(match[2]),
     dbRowId: +match[3],
-    fieldName: ChangeCase.camelCase(match[4])
+    fieldName: ChangeCase.camelCase(match[4]),
   };
 }
 
@@ -304,16 +304,16 @@ function stringToProxyableRow(rowId, permissive) {
   return Object.assign(
     {
       proxyableRowId: rowId,
-      typeName: ChangeCase.pascalCase(match[1])
+      typeName: ChangeCase.pascalCase(match[1]),
     },
     match[2]
       ? {
           rowId: rowId,
-          dbRowId: +match[2]
+          dbRowId: +match[2],
         }
       : {
           proxyRowId: rowId,
-          proxyKey: match[3]
+          proxyKey: match[3],
         }
   );
 }
@@ -330,18 +330,18 @@ function stringToProxyableDatapoint(datapointId, permissive) {
       proxyableDatapointId: datapointId,
       proxyableRowId: match[1],
       typeName: ChangeCase.pascalCase(match[2]),
-      fieldName: match[5]
+      fieldName: match[5],
     },
     match[3]
       ? {
           datapointId: datapointId,
           rowId: match[1],
-          dbRowId: +match[3]
+          dbRowId: +match[3],
         }
       : {
           proxyDatapointId: datapointId,
           proxyRowId: match[1],
-          proxyKey: match[4]
+          proxyKey: match[4],
         }
   );
 }

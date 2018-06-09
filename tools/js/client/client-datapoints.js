@@ -1,19 +1,19 @@
-const PublicApi = require("../general/public-api");
+const PublicApi = require('../general/public-api');
 
 // API is auto-generated at the bottom from the public interface of the WSClientDatapoints class
 
-const ConvertIds = require("../convert-ids");
-const SharedState = require("../general/shared-state");
+const ConvertIds = require('../convert-ids');
+const SharedState = require('../general/shared-state');
 const { TemporaryState } = SharedState;
 
-const callbackKey = "ClientDatapoints";
+const callbackKey = 'ClientDatapoints';
 
 let globalClientDatapoints;
 
 class WSClientDatapoints {
   // public methods
   static publicMethods() {
-    return ["subscribe", "getDatapoint"];
+    return ['subscribe', 'getDatapoint'];
   }
 
   constructor({ wsclient }) {
@@ -22,27 +22,27 @@ class WSClientDatapoints {
     clientDatapoints.wsclient = wsclient;
 
     SharedState.global.watch({
-      callbackKey: "manage-subscriptions",
+      callbackKey: 'manage-subscriptions',
       onchangedstate: (diff, changes, forEachChangedKeyPath) => {
         let payloadObject;
 
         if (!clientDatapoints.wsclient) return;
 
         forEachChangedKeyPath((keyPath, change) => {
-          if (keyPath.length == 1 && keyPath[0] == "datapointsById") return true;
+          if (keyPath.length == 1 && keyPath[0] == 'datapointsById') return true;
 
           if (
             keyPath.length == 2 &&
-            keyPath[0] == "datapointsById" &&
+            keyPath[0] == 'datapointsById' &&
             ConvertIds.proxyableDatapointRegex.test(keyPath[1])
           ) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
             switch (change.type) {
-              case "delete":
+              case 'delete':
                 payloadObject.datapoints[keyPath[1]] = 0;
                 break;
-              case "insert":
+              case 'insert':
                 payloadObject.datapoints[keyPath[1]] = 1;
                 break;
             }
@@ -51,10 +51,10 @@ class WSClientDatapoints {
 
         if (payloadObject) {
           clientDatapoints.wsclient.sendPayload({
-            payloadObject
+            payloadObject,
           });
         }
-      }
+      },
     });
 
     clientDatapoints.wsclient.watch({
@@ -63,7 +63,7 @@ class WSClientDatapoints {
         if (payloadObject.diffs) {
           SharedState.requestCommit(state => {
             for (const [proxyableDatapointId, diff] of Object.entries(payloadObject.diffs)) {
-              state.atPath("datapointsById")[proxyableDatapointId] = diff;
+              state.atPath('datapointsById')[proxyableDatapointId] = diff;
               // TODO...
               // const datapoint = state.atPath('datapointsById', proxyableDatapointId)
               // applyDiffToDatapoint({
@@ -91,10 +91,10 @@ class WSClientDatapoints {
 
         if (payloadObject) {
           clientDatapoints.wsclient.sendPayload({
-            payloadObject
+            payloadObject,
           });
         }
-      }
+      },
     });
   }
 
@@ -103,7 +103,7 @@ class WSClientDatapoints {
       datapointsById = SharedState.global.state.datapointsById || {};
     if (datapointsById[proxyableDatapointId]) return datapointsById[proxyableDatapointId];
     SharedState.global.withTemporaryState(tempState => {
-      tempState.atPath("datapointsById")[proxyableDatapointId] = defaultValue;
+      tempState.atPath('datapointsById')[proxyableDatapointId] = defaultValue;
     });
     return defaultValue;
   }
@@ -111,13 +111,13 @@ class WSClientDatapoints {
   subscribe(proxyableDatapointIds) {
     const clientDatapoints = this;
 
-    if (typeof proxyableDatapointIds == "string") proxyableDatapointIds = [proxyableDatapointIds];
+    if (typeof proxyableDatapointIds == 'string') proxyableDatapointIds = [proxyableDatapointIds];
     if (!Array.isArray(proxyableDatapointIds)) proxyableDatapointIds = Object.keys(proxyableDatapointIds);
     if (!proxyableDatapointIds.length) return;
     const datapointsById = {};
     for (const proxyableDatapointId of proxyableDatapointIds) datapointsById[proxyableDatapointId] = 1;
     clientDatapoints.wsclient.sendPayload({
-      payloadObject: { datapoints: datapointsById }
+      payloadObject: { datapoints: datapointsById },
     });
   }
 }
@@ -125,5 +125,5 @@ class WSClientDatapoints {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: WSClientDatapoints,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

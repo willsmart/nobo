@@ -5,13 +5,13 @@
 // The chief reason for creating this (instead of just grabbing a orm)
 //   is that nobo uses triggers as a fundamental part of its work (see schema_to_postgresql.js)
 
-const ChangeCase = require("change-case");
-const { Pool, Client } = require("pg");
-const SchemaToPostgresql = require("../db/postgresql-schema");
-const PostgresqlListener = require("../db/postgresql-listener");
-const SchemaLayoutConnection = require("../db/schema-layout-connection");
-const PublicApi = require("../general/public-api");
-const ConvertIds = require("../convert-ids");
+const ChangeCase = require('change-case');
+const { Pool, Client } = require('pg');
+const SchemaToPostgresql = require('../db/postgresql-schema');
+const PostgresqlListener = require('../db/postgresql-listener');
+const SchemaLayoutConnection = require('../db/schema-layout-connection');
+const PublicApi = require('../general/public-api');
+const ConvertIds = require('../convert-ids');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -21,20 +21,20 @@ class PostgresqlConnection {
   // public methods
   static publicMethods() {
     return [
-      "getRowsFromDB",
-      "getRowFields",
-      "updateRowFields",
-      "query",
-      "newClient",
-      "schemaLayoutConnection",
-      "dbListener",
-      "connect",
-      "isSeeded"
+      'getRowsFromDB',
+      'getRowFields',
+      'updateRowFields',
+      'query',
+      'newClient',
+      'schemaLayoutConnection',
+      'dbListener',
+      'connect',
+      'isSeeded',
     ];
   }
 
   static sanitizedDatabase(database) {
-    return ChangeCase.snakeCase(database.replace(/[^\w_-\d]/g, ""));
+    return ChangeCase.snakeCase(database.replace(/[^\w_-\d]/g, ''));
   }
 
   constructor({ host, port, database, username, password, isSeeded = true }) {
@@ -43,7 +43,7 @@ class PostgresqlConnection {
     this._isSeeded = isSeeded;
     this.connectionString = PostgresqlConnection.connectionString(arguments[0]);
     this.pool = new Pool({
-      connectionString: this.connectionString
+      connectionString: this.connectionString,
     });
   }
 
@@ -52,7 +52,7 @@ class PostgresqlConnection {
   }
 
   static async connect({ host, port, database, username, password, canCreate }) {
-    const baseConnection = new PostgresqlConnection({ host, port, database: "postgres", username, password });
+    const baseConnection = new PostgresqlConnection({ host, port, database: 'postgres', username, password });
     const isSeeded = !(await baseConnection.createDatabaseIfRequired({ database }));
     return new PostgresqlConnection_public({ host, port, database, username, password, isSeeded });
   }
@@ -64,7 +64,7 @@ class PostgresqlConnection {
 
   newConnectedClient() {
     const client = new Client({
-      connectionString: this.connectionString
+      connectionString: this.connectionString,
     });
     client.connect();
     return client;
@@ -74,7 +74,7 @@ class PostgresqlConnection {
     return this._dbListener
       ? this._dbListener
       : (this._dbListener = new PostgresqlListener({
-          connection: this
+          connection: this,
         }));
   }
 
@@ -82,7 +82,7 @@ class PostgresqlConnection {
     return this._schemaLayoutConnection
       ? this._schemaLayoutConnection
       : (this._schemaLayoutConnection = new SchemaLayoutConnection({
-          connection: this
+          connection: this,
         }));
   }
 
@@ -91,7 +91,7 @@ class PostgresqlConnection {
     const connection = this;
 
     const { rows } = await connection.query(
-      "SELECT datname FROM pg_catalog.pg_database WHERE lower(datname) = lower($1::varchar);",
+      'SELECT datname FROM pg_catalog.pg_database WHERE lower(datname) = lower($1::varchar);',
       [database]
     );
 
@@ -123,16 +123,16 @@ class PostgresqlConnection {
     const connection = this;
 
     const fieldNames = fields.map(fieldInfo => {
-      return typeof fieldInfo == "string" ? fieldInfo : `${fieldInfo.sqlName} AS "${fieldInfo.outputKey}"`;
+      return typeof fieldInfo == 'string' ? fieldInfo : `${fieldInfo.sqlName} AS "${fieldInfo.outputKey}"`;
     });
     const joins = fields
       .filter(fieldInfo => {
-        return typeof fieldInfo == "object" && fieldInfo.sqlJoin;
+        return typeof fieldInfo == 'object' && fieldInfo.sqlJoin;
       })
-      .map(fieldInfo => " " + fieldInfo.sqlJoin);
+      .map(fieldInfo => ' ' + fieldInfo.sqlJoin);
 
-    const sql = `SELECT ${fieldNames.join(", ")} FROM "${tableName}" "${tableName}__base"${joins.join("")}${
-      dbRowId === undefined ? "" : ` WHERE "${tableName}__base"."id" = ${dbRowId}`
+    const sql = `SELECT ${fieldNames.join(', ')} FROM "${tableName}" "${tableName}__base"${joins.join('')}${
+      dbRowId === undefined ? '' : ` WHERE "${tableName}__base"."id" = ${dbRowId}`
     }`;
 
     return connection.query(sql).then(res => {
@@ -161,7 +161,7 @@ class PostgresqlConnection {
           .getRowsFromDB({
             tableName: sqlTypeTable,
             fields: fields,
-            dbRowId
+            dbRowId,
           })
           .then(models => {
             if (!models.length) return;
@@ -176,8 +176,8 @@ class PostgresqlConnection {
                 ret[fieldInfo.outputKey] = [
                   ConvertIds.recomposeId({
                     typeName: fieldInfo.field.dataType.name,
-                    dbRowId: value
-                  }).rowId
+                    dbRowId: value,
+                  }).rowId,
                 ];
               } else {
                 ret[fieldInfo.outputKey] = value;
@@ -221,7 +221,7 @@ class PostgresqlConnection {
     return connection.updateRowInDB({
       tableName: sqlTypeTable,
       fields: fieldInfos,
-      dbRowId
+      dbRowId,
     });
   }
 
@@ -237,7 +237,7 @@ class PostgresqlConnection {
       return fieldInfo.value;
     });
 
-    const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(", ")} WHERE "${tableName}"."id" = ${dbRowId}`;
+    const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(', ')} WHERE "${tableName}"."id" = ${dbRowId}`;
 
     return connection.query(sql, fieldValues);
   }
@@ -256,7 +256,7 @@ class PostgresqlConnection {
         sqlName: `"${sqlTypeTable}__base"."${sqlField.sqlName}"`,
         outputKey: outputKey,
         field: field,
-        sqlField: sqlField
+        sqlField: sqlField,
       };
     } else {
       const linkedField = field.getLinkedToField();
@@ -273,7 +273,7 @@ class PostgresqlConnection {
         }" = "${sqlTypeTable}__base"."id"`,
         outputKey: outputKey,
         field: field,
-        sqlField: sqlField
+        sqlField: sqlField,
       };
 
       if (!field.isMultiple) {
@@ -283,7 +283,7 @@ class PostgresqlConnection {
           .getRowsFromDB({
             tableName: sqlTypeTable,
             fields: [fieldInfo],
-            dbRowId
+            dbRowId,
           })
           .then(models => {
             if (!models) return;
@@ -294,7 +294,7 @@ class PostgresqlConnection {
                 if (value === undefined || value === null) return;
                 return ConvertIds.recomposeId({
                   typeName: linkedField.enclosingType.name,
-                  dbRowId: value
+                  dbRowId: value,
                 }).rowId;
               })
               .filter(value => value !== undefined);
@@ -320,7 +320,7 @@ class PostgresqlConnection {
         dataTypeName: field.dataType.name,
         value: newValue,
         field: field,
-        sqlField: sqlField
+        sqlField: sqlField,
       };
     } else {
       console.log("Can't save linked field values yet");
@@ -332,5 +332,5 @@ class PostgresqlConnection {
 // API is the public facing class
 module.exports = PostgresqlConnection_public = PublicApi({
   fromClass: PostgresqlConnection,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

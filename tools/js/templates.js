@@ -113,18 +113,14 @@ class Templates {
       if (child.template === templateWas) {
         if (template) {
           child.template = template;
-          child.datapoint.invalidate({
-            queueValidationJob: true,
-          });
+          child.datapoint.invalidate();
         } else {
           const useParent = child.parents.find(parent => parent.template),
             useTemplate = useParent ? useParent.template : undefined;
 
           if (child.template !== useTemplate) {
             child.template = useTemplate;
-            child.datapoint.invalidate({
-              queueValidationJob: true,
-            });
+            child.datapoint.invalidate();
           }
         }
       }
@@ -157,9 +153,7 @@ class Templates {
           return node.template ? [node.template.rowId] : [];
         },
       });
-      node.datapoint.invalidate({
-        queueValidationJob: true,
-      });
+      node.datapoint.invalidate();
       node.callbackKey = node.datapoint.watch({});
       return node;
     }

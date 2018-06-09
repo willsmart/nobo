@@ -6,9 +6,9 @@
 
 // API is auto-generated at the bottom from the public interface of the CodeSnippet class
 
-const PublicApi = require("./public-api");
-const vm = require("vm");
-const jsep = require("jsep");
+const PublicApi = require('./public-api');
+const vm = require('vm');
+const jsep = require('jsep');
 
 const jsepChildKeys = {
   left: true,
@@ -19,26 +19,26 @@ const jsepChildKeys = {
   object: true,
   discriminant: true,
   argument: true,
-  body: true
+  body: true,
 };
 const jsepChildArrayKeys = {
   expressions: true,
   arguments: true,
-  defaults: true
+  defaults: true,
 };
 
-const resultKey = "___result___";
+const resultKey = '___result___';
 
 class CodeSnippet {
   // public methods
   static publicMethods() {
-    return ["evaluate", "names", "script", "func", "parse", "setAsFunction"];
+    return ['evaluate', 'names', 'script', 'func', 'parse', 'setAsFunction'];
   }
 
   constructor({ code, func, names, ignoreNames = {} }) {
     const codeSnippet = this;
 
-    codeSnippet.defaultValue = "...";
+    codeSnippet.defaultValue = '...';
     codeSnippet.defaultTimeout = 1000;
     codeSnippet.ignoreNames = ignoreNames;
 
@@ -61,25 +61,25 @@ class CodeSnippet {
   setAsFunction({ func, names }) {
     const codeSnippet = this;
 
-    if (typeof func != "function") return;
+    if (typeof func != 'function') return;
 
     delete codeSnippet._script;
-    if (typeof names != "object") names = {};
-    codeSnippet._names = typeof names == "object" ? names : {};
+    if (typeof names != 'object') names = {};
+    codeSnippet._names = typeof names == 'object' ? names : {};
     codeSnippet._func = func;
   }
 
   parse({ code }) {
     const codeSnippet = this;
 
-    if (typeof code != "string") return;
+    if (typeof code != 'string') return;
 
     delete codeSnippet._func;
     delete codeSnippet._script;
     codeSnippet._names = {};
     try {
       codeSnippet._script = new vm.Script(`___result___ = (${code})`, {
-        displayErrors: true
+        displayErrors: true,
       });
     } catch (err) {
       console.log(`Failed to compile code snippet: ${code}\n${err}\n`);
@@ -88,7 +88,7 @@ class CodeSnippet {
     try {
       codeSnippet._names = applyIgnore(CodeSnippet.namesFromAst(jsep(code)));
       function applyIgnore(names) {
-        if (typeof names != "object") return names;
+        if (typeof names != 'object') return names;
         const ret = {};
         for (const [name, value] of Object.entries(names)) {
           if (codeSnippet.ignoreNames[name]) continue;
@@ -114,7 +114,7 @@ class CodeSnippet {
       if (codeSnippet.ignoreNames[name]) continue;
       hasName = true;
       stack.push(name);
-      if (typeof value != "object" || !codeSnippet.forEachName(callback, value, stack)) {
+      if (typeof value != 'object' || !codeSnippet.forEachName(callback, value, stack)) {
         callback(...stack);
       }
       stack.pop();
@@ -123,24 +123,24 @@ class CodeSnippet {
   }
 
   evaluate(arg) {
-    if (typeof arg == "function") arg = { valueForNameCallback: arg };
+    if (typeof arg == 'function') arg = { valueForNameCallback: arg };
     let codeSnippet = this,
       {
         valueForNameCallback,
         valuesByName,
         defaultValue = codeSnippet.defaultValue,
-        timeout = codeSnippet.defaultTimeout
+        timeout = codeSnippet.defaultTimeout,
       } = arg;
 
     const sandbox = {};
     sandbox[resultKey] = defaultValue;
 
-    if (typeof valueForNameCallback != "function") {
+    if (typeof valueForNameCallback != 'function') {
       valueForNameCallback = (...names) => {
         let values = valuesByName;
         let index = 0;
         for (const name of names) {
-          if (typeof values != "object") return;
+          if (typeof values != 'object') return;
           if (index < names.length - 1) values = values[name];
           else return values[name];
           index++;
@@ -165,7 +165,7 @@ class CodeSnippet {
       try {
         codeSnippet._script.runInNewContext(sandbox, {
           displayErrors: true,
-          timeout
+          timeout,
         });
       } catch (err) {
         console.log(`Failed to run code snippet:\n${err}\n`);
@@ -178,22 +178,22 @@ class CodeSnippet {
   static namesFromAst(ast, toNames) {
     toNames = toNames || {};
 
-    if (typeof ast != "object" || !ast.type) return toNames;
+    if (typeof ast != 'object' || !ast.type) return toNames;
 
-    if (ast.type == "Identifier" && ast.name) {
+    if (ast.type == 'Identifier' && ast.name) {
       toNames[ast.name] = {};
       return toNames;
     }
 
-    if (ast.type == "MemberExpression") {
+    if (ast.type == 'MemberExpression') {
       memberHandler: do {
         const namesArray = [];
         let object = ast;
-        for (; object.type == "MemberExpression"; object = object.object) {
-          if (object.property.type != "Identifier") break memberHandler;
+        for (; object.type == 'MemberExpression'; object = object.object) {
+          if (object.property.type != 'Identifier') break memberHandler;
           namesArray.unshift(object.property.name);
         }
-        if (object.type != "Identifier") break;
+        if (object.type != 'Identifier') break;
         namesArray.unshift(object.name);
 
         let names = toNames;
@@ -204,7 +204,7 @@ class CodeSnippet {
       } while (false);
     }
 
-    if (ast.type == "CallExpression" && ast.callee.type == "MemberExpression") {
+    if (ast.type == 'CallExpression' && ast.callee.type == 'MemberExpression') {
       CodeSnippet.namesFromAst(ast.callee.object, toNames);
     }
 
@@ -221,5 +221,5 @@ class CodeSnippet {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: CodeSnippet,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

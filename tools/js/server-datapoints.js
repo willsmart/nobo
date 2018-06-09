@@ -1,9 +1,9 @@
-const PublicApi = require("./general/public-api");
-const ConvertIds = require("./convert-ids");
+const PublicApi = require('./general/public-api');
+const ConvertIds = require('./convert-ids');
 
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
 
-const callbackKey = "ClientDatapoints";
+const callbackKey = 'ClientDatapoints';
 
 class WSClientDatapoints {
   // public methods
@@ -26,14 +26,14 @@ class WSClientDatapoints {
       client.sendPayload({
         messageIndex,
         messageType,
-        payloadObject
+        payloadObject,
       });
     };
 
     client.watch({
       callbackKey,
       onclose: () => clientDatapoints.close(),
-      onpayload: args => clientDatapoints.handlePayload(args)
+      onpayload: args => clientDatapoints.handlePayload(args),
     });
   }
 
@@ -48,7 +48,7 @@ class WSClientDatapoints {
     for (const datapoint of Object.values(clientDatapoints.subscribedDatapoints)) {
       if (!datapoint) continue;
       datapoint.stopWatching({
-        callbackKey: clientDatapoints.callbackKey
+        callbackKey: clientDatapoints.callbackKey,
       });
       serverDatapoints.releaseRefForDatapoint(datapoint);
     }
@@ -71,13 +71,13 @@ class WSClientDatapoints {
     let datapoint;
     if (datapointId) {
       ({ datapoint } = serverDatapoints.addRefForDatapoint({
-        datapointId
+        datapointId,
       }));
       datapoint.watch({
         callbackKey: `${clientDatapoints.callbackKey}__${proxyableDatapointId}`,
         onvalid: () => {
           clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
-        }
+        },
       });
     }
 
@@ -95,7 +95,7 @@ class WSClientDatapoints {
 
     if (datapoint) {
       datapoint.stopWatching({
-        callbackKey: `${clientDatapoints.callbackKey}__${proxyableDatapointId}`
+        callbackKey: `${clientDatapoints.callbackKey}__${proxyableDatapointId}`,
       });
       serverDatapoints.releaseRefForDatapoint(datapoint);
     }
@@ -117,16 +117,16 @@ class WSClientDatapoints {
       ? serverDatapoints.diffForDatapoint({
           datapointId,
           value: datapoint.valueIfAny,
-          fromVersion: hasVersion
+          fromVersion: hasVersion,
         })
-      : "";
+      : '';
     if (diff === undefined) return;
 
     if (clientVersionInfo) clientVersionInfo.sentVersion = diff.toVersion;
     else
       clientDatapoints.clientDatapointVersions[proxyableDatapointId] = {
         hasVersion,
-        sentVersion: diff.toVersion
+        sentVersion: diff.toVersion,
       };
     clientDatapoints.diffByDatapointId[proxyableDatapointId] = diff;
     serverDatapoints.clientsWithPayloads[clientDatapoints.index] = clientDatapoints;
@@ -147,17 +147,17 @@ class WSClientDatapoints {
     if (!ConvertIds.proxyDatapointRegex.test(proxyableDatapointId)) return proxyableDatapointId;
     const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId });
     switch (datapointInfo.typeName) {
-      case "User":
+      case 'User':
         switch (datapointInfo.proxyKey) {
-          case "":
-          case "me":
-          case "default":
+          case '':
+          case 'me':
+          case 'default':
             if (user) return ConvertIds.recomposeId(datapointInfo, { dbRowId: user.id }).datapointId;
             break;
         }
-      case "App":
+      case 'App':
         switch (datapointInfo.proxyKey) {
-          case "default":
+          case 'default':
             return ConvertIds.recomposeId(datapointInfo, { dbRowId: 1 }).datapointId;
         }
     }
@@ -171,11 +171,11 @@ class WSClientDatapoints {
     for (let [proxyableDatapointId, datapointFromClient] of Object.entries(datapointsFromClient)) {
       if (datapointFromClient === 0)
         datapointFromClient = {
-          unsubscribe: true
+          unsubscribe: true,
         };
       else if (datapointFromClient === 1)
         datapointFromClient = {
-          subscribe: true
+          subscribe: true,
         };
 
       const isSubscribed = clientDatapoints.subscribedDatapoints.hasOwnProperty(proxyableDatapointId),
@@ -185,7 +185,7 @@ class WSClientDatapoints {
       if (isSubscribed) {
         if (unsubscribe) {
           clientDatapoints.unsubscribe({
-            proxyableDatapointId
+            proxyableDatapointId,
           });
           continue;
         }
@@ -197,7 +197,7 @@ class WSClientDatapoints {
             if (!clientVersionInfo)
               clientVersionInfo = clientDatapoints.clientDatapointVersions[proxyableDatapointId] = {
                 hasVersion: ackVersion,
-                sentVersion: ackVersion
+                sentVersion: ackVersion,
               };
             else clientVersionInfo.hasVersion = ackVersion;
 
@@ -210,7 +210,7 @@ class WSClientDatapoints {
       } else if (subscribe) {
         clientDatapoints.subscribe({
           proxyableDatapointId,
-          user
+          user,
         });
       }
     }
@@ -238,15 +238,15 @@ class WSServerDatapoints {
         (client.datapoints = new WSClientDatapoints({
           serverDatapoints,
           client,
-          index: serverDatapoints.nextClientIndex++
-        }))
+          index: serverDatapoints.nextClientIndex++,
+        })),
     });
 
     serverDatapoints.cache.watch({
       callbackKey,
       onvalid: () => {
         serverDatapoints.sendPayloadsToClients();
-      }
+      },
     });
   }
 
@@ -257,7 +257,7 @@ class WSServerDatapoints {
   addRefForDatapoint({ datapointId }) {
     const serverDatapoints = this,
       datapoint = serverDatapoints.cache.getOrCreateDatapoint({
-        datapointId
+        datapointId,
       });
 
     let datapointInfo = serverDatapoints.datapointInfos[datapointId];
@@ -267,14 +267,14 @@ class WSServerDatapoints {
       datapointInfo = serverDatapoints.datapointInfos[datapointId] = {
         datapoint,
         refCnt: 1,
-        currentVersion: datapoint.invalid ? 0 : 1
+        currentVersion: datapoint.invalid ? 0 : 1,
       };
 
       datapoint.watch({
         callbackKey,
         onvalid_prioritized: () => {
           datapointInfo.currentVersion++;
-        }
+        },
       });
 
       if (datapoint.invalid) serverDatapoints.cache.queueValidationJob();
@@ -288,7 +288,7 @@ class WSServerDatapoints {
     let datapointInfo = serverDatapoints.datapointInfos[datapointId];
     if (datapointInfo && !--datapointInfo.refCnt) {
       datapointInfo.datapoint.stopWatching({
-        callbackKey
+        callbackKey,
       });
       delete serverDatapoints.datapointInfos[datapointId];
       return;
@@ -352,10 +352,10 @@ class WSServerDatapoints {
 
       try {
         clientDatapoints.sendPayload({
-          messageType: "Models",
+          messageType: 'Models',
           payloadObject: {
-            diffs: diffByDatapointId
-          }
+            diffs: diffByDatapointId,
+          },
         });
       } catch (err) {
         console.log(err);
@@ -367,5 +367,5 @@ class WSServerDatapoints {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: WSServerDatapoints,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

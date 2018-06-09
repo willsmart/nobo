@@ -11,12 +11,12 @@
 module.exports = clone;
 Object.assign(clone, {
   shallowCopy,
-  shallowCopyObjectIfSame
-})
+  shallowCopyObjectIfSame,
+});
 
 function clone(val) {
   if (Array.isArray(val)) return cloneArray(val);
-  if (typeof val == "object") return cloneObject(val);
+  if (typeof val == 'object') return cloneObject(val);
   return val;
 }
 
@@ -24,7 +24,7 @@ function cloneArray(array) {
   const ret = [];
   for (let index = 0; index < array.length; index++) {
     const child = array[index];
-    ret.push(Array.isArray(child) ? cloneArray(child) : typeof child == "object" ? cloneObject(child) : child);
+    ret.push(Array.isArray(child) ? cloneArray(child) : typeof child == 'object' ? cloneObject(child) : child);
   }
   return ret;
 }
@@ -37,16 +37,15 @@ function cloneObject(obj) {
   for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
     const key = keys[keyIndex],
       value = obj[key];
-    ret[key] = Array.isArray(value) ? cloneArray(value) : typeof value == "object" ? cloneObject(value) : value;
+    ret[key] = Array.isArray(value) ? cloneArray(value) : typeof value == 'object' ? cloneObject(value) : value;
   }
   return ret;
 }
 
-
 // copy first layer of an array of object
 function shallowCopy(val) {
   if (Array.isArray(val)) return val.slice();
-  else if (typeof val == "object") {
+  else if (typeof val == 'object') {
     const copy = {};
     for (const key in val)
       if (val.hasOwnProperty(key)) {
@@ -60,9 +59,9 @@ function shallowCopy(val) {
 // Assumes that mutableParent[key] is already a copy of immutableChild if it exists.
 // This is used by the SharedState module
 function shallowCopyObjectIfSame(immutableChild, mutableParent, key) {
-  if (typeof immutableChild != "object") {
-    if (typeof mutableParent[key] != "object") mutableParent[key] = {};
-  } else if (typeof mutableParent[key] != "object" || mutableParent[key] === immutableChild) {
+  if (typeof immutableChild != 'object') {
+    if (typeof mutableParent[key] != 'object') mutableParent[key] = {};
+  } else if (typeof mutableParent[key] != 'object' || mutableParent[key] === immutableChild) {
     mutableParent[key] = shallowCopy(immutableChild);
   }
   return mutableParent[key];

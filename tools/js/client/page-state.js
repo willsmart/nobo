@@ -1,6 +1,6 @@
-const PublicApi = require("../general/public-api");
-const ConvertIds = require("../convert-ids");
-const SharedState = require("../general/shared-state");
+const PublicApi = require('../general/public-api');
+const ConvertIds = require('../convert-ids');
+const SharedState = require('../general/shared-state');
 
 let globalPageState;
 
@@ -9,7 +9,7 @@ let globalPageState;
 class PageState {
   // public methods
   static publicMethods() {
-    return ["visit", "global"];
+    return ['visit', 'global'];
   }
 
   constructor({ getDatapoint, defaultPageDatapointInfo } = {}) {
@@ -20,9 +20,9 @@ class PageState {
     pageState.defaultPageDatapointInfo =
       defaultPageDatapointInfo ||
       ConvertIds.recomposeId({
-        typeName: "app",
+        typeName: 'app',
         dbRowId: 1,
-        fieldName: ""
+        fieldName: '',
       });
 
     pageState.getDatapoint = getDatapoint;
@@ -40,11 +40,11 @@ class PageState {
             case 0:
               return true;
             case 1:
-              return keyPath[0] == "datapointsById";
+              return keyPath[0] == 'datapointsById';
             case 2:
-              if (keyPath[0] == "datapointsById") {
-                if (keyPath[1] == "page" && Array.isArray(change.is)) {
-                  pageState.visit(change.is.length && typeof change[0] == "string" ? change.is[0] : undefined);
+              if (keyPath[0] == 'datapointsById') {
+                if (keyPath[1] == 'page' && Array.isArray(change.is)) {
+                  pageState.visit(change.is.length && typeof change[0] == 'string' ? change.is[0] : undefined);
                 }
                 if (keyPath[1] == PageState.currentWindowState.titleDatapointId) {
                   pageState.updateState(PageState.currentWindowState.pageDatapointId);
@@ -54,7 +54,7 @@ class PageState {
               return false;
           }
         });
-      }
+      },
     });
   }
 
@@ -64,7 +64,7 @@ class PageState {
 
   static get currentWindowState() {
     const oldState = window.history.state;
-    return oldState && typeof oldState == "object" && oldState.nobo ? oldState : {};
+    return oldState && typeof oldState == 'object' && oldState.nobo ? oldState : {};
   }
 
   static get datapointInfoFromPath() {
@@ -74,8 +74,8 @@ class PageState {
     return ConvertIds.recomposeId({
       typeName: match[1],
       dbRowId: match[2] ? +match[2] : undefined,
-      proxyKey: match[2] || match[3] ? match[3] : "default",
-      fieldName: match[4] || ""
+      proxyKey: match[2] || match[3] ? match[3] : 'default',
+      fieldName: match[4] || '',
     });
   }
 
@@ -85,7 +85,7 @@ class PageState {
     const state = pageState.updateState(rowOrDatapointId);
 
     SharedState.global.withTemporaryState(
-      tempState => (tempState.atPath("datapointsById").page = [state.pageDatapointId])
+      tempState => (tempState.atPath('datapointsById').page = [state.pageDatapointId])
     );
   }
 
@@ -95,12 +95,12 @@ class PageState {
     let pageDatapointInfo = ConvertIds.proxyableDatapointRegex.test(rowOrDatapointId)
       ? ConvertIds.recomposeId({
           proxyableDatapointId: rowOrDatapointId,
-          permissive: true
+          permissive: true,
         })
       : ConvertIds.recomposeId({
           proxyableRowId: rowOrDatapointId,
-          fieldName: "",
-          permissive: true
+          fieldName: '',
+          permissive: true,
         });
     if (!pageDatapointInfo) {
       pageDatapointInfo = PageState.datapointInfoFromPath;
@@ -110,17 +110,17 @@ class PageState {
     }
     const pageDatapointId = pageDatapointInfo.proxyableDatapointId,
       titleDatapointId = ConvertIds.recomposeId(pageDatapointInfo, {
-        fieldName: "name"
+        fieldName: 'name',
       }).proxyableDatapointId;
 
-    const title = pageState.getDatapoint(titleDatapointId, "");
+    const title = pageState.getDatapoint(titleDatapointId, '');
 
     const oldState = PageState.currentWindowState,
       newState = {
         nobo: true,
         pageDatapointId,
         titleDatapointId,
-        title
+        title,
       };
 
     if (!oldState.nobo) {
@@ -141,15 +141,15 @@ class PageState {
       datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: state.pageDatapointId, permissive: true });
     if (!datapointInfo) return;
     const regex = /(?=((?:[\!\$&'\(\)\*\+,;=a-zA-Z0-9\-._~:@\/?]|%[0-9a-fA-F]{2})*))\1./g,
-      titleForFragment = !state.title ? undefined : state.title.substring(0, 100).replace(regex, "$1-");
+      titleForFragment = !state.title ? undefined : state.title.substring(0, 100).replace(regex, '$1-');
 
     const dbRowIdOrProxyKey =
-      datapointInfo.proxyKey == "default" ? "" : datapointInfo.dbRowId || datapointInfo.proxyKey;
+      datapointInfo.proxyKey == 'default' ? '' : datapointInfo.dbRowId || datapointInfo.proxyKey;
     let ret = `/${datapointInfo.typeName}`;
     if (dbRowIdOrProxyKey || datapointInfo.fieldName || titleForFragment) {
-      ret += `/${dbRowIdOrProxyKey || ""}`;
+      ret += `/${dbRowIdOrProxyKey || ''}`;
       if (datapointInfo.fieldName || titleForFragment) {
-        ret += `/${datapointInfo.fieldName || ""}`;
+        ret += `/${datapointInfo.fieldName || ''}`;
         if (titleForFragment) {
           ret += `/${titleForFragment}`;
         }
@@ -162,5 +162,5 @@ class PageState {
 // API is the public facing class
 module.exports = PublicApi({
   fromClass: PageState,
-  hasExposedBackDoor: true
+  hasExposedBackDoor: true,
 });

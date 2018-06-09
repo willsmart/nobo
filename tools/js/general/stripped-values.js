@@ -1,4 +1,4 @@
-const mapValues = require("../general/map-values");
+const mapValues = require('../general/map-values');
 
 // API
 module.exports = strippedValues;
@@ -6,6 +6,6 @@ module.exports = strippedValues;
 function strippedValues(object) {
   return mapValues(
     object,
-    val => (typeof val == "object" && typeof val.stripped == "function" ? val.stripped() : undefined)
+    val => (typeof val == 'object' && typeof val.stripped == 'function' ? val.stripped() : undefined)
   );
 }
