@@ -28,11 +28,11 @@ class DomUpdater {
     return ['datapointUpdated'];
   }
 
-  constructor({ domGenerator }) {
+  constructor({ domGenerator, cache }) {
     const domUpdater = this;
 
+    domUpdater.cache = cache
     domUpdater.domGenerator = domGenerator;
-    domUpdater.getDatapoint = domGenerator.getDatapoint;
 
     domUpdater.startWatch();
   }
@@ -40,35 +40,15 @@ class DomUpdater {
   startWatch() {
     const domUpdater = this;
 
-    SharedState.global.watch({
+    domUpdater.cache.watch({
       callbackKey: 'dom-updater',
-      onchangedstate: (diff, changes, forEachChangedKeyPath) => {
+      onvalid: datapoints => {
         const replacements = [];
 
-        forEachChangedKeyPath((keyPath, change) => {
-          if (!keyPath.length) return true;
+        for (const datapoint of datapoints) {
+          const proxyableDatapointId = datapoint.datapointId;
 
-          if (keyPath[0] == 'overriddenElementDatapoints') {
-            if (keyPath.length != 2) return true;
-            const path = keyPath[1],
-              element = elementForUniquePath(path);
-            if (!element) return;
-            const range = rangeForElement(element);
-            replacements.push({
-              replaceRange: range,
-              elements: domUpdater.recreateElements({ element }),
-            });
-            domUpdater.markRangeAsDead(range);
-          }
-          while (0);
-
-          if (!keyPath.length || keyPath[0] != 'datapointsById') return;
-          if (keyPath.length < 2) return true;
-
-          const proxyableDatapointId = keyPath[1];
-
-          if (keyPath.length == 2) {
-            replacements.push(...domUpdater.datapointUpdated({ proxyableDatapointId: keyPath[1], change }));
+          replacements.push(...domUpdater.datapointUpdated({ proxyableDatapointId: keyPath[1], change }));
             if (Array.isArray(change.is)) return true;
           } else if (keyPath.length == 3 && typeof keyPath[2] == 'number') {
             replacements.push(

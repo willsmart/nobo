@@ -30,28 +30,45 @@ const ConvertIds = require('./convert-ids');
 // API is auto-generated at the bottom from the public interface of this class
 class Datapoint {
   static publicMethods() {
-    return ['invalidate', 'updateValue', 'watch', 'stopWatching', 'value', 'valueIfAny', 'setVirtualField', 'invalid'];
+    return [
+      'invalidate',
+      'updateValue',
+      'commit',
+      'watch',
+      'stopWatching',
+      'value',
+      'valueIfAny',
+      'setVirtualField',
+      'invalid',
+      'fieldIfAny',
+      'datapointId',
+      'proxyableDatapointId',
+    ];
   }
 
-  constructor({ cache, schema, templates, datapointId }) {
+  constructor({ cache, schema, templates, datapointId, isClient }) {
     const datapoint = this;
 
     console.log(`creating datapoint ${datapointId}`);
 
-    Object.assign(
-      datapoint,
-      ConvertIds.decomposeId({
-        datapointId,
-      })
-    );
+    const datapointInfo = ConvertIds.decomposeId({
+      datapointId,
+    });
+    datapoint._datapointId = datapointInfo.datapointId;
+    datapoint._proxyableDatapointId = datapointInfo.proxyableDatapointId;
+    datapoint._typeName = datapointInfo.typeName;
+    datapoint._dbRowId = datapointInfo.dbRowId;
+    datapoint._fieldName = datapointInfo.fieldName;
+    datapoint.isClient = isClient;
 
     datapoint.cache = cache;
     datapoint.schema = schema;
     datapoint.templates = templates;
 
-    const field = datapoint.fieldIfAny;
-
-    if (field && field.get) {
+    if (datapoint._typeName && datapoint._fieldName && schema.allTypes[datapoint._typeName]) {
+      datapoint._fieldIfAny = schema.allTypes[datapoint._typeName].fields[datapoint._fieldName];
+    }
+    if (datapoint.getterIfAny) {
       datapoint.setupDependencyFields();
     }
     datapoint.invalidate();
@@ -63,6 +80,35 @@ class Datapoint {
 
   get invalid() {
     return this._invalid || false;
+  }
+
+  get fieldIfAny() {
+    return this._fieldIfAny;
+  }
+
+  get getterIfAny() {
+    const field = this._fieldIfAny;
+    return field && (!this.isClient || field.isClient) ? field.get : undefined;
+  }
+
+  get datapointId() {
+    return this._datapointId;
+  }
+
+  get proxyableDatapointId() {
+    return this._datapointId;
+  }
+
+  get typeName() {
+    return this._typeName;
+  }
+
+  get dbRowId() {
+    return this._dbRowId;
+  }
+
+  get fieldName() {
+    return this._fieldName;
   }
 
   get value() {
@@ -80,6 +126,15 @@ class Datapoint {
     datapoint.cache.queueValidationJob();
 
     return ret;
+  }
+
+  commit({ updateIndex }) {
+    const datapoint = this;
+
+    if (datapoint.updateIndex == updateIndex) {
+      delete datapoint.updated;
+      delete datapoint.newValue;
+    }
   }
 
   invalidate({ queueValidationJob = true } = {}) {
@@ -118,15 +173,17 @@ class Datapoint {
     const datapoint = this,
       { cache } = datapoint;
 
-    if (!datapoint._invalid) return;
+    if (!datapoint._invalid || datapoint.invalidDependencyDatapointCount) return;
 
-    const field = datapoint.fieldIfAny;
-    if (field && field.get) {
+    const getter = datapoint.getterIfAny;
+    if (getter) {
       value = Datapoint.valueFromGetter({
-        getter: field.get,
+        getter,
         dependencies: datapoint.dependencies,
       });
     }
+
+    console.log(`Datapoint ${datapoint.datapointId} -> ${value}`);
 
     datapoint._value = clone(value);
 
@@ -169,6 +226,7 @@ class Datapoint {
 
     datapoint.newValue = clone(newValue);
     datapoint.updated = true;
+    datapoint.updateIndex = (datapoint.updateIndex || 0) + 1;
 
     cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
 

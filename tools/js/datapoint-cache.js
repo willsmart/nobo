@@ -17,8 +17,8 @@ const Templates = require('./templates');
 //const Schema = require('./schema'); // via constructor arg: schema
 //   uses allTypes and fieldForDatapoint
 
-//const Connection = require('./db/postgresql-connection'); // via constructor arg: connection
-//   uses getRowFields and updateRowFields
+//const DbDatapointConnection = require('./db/db-datapoint-connection'); // via constructor arg: datapointConnection
+//   uses validateDatapoionts and commitDatapoints
 
 // API is auto-generated at the bottom from the public interface of this class
 class DatapointCache {
@@ -38,16 +38,18 @@ class DatapointCache {
     ];
   }
 
-  constructor({ schema, connection, appDbRowId = 1 }) {
+  constructor({ schema, datapointConnection, appDbRowId = 1, isClient = false }) {
     const cache = this;
 
+    cache.isClient = isClient;
     cache.schema = schema;
-    cache.connection = connection;
-    cache._templates = new Templates({ cache, appDbRowId });
+    cache.datapointConnection = datapointConnection;
     cache.datapointsById = {};
     cache.newlyInvalidDatapointIds = [];
     cache.newlyUpdatedDatapointIds = [];
     cache.newlyValidDatapoints = [];
+
+    cache._templates = new Templates({ cache, appDbRowId });
   }
 
   get templates() {
@@ -104,10 +106,34 @@ class DatapointCache {
 
     cache.newlyInvalidDatapointIds = [];
 
-    return cache.validateDatapoints(datapoints);
+    let promise =
+      cache.datapointConnection.validateDatapoints({ datapoints }) ||
+      Promise.all(
+        datapoints
+          .map(datapoint => {
+            datapoint = datapoint.__private;
+            if (datapoint.invalid)
+              return new Promise(resolve => {
+                if (!datapoint.invalid) resolve();
+                else {
+                  datapoint.watchingOneShotResolvers = datapoint.watchingOneShotResolvers || [];
+                  datapoint.watchingOneShotResolvers.push(resolve);
+                }
+              });
+          })
+          .filter(promise => promise)
+      );
+
+    return promise.then(() => {
+      const newlyValidDatapoints = cache.newlyValidDatapoints;
+      cache.newlyValidDatapoints = [];
+      cache.notifyListeners('onvalid', {
+        newlyValidDatapoints,
+      });
+    });
   }
 
-  commitNewlyUpdatedDatapoints() {
+  commitNewlyUpdatedDatapoints({ returnWait = true } = {}) {
     const cache = this;
 
     const datapoints = cache.newlyUpdatedDatapointIds
@@ -116,7 +142,26 @@ class DatapointCache {
 
     cache.newlyUpdatedDatapointIds = [];
 
-    return cache.commitDatapoints(datapoints);
+    let promise = cache.datapointConnection.commitDatapoints({ datapoints });
+
+    if (returnWait && !promise) {
+      promise = Promise.all(
+        datapoints
+          .map(datapoint => {
+            datapoint = datapoint.__private;
+            if (datapoint.updated)
+              return new Promise(resolve => {
+                if (!datapoint.updated) resolve();
+                else {
+                  datapoint.watchingCommitOneShotResolvers = datapoint.watchingCommitOneShotResolvers || [];
+                  datapoint.watchingCommitOneShotResolvers.push(resolve);
+                }
+              });
+          })
+          .filter(promise => promise)
+      );
+    }
+    return promise;
   }
 
   getExistingDatapoint({ datapointId }) {
@@ -131,135 +176,11 @@ class DatapointCache {
 
     return (cache.datapointsById[datapointId] = new Datapoint({
       cache,
+      isClient: cache.isClient,
       schema: cache.schema,
       templates: cache.templates,
       datapointId,
     }));
-  }
-
-  validateDatapoints(datapoints) {
-    const cache = this;
-
-    if (!datapoints.length) return;
-
-    const schema = cache.schema;
-    const connection = cache.connection;
-
-    const fieldsByRowByType = {};
-    datapoints.forEach(datapoint => {
-      if (!datapoint.invalid) return;
-      const field = datapoint.fieldIfAny;
-      if (!field || field.get) {
-        if (!datapoint.invalidDependencyDatapointCount) {
-          datapoint.validate();
-        }
-        return;
-      }
-
-      const fieldsByRow = fieldsByRowByType[datapoint.typeName] || (fieldsByRowByType[datapoint.typeName] = {});
-      const fields = fieldsByRow[datapoint.dbRowId] || (fieldsByRow[datapoint.dbRowId] = []);
-      fields.push(field);
-    });
-
-    const promises = [];
-    Object.keys(fieldsByRowByType).forEach(typeName => {
-      const type = schema.allTypes[typeName];
-      const fieldsByRow = fieldsByRowByType[typeName];
-
-      Object.keys(fieldsByRow).forEach(dbRowId => {
-        const fields = fieldsByRow[dbRowId];
-
-        promises.push(
-          connection
-            .getRowFields({
-              type,
-              dbRowId,
-              fields,
-            })
-            .then(row => {
-              fields.forEach(field => {
-                const datapoint = cache.getExistingDatapoint({
-                  datapointId: field.getDatapointId({
-                    dbRowId,
-                  }),
-                });
-                if (datapoint)
-                  datapoint.validate({
-                    value: row[field.name],
-                  });
-              });
-            })
-        );
-      });
-    });
-
-    return Promise.all(promises).then(() => {
-      const newlyValidDatapoints = cache.newlyValidDatapoints;
-      cache.newlyValidDatapoints = [];
-      cache.notifyListeners('onvalid', {
-        newlyValidDatapoints,
-      });
-    });
-  }
-
-  commitDatapoints(datapoints) {
-    if (!datapoints.length) return;
-
-    const cache = this;
-    const schema = cache.schema;
-    const connection = cache.connection;
-
-    const fieldsByRowByType = {};
-    datapoints.forEach(datapoint => {
-      if (!datapoint.updated) return;
-
-      let field;
-      try {
-        field = schema.fieldForDatapoint(datapoint);
-      } catch (err) {
-        console.log(err);
-
-        delete datapoint.updated;
-        delete datapoint.newValue;
-        return;
-      }
-
-      const fieldsByRow = fieldsByRowByType[datapoint.typeName] || (fieldsByRowByType[datapoint.typeName] = {});
-      const fields = fieldsByRow[datapoint.dbRowId] || (fieldsByRow[datapoint.dbRowId] = []);
-      fields.push({
-        name: field.name,
-        value: datapoint.newValue,
-        field: field,
-        datapointId: datapoint.datapointId,
-      });
-    });
-
-    const promises = [];
-    Object.keys(fieldsByRowByType).forEach(typeName => {
-      const type = schema.allTypes[typeName];
-      const fieldsByRow = fieldsByRowByType[typeName];
-      Object.keys(fieldsByRow).forEach(dbRowId => {
-        const fieldInfos = fieldsByRow[dbRowId];
-
-        promises.push(
-          connection
-            .updateRowFields({
-              type: type,
-              dbRowId,
-              fields: fieldInfos,
-            })
-            .then(() => {
-              fieldInfos.forEach(fieldInfo => {
-                const datapoint = cache.datapointsById[fieldInfo.datapointId];
-                delete datapoint.updated;
-                delete datapoint.newValue;
-              });
-            })
-        );
-      });
-    });
-
-    return Promise.all(promises);
   }
 }
 

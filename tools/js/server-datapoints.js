@@ -18,7 +18,6 @@ class WSClientDatapoints {
     clientDatapoints.index = index;
     clientDatapoints.subscribedDatapoints = {};
     clientDatapoints.diffByDatapointId = {};
-    clientDatapoints.newlyValidDatapoints = {};
     clientDatapoints.clientDatapointVersions = {};
 
     clientDatapoints.sendMessage = string => client.sendMessage(string);
@@ -54,7 +53,6 @@ class WSClientDatapoints {
     }
     clientDatapoints.subscribedDatapoints = {};
     clientDatapoints.diffByDatapointId = {};
-    clientDatapoints.newlyValidDatapoints = {};
     clientDatapoints.clientDatapointVersions = {};
     delete serverDatapoints.clientsWithPayloads[clientDatapoints.index];
   }
@@ -344,9 +342,6 @@ class WSServerDatapoints {
     serverDatapoints.payloadByFromVersionByDatapointId = {};
 
     for (const clientDatapoints of Object.values(clientsWithPayloads)) {
-      const newlyValidDatapoints = clientDatapoints.newlyValidDatapoints;
-      clientDatapoints.newlyValidDatapoints = {};
-
       const diffByDatapointId = clientDatapoints.diffByDatapointId;
       clientDatapoints.diffByDatapointId = {};
 

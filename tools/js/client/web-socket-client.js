@@ -58,6 +58,8 @@ class WebSocketClient {
           return;
         }
 
+        console.log('Got message from server:   ' + message.data);
+
         client.notifyListeners(
           'onpayload',
           WebSocketClient.decodeMessage({

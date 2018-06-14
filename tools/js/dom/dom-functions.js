@@ -106,7 +106,7 @@ function _nextChild(placeholderUid, currentChildElementArray) {
   let element = previousChildElement.nextElementSibling;
   currentChildElementArray[1] = previousChildElement;
   currentChildElementArray[0] = element;
-  if (element && element.getAttribute('nobo-placeholder-uid') == placeholderUid) return element;
+  if (!element || element.getAttribute('nobo-placeholder-uid') == placeholderUid) return element;
 
   if (!previousChildUid || element.getAttribute('nobo-placeholder-uid') != previousChildUid) return;
   element = _skipAllChildren(previousChildUid, currentChildElementArray);

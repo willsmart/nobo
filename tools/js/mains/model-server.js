@@ -6,7 +6,8 @@ const processArgs = require('../general/process-args');
 
 const WebSocketServer = require('../web-socket-server');
 const Connection = require('../db/postgresql-connection');
-const { makeCache } = require('../datapoint-cache-module');
+const DbDatapointConnection = require('../db/db-datapoint-connection');
+const DatapointCache = require('../datapoint-cache');
 
 (async function() {
   var args = processArgs();
@@ -29,10 +30,9 @@ const { makeCache } = require('../datapoint-cache-module');
     return;
   }
 
-  const { cache } = makeCache({
-    schema: await connection.schemaLayoutConnection.currentSchema,
-    connection,
-  });
+  const schema = await connection.schemaLayoutConnection.currentSchema,
+    datapointConnection = new DbDatapointConnection({ schema, connection }),
+    cache = new DatapointCache({ schema, datapointConnection });
 
   await connection.dbListener.listenForDatapointChanges({
     cache,

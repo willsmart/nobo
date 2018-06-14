@@ -3,8 +3,8 @@
 
 // implied dependencies
 
-//const Connection = require('./db/postgresql-connection'); // via make arg: connection
-//   uses getRowFields and updateRowFields
+//const DbDatapointConnection = require('./db/db-datapoint-connection'); // via make arg: datapointConnection
+//   uses validateDatapoionts and commitDatapoints
 
 module.exports = {
   ChangeCase: require('change-case'),
@@ -24,10 +24,10 @@ module.exports = {
   Templates: require('./templates'),
   Schema: require('./schema'),
 
-  makeCache: ({ connection, schema = undefined, appDbRowId = 1 }) => {
+  makeCache: ({ datapointConnection, schema = undefined, appDbRowId = 1 }) => {
     schema = schema || new this.Schema();
-    const cache = new this.DatapointCache({ schema, connection, appDbRowId });
+    const cache = new this.DatapointCache({ schema, datapointConnection, appDbRowId });
     const templates = cache.templates;
-    return { schema, connection, templates, cache };
+    return { schema, datapointConnection, templates, cache };
   },
 };
