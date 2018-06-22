@@ -1,32 +1,28 @@
+// state-ws-connection
+// © Will Smart 2018. Licence: MIT
+
+// This is an intermediary between the web-socket-client and the shared-state
+
 const PublicApi = require('../general/public-api');
-
-// API is auto-generated at the bottom from the public interface of the WSClientDatapoints class
-
 const ConvertIds = require('../convert-ids');
 const SharedState = require('../general/shared-state');
-const { TemporaryState } = SharedState;
 
-const callbackKey = 'ClientDatapoints';
+const callbackKey = 'state-ws-connection';
 
-let globalClientDatapoints;
-
-class WSClientDatapoints {
+class StateWsConnection {
   // public methods
   static publicMethods() {
-    return ['subscribe', 'getDatapoint'];
+    return [];
   }
 
-  constructor({ wsclient }) {
+  constructor({ wsclient, sharedState = nil }) {
     const clientDatapoints = this;
+    sharedState = sharedState || SharedState.global;
 
-    clientDatapoints.wsclient = wsclient;
-
-    SharedState.global.watch({
-      callbackKey: 'manage-subscriptions',
+    sharedState.watch({
+      callbackKey,
       onchangedstate: (diff, changes, forEachChangedKeyPath) => {
         let payloadObject;
-
-        if (!clientDatapoints.wsclient) return;
 
         forEachChangedKeyPath((keyPath, change) => {
           if (keyPath.length == 1 && keyPath[0] == 'datapointsById') return true;
@@ -50,18 +46,18 @@ class WSClientDatapoints {
         });
 
         if (payloadObject) {
-          clientDatapoints.wsclient.sendPayload({
+          wsclient.sendPayload({
             payloadObject,
           });
         }
       },
     });
 
-    clientDatapoints.wsclient.watch({
+    wsclient.watch({
       callbackKey,
       onpayload: ({ messageIndex, messageType, payloadObject }) => {
         if (payloadObject.diffs) {
-          SharedState.requestCommit(state => {
+          sharedState.requestCommit(state => {
             for (const [proxyableDatapointId, diff] of Object.entries(payloadObject.diffs)) {
               state.atPath('datapointsById')[proxyableDatapointId] = diff;
               // TODO...
@@ -75,7 +71,7 @@ class WSClientDatapoints {
         }
       },
       onopen: () => {
-        const state = SharedState.state,
+        const state = sharedState.state,
           datapointsById = state.datapointsById;
         if (!datapointsById) return;
 
@@ -90,40 +86,17 @@ class WSClientDatapoints {
         }
 
         if (payloadObject) {
-          clientDatapoints.wsclient.sendPayload({
+          wsclient.sendPayload({
             payloadObject,
           });
         }
       },
     });
   }
-
-  getDatapoint(proxyableDatapointId, defaultValue) {
-    const clientDatapoints = this,
-      datapointsById = SharedState.global.state.datapointsById || {};
-    if (datapointsById[proxyableDatapointId]) return datapointsById[proxyableDatapointId];
-    SharedState.global.withTemporaryState(tempState => {
-      tempState.atPath('datapointsById')[proxyableDatapointId] = defaultValue;
-    });
-    return defaultValue;
-  }
-
-  subscribe(proxyableDatapointIds) {
-    const clientDatapoints = this;
-
-    if (typeof proxyableDatapointIds == 'string') proxyableDatapointIds = [proxyableDatapointIds];
-    if (!Array.isArray(proxyableDatapointIds)) proxyableDatapointIds = Object.keys(proxyableDatapointIds);
-    if (!proxyableDatapointIds.length) return;
-    const datapointsById = {};
-    for (const proxyableDatapointId of proxyableDatapointIds) datapointsById[proxyableDatapointId] = 1;
-    clientDatapoints.wsclient.sendPayload({
-      payloadObject: { datapoints: datapointsById },
-    });
-  }
 }
 
 // API is the public facing class
 module.exports = PublicApi({
-  fromClass: WSClientDatapoints,
+  fromClass: StateWsConnection,
   hasExposedBackDoor: true,
 });

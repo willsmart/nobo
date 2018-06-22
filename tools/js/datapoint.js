@@ -30,7 +30,20 @@ const ConvertIds = require('./convert-ids');
 // API is auto-generated at the bottom from the public interface of this class
 class Datapoint {
   static publicMethods() {
-    return ['invalidate', 'updateValue', 'watch', 'stopWatching', 'value', 'valueIfAny', 'setVirtualField', 'invalid'];
+    return [
+      'invalidate',
+      'updateValue',
+      'commit',
+      'watch',
+      'stopWatching',
+      'value',
+      'valueIfAny',
+      'setVirtualField',
+      'invalid',
+      'fieldIfAny',
+      'datapointId',
+      'proxyableDatapointId',
+    ];
   }
 
   constructor({ cache, schema, templates, datapointId }) {
@@ -38,12 +51,14 @@ class Datapoint {
 
     console.log(`creating datapoint ${datapointId}`);
 
-    Object.assign(
-      datapoint,
-      ConvertIds.decomposeId({
-        datapointId,
-      })
-    );
+    const datapointInfo = ConvertIds.decomposeId({
+      datapointId,
+    });
+    datapoint._datapointId = datapointInfo.datapointId;
+    datapoint._proxyableDatapointId = datapointInfo.proxyableDatapointId;
+    datapoint._typeName = datapointInfo.typeName;
+    datapoint._dbRowId = datapointInfo.dbRowId;
+    datapoint._fieldName = datapointInfo.fieldName;
 
     datapoint.cache = cache;
     datapoint.schema = schema;
@@ -65,6 +80,30 @@ class Datapoint {
     return this._invalid || false;
   }
 
+  get fieldIfAny() {
+    return this._fieldIfAny;
+  }
+
+  get datapointId() {
+    return this._datapointId;
+  }
+
+  get proxyableDatapointId() {
+    return this._datapointId;
+  }
+
+  get typeName() {
+    return this._typeName;
+  }
+
+  get dbRowId() {
+    return this._dbRowId;
+  }
+
+  get fieldName() {
+    return this._fieldName;
+  }
+
   get value() {
     const datapoint = this;
 
@@ -80,6 +119,15 @@ class Datapoint {
     datapoint.cache.queueValidationJob();
 
     return ret;
+  }
+
+  commit({ updateIndex }) {
+    const datapoint = this;
+
+    if (datapoint.updateIndex == updateIndex) {
+      delete datapoint.updated;
+      delete datapoint.newValue;
+    }
   }
 
   invalidate({ queueValidationJob = true } = {}) {
@@ -118,7 +166,7 @@ class Datapoint {
     const datapoint = this,
       { cache } = datapoint;
 
-    if (!datapoint._invalid) return;
+    if (!datapoint._invalid || datapoint.invalidDependencyDatapointCount) return;
 
     const field = datapoint.fieldIfAny;
     if (field && field.get) {
@@ -169,6 +217,7 @@ class Datapoint {
 
     datapoint.newValue = clone(newValue);
     datapoint.updated = true;
+    datapoint.updateIndex = (datapoint.updateIndex || 0) + 1;
 
     cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
 
