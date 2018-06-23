@@ -109,7 +109,7 @@ function diffArray(was, is) {
         diff = {
           arrayDiff: [],
         };
-      diff.arrayDiff.push({
+      diff.arrayDiff.unshift({
         deleteAt: index,
       });
     }
@@ -121,7 +121,7 @@ function diffArray(was, is) {
       diff = {
         arrayDiff: [],
       };
-    diff.arrayDiff.push(
+    diff.arrayDiff.unshift(
       Object.assign({
         insertAt: was.length,
         value: isChild,

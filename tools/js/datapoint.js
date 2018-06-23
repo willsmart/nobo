@@ -46,7 +46,7 @@ class Datapoint {
     ];
   }
 
-  constructor({ cache, schema, templates, datapointId }) {
+  constructor({ cache, schema, templates, datapointId, isClient }) {
     const datapoint = this;
 
     console.log(`creating datapoint ${datapointId}`);
@@ -59,14 +59,16 @@ class Datapoint {
     datapoint._typeName = datapointInfo.typeName;
     datapoint._dbRowId = datapointInfo.dbRowId;
     datapoint._fieldName = datapointInfo.fieldName;
+    datapoint.isClient = isClient;
 
     datapoint.cache = cache;
     datapoint.schema = schema;
     datapoint.templates = templates;
 
-    const field = datapoint.fieldIfAny;
-
-    if (field && field.get) {
+    if (datapoint._typeName && datapoint._fieldName && schema.allTypes[datapoint._typeName]) {
+      datapoint._fieldIfAny = schema.allTypes[datapoint._typeName].fields[datapoint._fieldName];
+    }
+    if (datapoint.getterIfAny) {
       datapoint.setupDependencyFields();
     }
     datapoint.invalidate();
@@ -82,6 +84,11 @@ class Datapoint {
 
   get fieldIfAny() {
     return this._fieldIfAny;
+  }
+
+  get getterIfAny() {
+    const field = this._fieldIfAny;
+    return field && (!this.isClient || field.isClient) ? field.get : undefined;
   }
 
   get datapointId() {
@@ -168,13 +175,15 @@ class Datapoint {
 
     if (!datapoint._invalid || datapoint.invalidDependencyDatapointCount) return;
 
-    const field = datapoint.fieldIfAny;
-    if (field && field.get) {
+    const getter = datapoint.getterIfAny;
+    if (getter) {
       value = Datapoint.valueFromGetter({
-        getter: field.get,
+        getter,
         dependencies: datapoint.dependencies,
       });
     }
+
+    console.log(`Datapoint ${datapoint.datapointId} -> ${value}`);
 
     datapoint._value = clone(value);
 

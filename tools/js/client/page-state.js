@@ -43,7 +43,7 @@ class PageState {
               return keyPath[0] == 'datapointsById';
             case 2:
               if (keyPath[0] == 'datapointsById') {
-                if (keyPath[1] == 'page' && Array.isArray(change.is)) {
+                if (keyPath[1] == 'page__1__items' && Array.isArray(change.is)) {
                   pageState.visit(change.is.length && typeof change[0] == 'string' ? change.is[0] : undefined);
                 }
                 if (keyPath[1] == PageState.currentWindowState.titleDatapointId) {
@@ -85,7 +85,7 @@ class PageState {
     const state = pageState.updateState(rowOrDatapointId);
 
     SharedState.global.withTemporaryState(
-      tempState => (tempState.atPath('datapointsById').page = [state.pageDatapointId])
+      tempState => (tempState.atPath('datapointsById').page__1__items = [state.pageDatapointId])
     );
   }
 

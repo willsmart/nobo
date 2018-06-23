@@ -38,9 +38,10 @@ class DatapointCache {
     ];
   }
 
-  constructor({ schema, datapointConnection, appDbRowId = 1 }) {
+  constructor({ schema, datapointConnection, appDbRowId = 1, isClient = false }) {
     const cache = this;
 
+    cache.isClient = isClient;
     cache.schema = schema;
     cache.datapointConnection = datapointConnection;
     cache.datapointsById = {};
@@ -175,6 +176,7 @@ class DatapointCache {
 
     return (cache.datapointsById[datapointId] = new Datapoint({
       cache,
+      isClient: cache.isClient,
       schema: cache.schema,
       templates: cache.templates,
       datapointId,

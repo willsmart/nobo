@@ -1,30 +1,17 @@
-const ClientDatapoints = require('./client-datapoints'),
-  PageState = require('./page-state'),
+const PageState = require('./page-state'),
   WebSocketClient = require('./web-socket-client'),
   SharedState = require('../general/shared-state'),
   DomGenerator = require('../dom/dom-generator'),
-  DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
   ConvertIds = require('../convert-ids'),
   { htmlToElement } = require('../dom/dom-functions'),
   ClientActions = require('./client-actions'),
-  DatapointConnection = require('./client-datapoint-connection'),
+  StateToCacheConnection = require('./state-to-cache-connection'),
+  CacheToStateConnection = require('./cache-to-state-connection'),
+  StateWsConnection = require('./state-ws-connection'),
   { DatapointCache, Schema } = require('../datapoint-cache-module');
 
-document.nobo = {
-  ClientDatapoints,
-  PageState,
-  WebSocketClient,
-  SharedState,
-  DomGenerator,
-  DomFunctions,
-  DomUpdater,
-  DatapointConnection,
-  DatapointCache,
-  Schema,
-};
-
-const schema = (document.nobo.schema = new Schema());
+const schema = new Schema();
 schema.loadSource([
   {
     'modelChange(ModelChangeLog)': {
@@ -113,29 +100,33 @@ schema.loadSource([
   },
 ]);
 
-document.nobo.wsclient = new WebSocketClient();
-document.nobo.datapoints = new document.nobo.ClientDatapoints({ wsclient: document.nobo.wsclient });
-document.nobo.datapointConnection = new DatapointConnection({ clientDatapoints: document.nobo.datapoints });
-document.nobo.cache = new DatapointCache({
-  schema: document.nobo.schema,
-  datapointConnection: document.nobo.datapointConnection,
-});
-
-const getDatapoint = (proxyableDatapointId, defaultValue) =>
-  document.nobo.datapoints.getDatapoint(proxyableDatapointId, defaultValue);
-
-document.nobo.domGenerator = new document.nobo.DomGenerator({
-  htmlToElement,
-  getDatapoint,
-});
-document.nobo.domUpdater = new document.nobo.DomUpdater({
-  domGenerator: document.nobo.domGenerator,
-});
-document.nobo.pageState = new document.nobo.PageState({
-  getDatapoint,
-});
-
-document.nobo.clientActions = new ClientActions({ domGenerator: document.nobo.domGenerator });
+const appDbRowId = 1,
+  wsclient = new WebSocketClient(),
+  sharedState = SharedState.global,
+  stateWsConnection = new StateWsConnection({ wsclient, schema, sharedState }),
+  cacheToStateConnection = new CacheToStateConnection({ sharedState }),
+  cache = new DatapointCache({
+    schema,
+    datapointConnection: cacheToStateConnection,
+    appDbRowId,
+  }),
+  stateToCacheConnection = new StateToCacheConnection({ cache, sharedState }),
+  getDatapoint = (proxyableDatapointId, defaultValue) => {
+    let datapoint = cache.getExistingDatapoint({ datapointId: proxyableDatapointId });
+    if (!datapoint) {
+      datapoint = cache.getOrCreateDatapoint({ datapointId: proxyableDatapointId });
+      datapoint.watch({});
+    }
+    return datapoint.valueIfAny || defaultValue;
+  },
+  domGenerator = new DomGenerator({
+    htmlToElement,
+    cache,
+  }),
+  pageState = new PageState({
+    getDatapoint,
+  }),
+  clientActions = new ClientActions({ domGenerator: domGenerator });
 
 SharedState.global.watch({
   onchangedstate: function(diff, changes) {
@@ -143,4 +134,31 @@ SharedState.global.watch({
   },
 });
 
-document.nobo.pageState.visit();
+domGenerator.prepPage();
+
+pageState.visit();
+
+document.nobo = {
+  PageState,
+  WebSocketClient,
+  SharedState,
+  DomGenerator,
+  DomFunctions,
+  StateWsConnection,
+  StateToCacheConnection,
+  CacheToStateConnection,
+  DatapointCache,
+  Schema,
+  appDbRowId,
+  schema,
+  wsclient,
+  sharedState,
+  stateWsConnection,
+  cacheToStateConnection,
+  cache,
+  stateToCacheConnection,
+  getDatapoint,
+  domGenerator,
+  pageState,
+  clientActions,
+};

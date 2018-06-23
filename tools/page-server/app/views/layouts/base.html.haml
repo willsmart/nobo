@@ -30,6 +30,6 @@
   %body{class: @body_class}
     = yield(:sublayout_content)
 
-    .children--page{"nobo-uid"=>"page"}
+    #page
 
     = javascript_include_tag "application"

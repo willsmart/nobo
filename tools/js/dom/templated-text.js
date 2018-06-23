@@ -14,10 +14,10 @@ class TemplatedText {
     return ['evaluate', 'dependencyTree', 'nodesByDatapointId'];
   }
 
-  constructor({ text, proxyableRowId, getDatapoint }) {
+  constructor({ text, proxyableRowId, cache }) {
     this.templateString = text;
     this.proxyableRowId = proxyableRowId;
-    this.getDatapoint = getDatapoint;
+    this.cache = cache;
   }
 
   get nodesByDatapointId() {
@@ -28,7 +28,7 @@ class TemplatedText {
   get dependencyTree() {
     const templatedText = this,
       templateString = templatedText.templateString,
-      getDatapoint = templatedText.getDatapoint,
+      cache = templatedText.cache,
       proxyableRowId = templatedText.proxyableRowId;
     if (templatedText._dependencyTree) return templatedText._dependencyTree;
     templatedText._nodesByDatapointId = {};
@@ -106,7 +106,8 @@ class TemplatedText {
             if (names.length > 1) return '...';
             const proxyableDatapointId = node.datapointIdsByName[names[0]];
             if (!proxyableDatapointId) return '...';
-            const ret = this.getDatapoint(proxyableDatapointId, '...');
+            const datapoint = this.cache.getOrCreateDatapoint({ datapointId: proxyableDatapointId });
+            const ret = (datapoint ? datapoint.valueIfAny : undefined) || '...';
             return Array.isArray(ret) && !ret.length ? undefined : ret;
           });
       }
