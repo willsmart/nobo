@@ -25,6 +25,7 @@ module.exports = {
   childRangeAtIndex,
   elementForUniquePath,
   uniquePathForElement,
+  templateDatapointIdforVariantOfRow,
 };
 
 function datapointChildrenClass(proxyableDatapointId) {
@@ -225,4 +226,22 @@ function uniquePathForElement(element) {
     }
   }
   return;
+}
+
+function templateDatapointIdforVariantOfRow({ variant = undefined, proxyableRowOrDatapointId }) {
+  variant = variant || '';
+  let templateDatapointId = proxyableRowOrDatapointId;
+
+  if (
+    typeof proxyableRowOrDatapointId == 'string' &&
+    ConvertIds.proxyableDatapointRegex.test(proxyableRowOrDatapointId)
+  ) {
+    ({ proxyableRowId, fieldName: variant } = ConvertIds.decomposeId({
+      proxyableDatapointId: proxyableRowOrDatapointId,
+    }));
+  }
+
+  return typeof proxyableRowId == 'string' && ConvertIds.proxyableRowRegex.test(proxyableRowId)
+    ? templateDatapointIdForRowAndVariant(proxyableRowId, variant)
+    : undefined;
 }
