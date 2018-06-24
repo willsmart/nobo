@@ -4,6 +4,7 @@
 const TestRig = require('../../general/test-rig');
 const processArgs = require('../../general/process-args');
 const DatapointCache = require('../../datapoint-cache');
+const DbDatapointConnection = require('../../db/db-datapoint-connection');
 
 (async function() {
   var args = processArgs();
@@ -88,20 +89,10 @@ const DatapointCache = require('../../datapoint-cache');
     },
     async function(rig) {
       rig.startTask('DatapointCache tests');
-      const datapointCache = new DatapointCache(rig);
-
-      //     "schema",
-      //         CE
-      rig.assert(`the cache schema is the one passed to it`, datapointCache.schema, {
-        essential: true,
-        sameObject: rig.schema,
-      });
-      //     "connection"
-      //         CF
-      rig.assert(`the cache connection is the one passed to it`, datapointCache.connection, {
-        essential: true,
-        sameObject: rig.connection,
-      });
+      const schema = rig.schema,
+        connection = rig.connection,
+        datapointConnection = new DbDatapointConnection({ schema, connection }),
+        datapointCache = new DatapointCache({ schema, datapointConnection });
 
       //     "getExistingDatapoint",
       //         CA2: datapoint didn't exist
@@ -168,7 +159,7 @@ const DatapointCache = require('../../datapoint-cache');
           user__1__bio: '1 user bio',
           user__1__uppercase_bio: '1 USER BIO',
 
-          user__1__type: '?',
+          user__1__type: '...',
           user__1__app_name: 'app is 1 app name',
         },
         baseCallbackKey = 'a',
@@ -428,7 +419,7 @@ const DatapointCache = require('../../datapoint-cache');
         datapoints[datapointId].invalidate({ queueValidationJob: false }),
         {
           includes: {
-            _value: false,
+            valueIfAny: false,
             invalid: true,
           },
         }
@@ -453,7 +444,7 @@ const DatapointCache = require('../../datapoint-cache');
           datapoints[datapointId].invalidate({ queueValidationJob: false }),
           {
             includes: {
-              _value: false,
+              valueIfAny: false,
               invalid: true,
             },
           }
@@ -473,7 +464,7 @@ const DatapointCache = require('../../datapoint-cache');
           datapoints[datapointId],
           {
             includes: {
-              _value: false,
+              valueIfAny: false,
               invalid: true,
             },
           }
@@ -486,7 +477,7 @@ const DatapointCache = require('../../datapoint-cache');
         datapoints[dpWithDependentWithDependentId].invalidate({ queueValidationJob: false }),
         {
           includes: {
-            _value: false,
+            valueIfAny: false,
             invalid: true,
           },
         }
@@ -497,7 +488,7 @@ const DatapointCache = require('../../datapoint-cache');
         datapoints[dpWithDependentId].invalidate({ queueValidationJob: false }),
         {
           includes: {
-            _value: false,
+            valueIfAny: false,
             invalid: true,
           },
         }
@@ -508,19 +499,9 @@ const DatapointCache = require('../../datapoint-cache');
         user__1__app_name: 'app is 1 app new name',
       };
 
-      //     "updateValue",
-      //         DG
-      await rig.assert(
-        `updating value of datapoint ${datapointId} set the new value correctly`,
-        datapoints[datapointId].updateValue({
-          newValue: newValues[datapointId],
-        }),
-        {
-          includes: {
-            newValue: newValues[datapointId],
-          },
-        }
-      );
+      datapoints[datapointId].updateValue({
+        newValue: newValues[datapointId],
+      });
 
       //     "commitNewlyUpdatedDatapoints",
       //         CD

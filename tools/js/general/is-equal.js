@@ -104,8 +104,8 @@ function arrayIsEqual(v1, v2, options) {
 function objectIsEqual(v1, v2, options) {
   const { verboseFail } = options;
 
-  const v1Keys = Object.keys(v1),
-    v2Keys = Object.keys(v2);
+  const v1Keys = keysIncludingFromPrototype(v1),
+    v2Keys = keysIncludingFromPrototype(v2);
   if (v1Keys.length != v2Keys.length) {
     return verboseFail ? `Object sizes differ: ${description(v1)} vs ${description(v2)}` : false;
   }
@@ -209,11 +209,36 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
   }
 }
 
+function keyObjectIncludingFromPrototype(object) {
+  const proto = Object.getPrototypeOf(object),
+    keys = Object.keys(object);
+  const keyo = {};
+  for (const key of keys) keyo[key] = true;
+
+  if (proto !== Object.prototype) {
+    Object.assign(keyo, keyObjectIncludingFromPrototype(proto));
+  }
+
+  return keyo;
+}
+
+function keysIncludingFromPrototype(object) {
+  const proto = Object.getPrototypeOf(object),
+    keys = Object.keys(object);
+  if (proto === Object.prototype) return keys;
+
+  const keyo = {};
+  for (const key of keys) keyo[key] = true;
+  Object.assign(keyo, keyObjectIncludingFromPrototype(proto));
+
+  return Object.keys(keyo);
+}
+
 function objectIsEqualOrSuperset(v1, v2, options) {
   const { verboseFail } = options;
 
-  const v1Keys = Object.keys(v1),
-    v2Keys = Object.keys(v2);
+  const v1Keys = keysIncludingFromPrototype(v1),
+    v2Keys = keysIncludingFromPrototype(v2);
   if (v1Keys.length < v2Keys.length)
     return verboseFail ? `First object has fewer keys than second: ${description(v1)} vs ${description(v2)}` : false;
   let supersetMatch = v1Keys.length > v2Keys.length;

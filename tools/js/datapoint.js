@@ -141,7 +141,7 @@ class Datapoint {
     const datapoint = this,
       { cache } = datapoint;
 
-    if (datapoint._invalid) return datapoint;
+    if (datapoint._invalid) return datapoint.publicApi;
 
     datapoint._invalid = true;
     delete datapoint._value;
@@ -166,7 +166,7 @@ class Datapoint {
     datapoint.notifyListeners('oninvalid', datapoint);
 
     if (queueValidationJob) cache.queueValidationJob();
-    return datapoint;
+    return datapoint.publicApi;
   }
 
   validate({ value } = {}) {
@@ -230,7 +230,7 @@ class Datapoint {
 
     cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
 
-    return datapoint;
+    return datapoint.publicApi;
   }
 
   get fieldIfAny() {

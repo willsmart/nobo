@@ -244,7 +244,7 @@ Done ${rig.taskName}
     });
 
     rig.schema = schema;
-    rig.connection = updater.connection;
+    rig.connection = await updater.connection();
   }
 
   async seedDb() {
