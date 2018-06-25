@@ -130,6 +130,7 @@ class DatapointCache {
       cache.notifyListeners('onvalid', {
         newlyValidDatapoints,
       });
+      return newlyValidDatapoints;
     });
   }
 

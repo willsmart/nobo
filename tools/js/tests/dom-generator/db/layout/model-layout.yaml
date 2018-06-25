@@ -1,0 +1,12 @@
+- app(App):
+    name(string): {default: "NoBo demo"}
+    
+    ~< users(User):
+        sort: "-a.name.localeCompare(b.name)"
+        name(string): null
+        bio(string): null
+        type(string):  {get: "a.hello()"}
+        appName(string):  {get: "'app is '+app.name"}
+        uppercaseName(string):  {get: "name.toUpperCase()"}
+        uppercaseBio(string):  {get: "bio.toUpperCase()"}
+        quotedUppercaseName(string):  {get: "'\"'+uppercaseName+'\"'"}

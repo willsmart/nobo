@@ -82,12 +82,8 @@ class Datapoint {
     return this._invalid || false;
   }
 
-  get fieldIfAny() {
-    return this._fieldIfAny;
-  }
-
   get getterIfAny() {
-    const field = this._fieldIfAny;
+    const field = this.fieldIfAny;
     return field && (!this.isClient || field.isClient) ? field.get : undefined;
   }
 
@@ -236,13 +232,13 @@ class Datapoint {
   get fieldIfAny() {
     const datapoint = this;
 
-    if (datapoint._field) return datapoint._field;
+    if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
     try {
-      datapoint._field = datapoint.schema.fieldForDatapoint(datapoint);
+      datapoint._fieldIfAny = datapoint.schema.fieldForDatapoint(datapoint);
     } catch (err) {}
-    if (datapoint._field) return datapoint._field;
+    if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
 
-    return (datapoint._field = datapoint.virtualFieldIfAny);
+    return (datapoint._fieldIfAny = datapoint.virtualFieldIfAny);
   }
 
   get virtualFieldIfAny() {
@@ -293,7 +289,7 @@ class Datapoint {
   }
 
   setVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
-    this._field = this.makeVirtualField(arguments[0]);
+    this._fieldIfAny = this.makeVirtualField(arguments[0]);
   }
 
   makeVirtualField({ getterFunction, names = {}, isId, isMultiple }) {

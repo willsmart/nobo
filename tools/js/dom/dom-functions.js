@@ -230,7 +230,7 @@ function uniquePathForElement(element) {
 
 function templateDatapointIdforVariantOfRow({ variant = undefined, proxyableRowOrDatapointId }) {
   variant = variant || '';
-  let templateDatapointId = proxyableRowOrDatapointId;
+  let proxyableRowId = proxyableRowOrDatapointId;
 
   if (
     typeof proxyableRowOrDatapointId == 'string' &&

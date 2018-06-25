@@ -33,13 +33,15 @@ class DomGenerator {
   constructor({ cache, htmlToElement }) {
     const domGenerator = this;
 
-    domGenerator._cache = cache;
+    domGenerator.cache = cache;
     domGenerator.nextUid = 1;
     domGenerator.htmlToElement = htmlToElement;
   }
 
   dereferenceDatapointAsDatapointId({ datapointId, fieldName = 'dom' }) {
-    if (!referenceDatapointId) return;
+    const domGenerator = this;
+
+    if (!datapointId) return;
 
     const datapoint = domGenerator.cache.getExistingDatapoint({ datapointId });
     if (!datapoint) return;

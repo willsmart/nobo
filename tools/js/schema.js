@@ -78,6 +78,7 @@ class SchemaDefn {
                 };
                 if (this.default !== undefined) ret.default = this.default;
                 if (this.get !== undefined) ret.get = this.get;
+                if (this.sort !== undefined) ret.sort = this.sort;
                 if (this.isVirtual) ret.isVirtual = true;
                 if (this.isMultiple) ret.isMultiple = true;
                 if (Object.keys(this.links).length) ret.links = strippedValues(this.links);
@@ -170,6 +171,10 @@ class SchemaDefn {
             if (!myField) break;
             myField.isVirtual = true;
             myField.get = new CodeSnippet({ code: val });
+            break;
+          case 'sort':
+            if (!myField) break;
+            myField.sort = new CodeSnippet({ code: val });
             break;
           case 'default':
           case 'unique':

@@ -277,16 +277,91 @@ class PostgresqlConnection {
       if (!field.isMultiple) {
         return fieldInfo;
       } else {
+        const fieldInfos = [fieldInfo];
+        let sorter;
+        if (field.sort) {
+          if (field.sort.names['a'] && field.sort.names['b']) {
+            const fieldsByName = {};
+            for (const argName of ['a', 'b']) {
+              const names = Object.keys(field.sort.names[argName]);
+              for (const sortFieldName of names) {
+                if (fieldsByName[sortFieldName]) continue;
+
+                const field = type.fields[sortFieldName];
+                if (!field || field.isId || field.isVirtual) continue;
+                const sqlField = SchemaToPostgresql.sqlFieldForField(field);
+
+                const fieldInfo = {
+                  sqlName: `"${sqlLinkedFieldAlias}"."${sqlField.sqlName}"`,
+                  outputKey: `__sort__${sortFieldName}`,
+                };
+
+                fieldsByName[sortFieldName] = fieldInfo;
+              }
+            }
+            fieldInfos.push(...Object.values(fieldsByName));
+
+            const valueGivenModels = (a, b) => {
+              return field.sort.evaluate({
+                valueForNameCallback: (...names) => {
+                  if (names.length != 2) return;
+                  if (names[0] == 'a') return a[`__sort__${names[1]}`];
+                  if (names[0] == 'b') return b[`__sort__${names[1]}`];
+                  return;
+                },
+              });
+            };
+
+            sorter = (a, b) => {
+              return valueGivenModels(a, b);
+            };
+          } else {
+            const names = Object.keys(field.sort.names);
+            for (const sortFieldName of names) {
+              const field = type.fields[sortFieldName];
+              if (!field || field.isId || field.isVirtual) continue;
+              const sqlField = SchemaToPostgresql.sqlFieldForField(field);
+
+              const fieldInfo = {
+                sqlName: `"${sqlLinkedFieldAlias}"."${sqlField.sqlName}"`,
+                outputKey: `__sort__${sortFieldName}`,
+              };
+
+              fieldInfos.push(fieldInfo);
+            }
+
+            const valueGivenModel = model => {
+              return field.sort.evaluate({
+                valueForNameCallback: (...names) => {
+                  if (names.length != 1) return;
+                  return model[`__sort__${names[0]}`];
+                },
+              });
+            };
+
+            sorter = (a, b) => {
+              const val_a = valueGivenModel(a),
+                val_b = valueGivenModel(b);
+              return val_a < val_b ? -1 : val_a > val_b ? 1 : 0;
+            };
+          }
+        } else {
+          sorter = (a, b) => {
+            return a[outputKey] - b[outputKey];
+          };
+        }
+
         return connection
           .getRowsFromDB({
             tableName: sqlTypeTable,
-            fields: [fieldInfo],
+            fields: fieldInfos,
             dbRowId,
           })
           .then(models => {
             if (!models) return;
 
             const values = models
+              .sort(sorter)
               .map(model => {
                 const value = model[outputKey];
                 if (value === undefined || value === null) return;
