@@ -243,10 +243,20 @@ class DomGenerator {
 
     if (Object.keys(usesByDatapointId).length) {
       element.setAttribute('nobo-row-id', proxyableRowId);
-      element.setAttribute('nobo-val-dpids', Object.keys(usesByDatapointId).join(' '));
+      element.setAttribute(
+        'nobo-val-dpids',
+        Object.keys(usesByDatapointId)
+          .sort()
+          .join(' ')
+      );
     }
     for (const [proxyableDatapointId, uses] of Object.entries(usesByDatapointId)) {
-      element.setAttribute(`nobo-use-${proxyableDatapointId}`, Object.keys(uses).join(' '));
+      element.setAttribute(
+        `nobo-use-${proxyableDatapointId}`,
+        Object.keys(uses)
+          .sort()
+          .join(' ')
+      );
     }
   }
 }

@@ -138,7 +138,7 @@ function domTree(element) {
       await validateAll();
 
       await rig.assert(
-        `that the dom datapoint id attribute is set correctly for nil variant loaded template`,
+        `that a more complicated dom tree is generated correctly`,
         domTree(domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'app__1' })),
         {
           equals: [
@@ -157,13 +157,15 @@ function domTree(element) {
               type: 'DIV',
               attributes: {
                 thedomtype: 'user',
+                name: '2 user name',
                 'nobo-depth': '2',
                 'nobo-template-dpid': 'user__2__template',
                 'nobo-dom-dpid': 'template__1__dom',
                 'nobo-backup-text-0': '${name}',
+                'nobo-backup--name': '${name}',
                 'nobo-row-id': 'user__2',
                 'nobo-val-dpids': 'user__2__name',
-                'nobo-use-user__2__name': '=0',
+                'nobo-use-user__2__name': '=0 name',
               },
               textNodes: ['2 user name'],
             },
@@ -171,13 +173,15 @@ function domTree(element) {
               type: 'DIV',
               attributes: {
                 thedomtype: 'user',
+                name: '1 user name',
                 'nobo-depth': '2',
                 'nobo-template-dpid': 'user__1__template',
                 'nobo-dom-dpid': 'template__1__dom',
                 'nobo-backup-text-0': '${name}',
+                'nobo-backup--name': '${name}',
                 'nobo-row-id': 'user__1',
                 'nobo-val-dpids': 'user__1__name',
-                'nobo-use-user__1__name': '=0',
+                'nobo-use-user__1__name': '=0 name',
               },
               textNodes: ['1 user name'],
             },

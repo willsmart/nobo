@@ -14,7 +14,7 @@
             filename: User
             classFilter: User
             ownerOnly: false
-            dom: "<div thedomtype=user>${name}</div>"
+            dom: "<div thedomtype=user name='${name}'>${name}</div>"
         -   id: 2
             filename: User[tablerow]
             classFilter: User
