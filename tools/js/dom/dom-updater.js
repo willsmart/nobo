@@ -34,20 +34,20 @@ class DomUpdater {
 
     domUpdater.nextUid = 1;
 
+    domUpdater.domChanges = [];
     domUpdater.cache = cache;
     domUpdater.domGenerator = domGenerator;
 
-    domUpdater.startWatch();
-
     domUpdater.dg_callbackKey = domGenerator.watch({
-      onprepelement: element => {
+      onprepelement: ({ element }) => {
         const templateDatapointId = element.getAttribute('nobo-template-dpid'),
-          domDatapointId = element.getAttribute('nobo-template-dpid'),
-          childrenDatapointId = element.getAttribute('nobo-template-dpid'),
-          valueDatapointIds = element.getAttribute('nobo-val-dpids').split(' '),
+          domDatapointId = element.getAttribute('nobo-dom-dpid'),
+          childrenDatapointId = element.getAttribute('nobo-children-dpid'),
+          valueDatapointIdsString = element.getAttribute('nobo-val-dpids'),
+          valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined,
           depth = element.getAttribute('nobo-depth');
 
-        if (!(templateDatapointId || domDatapointId || childrenDatapointId || valDatapointIds.length)) {
+        if (!(templateDatapointId || domDatapointId || childrenDatapointId || valueDatapointIds)) {
           return;
         }
 
@@ -57,7 +57,7 @@ class DomUpdater {
         if (templateDatapointId) {
           const datapoint = cache.getOrCreateDatapoint({ datapointId: templateDatapointId });
           datapoint.watch({
-            callbackKey: `updater-#{uid}-template`,
+            callbackKey: `updater-${uid}-template`,
             onvalid: () => {
               domUpdater.queueDomChange({
                 replace: element,
@@ -72,7 +72,7 @@ class DomUpdater {
         if (domDatapointId) {
           const datapoint = cache.getOrCreateDatapoint({ datapointId: domDatapointId });
           datapoint.watch({
-            callbackKey: `updater-#{uid}-dom`,
+            callbackKey: `updater-${uid}-dom`,
             onvalid: () => {
               domUpdater.queueDomChange({
                 replace: element,
@@ -91,7 +91,7 @@ class DomUpdater {
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
           datapoint.watch({
-            callbackKey: `updater-#{uid}-children`,
+            callbackKey: `updater-${uid}-children`,
             onvalid: () => {
               const children = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [],
                 diff = diffAny(childrenWere, children),
@@ -111,7 +111,7 @@ class DomUpdater {
                   }),
                 });
               } else {
-                for (const diffPart of diff) {
+                for (const diffPart of diff.arrayDiff) {
                   if (diffPart.insertAt !== undefined) {
                     domUpdater.queueDomChange({
                       insertAfter: childRangeAtIndex({ placeholderDiv: element, index: diffPart.insertAt - 1 })[1],
@@ -146,45 +146,50 @@ class DomUpdater {
             },
           });
         }
-        for (const datapointId of valueDatapointIds) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId });
-          datapoint.watch({
-            callbackKey: `updater-#{uid}-value`,
-            onvalid: () => {
-              const uses = element.getAttribute(`nobo-use-${datapointId}`).split(' '),
-                proxyableRowId = element.getAttribute('nobo-row-id');
+        if (valueDatapointIds) {
+          for (const datapointId of valueDatapointIds) {
+            const datapoint = cache.getOrCreateDatapoint({ datapointId });
+            datapoint.watch({
+              callbackKey: `updater-${uid}-value`,
+              onvalid: () => {
+                const usesString = element.getAttribute(`nobo-use-${datapointId}`),
+                  uses = usesString ? usesString.split(' ') : undefined,
+                  proxyableRowId = element.getAttribute('nobo-row-id');
 
-              for (const use of uses) {
-                const indexMatch = /^=(\d+)$/.exec(use);
-                if (indexMatch) {
-                  const index = indexMatch[1],
-                    templateText = element.getAttribute(`nobo-backup-text-${index}`);
-                  let upToIndex = 0;
-                  for (let childNode = element.firstChild; childNode; childNode = childNode.nextSibling) {
-                    if (childNode.nodeType == 3) {
-                      if (index < upToIndex++) continue;
+                if (uses) {
+                  for (const use of uses) {
+                    const indexMatch = /^=(\d+)$/.exec(use);
+                    if (indexMatch) {
+                      const index = indexMatch[1],
+                        templateText = element.getAttribute(`nobo-backup-text-${index}`);
+                      let upToIndex = 0;
+                      for (let childNode = element.firstChild; childNode; childNode = childNode.nextSibling) {
+                        if (childNode.nodeType == 3) {
+                          if (index < upToIndex++) continue;
 
-                      const templatedText = new TemplatedText({
-                        cache,
-                        proxyableRowId,
-                        text: templateText,
-                      });
-                      childNode.textContent = templatedText.evaluate.string;
+                          const templatedText = new TemplatedText({
+                            cache,
+                            proxyableRowId,
+                            text: templateText,
+                          });
+                          childNode.textContent = templatedText.evaluate.string;
+                        }
+                      }
+                      continue;
                     }
+                    const name = use,
+                      templateText = element.getAttribute(`nobo-backup--${name}`);
+                    const templatedText = new TemplatedText({
+                      cache,
+                      proxyableRowId,
+                      text: templateText,
+                    });
+                    element.setAttribute(name, templatedText.evaluate.string);
                   }
-                  continue;
                 }
-                const name = use,
-                  templateText = element.getAttribute(`nobo-backup--${name}`);
-                const templatedText = new TemplatedText({
-                  cache,
-                  proxyableRowId,
-                  text: templateText,
-                });
-                element.setAttribute(name, templatedText.evaluate.string);
-              }
-            },
-          });
+              },
+            });
+          }
         }
       },
     });
@@ -209,81 +214,88 @@ class DomUpdater {
       const changes = domUpdater.domChanges;
       domUpdater.domChanges = [];
       for (const change of changes) {
-        DomUpdater.applyDomChange(change);
+        domUpdater.applyDomChange(change);
       }
     }
   }
 
-  static applyDomChange({ replace, insertAfter, parent, withElements }) {
+  applyDomChange({ replace, insertAfter, parent, withElements }) {
+    const domUpdater = this;
+
     if (replace) {
       if (!Array.isArray(replace)) {
         replace = rangeForElement(replace);
       }
 
       const [start, end] = replace;
+      parent = start.parentElement;
 
       for (let element = start; element; element = element.nextElementSibling) {
-        stopWatchers(element);
+        domUpdater.stopWatchers(element);
         if (element == end) break;
       }
 
-      parent = start.parentElement;
       insertAfter = start.previousElementSibling;
 
       for (
         let element = start, next = element.nextElementSibling;
         element;
-        element = next, next = element.nextElementSibling
+        element = next, next = element ? element.nextElementSibling : undefined
       ) {
-        parent.removeChild(element);
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
       }
     }
-    if (withElements && withElements.length && (insertAfter || parent)) {
+
+    if (insertAfter) parent = insertAfter.parentNode;
+
+    if (withElements && withElements.length && parent) {
+      const nextSibling = insertAfter ? insertAfter.nextSibling : parent.firstChild;
       for (const element of withElements) {
-        if (!insertAfter) {
-          parent.insertAdjacentElement('afterbegin', element);
-        } else {
-          insertAfter.insertAdjacentElement('afterend', element);
-        }
-        insertAfter = element;
+        parent.insertBefore(element, nextSibling);
       }
     }
   }
 
   stopWatchers(element) {
-    const templateDatapointId = element.getAttribute('nobo-template-dpid'),
-      domDatapointId = element.getAttribute('nobo-template-dpid'),
-      childrenDatapointId = element.getAttribute('nobo-template-dpid'),
-      valueDatapointIds = element.getAttribute('nobo-val-dpids').split(' '),
+    const domUpdater = this,
+      templateDatapointId = element.getAttribute('nobo-template-dpid'),
+      domDatapointId = element.getAttribute('nobo-dom-dpid'),
+      childrenDatapointId = element.getAttribute('nobo-children-dpid'),
+      valueDatapointIdsString = element.getAttribute('nobo-val-dpids'),
+      valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined,
       uid = element.getAttribute('nobo-cb-uid');
 
-    if (!uid || !(templateDatapointId || domDatapointId || childrenDatapointId || valDatapointIds.length)) {
+    if (!uid || !(templateDatapointId || domDatapointId || childrenDatapointId || valueDatapointIds)) {
       return;
     }
 
     if (templateDatapointId) {
-      const datapoint = cache.getExistingDatapoint({ datapointId: templateDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: templateDatapointId });
       datapoint.stopWatching({
-        callbackKey: `updater-#{uid}-template`,
+        callbackKey: `updater-${uid}-template`,
       });
     }
     if (domDatapointId) {
-      const datapoint = cache.getExistingDatapoint({ datapointId: domDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: domDatapointId });
       datapoint.stopWatching({
-        callbackKey: `updater-#{uid}-dom`,
+        callbackKey: `updater-${uid}-dom`,
       });
     }
     if (childrenDatapointId) {
-      const datapoint = cache.getExistingDatapoint({ datapointId: childrenDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: childrenDatapointId });
       datapoint.stopWatching({
-        callbackKey: `updater-#{uid}-children`,
+        callbackKey: `updater-${uid}-children`,
       });
     }
-    for (const datapointId of valueDatapointIds) {
-      const datapoint = cache.getExistingDatapoint({ datapointId });
-      datapoint.stopWatching({
-        callbackKey: `updater-#{uid}-value`,
-      });
+    if (valueDatapointIds) {
+      for (const datapointId of valueDatapointIds) {
+        const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId });
+        datapoint.stopWatching({
+          callbackKey: `updater-${uid}-value`,
+        });
+      }
     }
   }
 }

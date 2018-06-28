@@ -27,6 +27,10 @@ const ConvertIds = require('./convert-ids');
 //const Schema = require('./schema'); // via constructor arg: schema
 //    uses allTypes and fieldForDatapoint
 
+function log() {
+  //console.log.apply(console, arguments);
+}
+
 // API is auto-generated at the bottom from the public interface of this class
 class Datapoint {
   static publicMethods() {
@@ -49,7 +53,7 @@ class Datapoint {
   constructor({ cache, schema, templates, datapointId, isClient }) {
     const datapoint = this;
 
-    console.log(`creating datapoint ${datapointId}`);
+    log(`creating datapoint ${datapointId}`);
 
     const datapointInfo = ConvertIds.decomposeId({
       datapointId,
@@ -179,7 +183,7 @@ class Datapoint {
       });
     }
 
-    console.log(`Datapoint ${datapoint.datapointId} -> ${value}`);
+    log(`Datapoint ${datapoint.datapointId} -> ${value}`);
 
     datapoint._value = clone(value);
 
@@ -465,7 +469,7 @@ class Datapoint {
   }
 
   forget() {
-    console.log(`forgetting datapoint ${this.datapointId}`);
+    log(`forgetting datapoint ${this.datapointId}`);
     const datapoint = this,
       { cache } = datapoint;
 

@@ -126,8 +126,12 @@ class DomGenerator {
         if (!lids) lids = childLids;
         else lids.push(...childLids);
       }
-      for (let index = additionalChildElements.length - 1; index >= 0; index--) {
-        childElement.insertAdjacentElement('afterend', additionalChildElements[index]);
+
+      if (childElement.parentNode) {
+        const nextSibling = childElement.nextSibling;
+        for (const additionalChildElement of additionalChildElements) {
+          childElement.parentNode.insertBefore(additionalChildElement, nextSibling);
+        }
       }
     }
 
@@ -135,14 +139,15 @@ class DomGenerator {
 
     domGenerator.prepValueFields({ element, proxyableRowId });
 
-    domGenerator.notifyListeners('onprepelement', { element, proxyableRowId });
-
     const { additionalSiblings, lids: sibLids } = domGenerator.prepChildrenPlaceholderAndCreateChildren({
       element,
       proxyableRowId,
       lidCounter,
       depth,
     });
+
+    domGenerator.notifyListeners('onprepelement', { element, proxyableRowId });
+
     if (sibLids) {
       if (!lids) lids = sibLids;
       else lids.push(...sibLids);
@@ -158,7 +163,7 @@ class DomGenerator {
     if (!fieldName) return { additionalSiblings: [] };
 
     const proxyableDatapointId = ConvertIds.recomposeId({ proxyableRowId, fieldName }).proxyableDatapointId,
-      childDepth = (depth || 0) + 1;
+      childDepth = +(depth || 0) + 1;
 
     element.setAttribute('nobo-children-dpid', proxyableDatapointId);
     element.setAttribute('nobo-child-depth', childDepth);

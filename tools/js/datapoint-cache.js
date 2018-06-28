@@ -28,6 +28,7 @@ class DatapointCache {
       'getExistingDatapoint',
       'getOrCreateDatapoint',
       'validateNewlyInvalidDatapoints',
+      'validateAll',
       'queueValidationJob',
       'commitNewlyUpdatedDatapoints',
 
@@ -75,6 +76,12 @@ class DatapointCache {
       delete cache._validateTimeout;
       cache.validateNewlyInvalidDatapoints();
     }, delay);
+  }
+
+  async validateAll() {
+    while (true) {
+      if (!(await this.validateNewlyInvalidDatapoints()).length) break;
+    }
   }
 
   validateNewlyInvalidDatapoints({ delay } = {}) {

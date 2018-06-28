@@ -29,16 +29,20 @@ function isEqual(v1, v2, options = {}) {
 
   if (typeof v1 != typeof v2 || Array.isArray(v1) != Array.isArray(v2)) {
     if (exact) {
-      return verboseFail ? `Types differ: ${description(v1)} vs ${description(v2)}` : false;
+      return verboseFail ? `Types differ: \n${description(v1)}\n ... vs ...\n${description(v2)}` : false;
     }
     if (v1 === true ? v2 : v1 === false ? !v2 : v2 === true ? v1 : v2 === false ? !v1 : v1 == v2) {
       return true;
     }
-    return verboseFail ? `Values are not equal: ${description(v1)} vs ${description(v2)}` : false;
+    return verboseFail ? `Values are not equal: \n${description(v1)}\n ... vs ...\n${description(v2)}` : false;
   }
 
   if (typeof v1 == 'number' || typeof v1 == 'boolean' || typeof v1 == 'string') {
-    return v1 == v2 ? true : verboseFail ? `${typeof v1}s differ: ${description(v1)} vs ${description(v2)}` : false;
+    return v1 == v2
+      ? true
+      : verboseFail
+        ? `${typeof v1}s differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
+        : false;
   }
 
   if (Array.isArray(v1)) {
@@ -49,14 +53,18 @@ function isEqual(v1, v2, options = {}) {
     return allowSuperset ? objectIsEqualOrSuperset(v1, v2, options) : objectIsEqual(v1, v2, options);
   }
 
-  return v1 === v2 ? true : verboseFail ? `${typeof v1}s differ: ${description(v1)} vs ${description(v2)}` : false;
+  return v1 === v2
+    ? true
+    : verboseFail
+      ? `${typeof v1}s differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
+      : false;
 }
 
 function arrayIsEqual(v1, v2, options) {
   const { verboseFail, unordered, exact } = options;
 
   if (v1.length != v2.length) {
-    return verboseFail ? `Array lengths differ: ${description(v1)} vs ${description(v2)}` : false;
+    return verboseFail ? `Array lengths differ: \n${description(v1)}\n ... vs ...\n${description(v2)}` : false;
   }
   if (!v1.length) return true;
 
@@ -66,7 +74,7 @@ function arrayIsEqual(v1, v2, options) {
       const res = isEqual(c1, v2[index], options);
       if (res !== true) {
         return verboseFail
-          ? `${res}\n > Array values at index ${index} differ: ${description(v1)} vs ${description(v2)}`
+          ? `${res}\n > Array values at index ${index} differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
           : false;
       }
       index++;
@@ -91,9 +99,9 @@ function arrayIsEqual(v1, v2, options) {
         }
       if (!found) {
         return verboseFail
-          ? `Value ${description(c2)} from the second array was not found in the first: ${description(
+          ? `Value ${description(c2)} from the second array was not found in the first: \n${description(
               v1
-            )} vs ${description(v2)}`
+            )}\n ... vs ...\n${description(v2)}`
           : false;
       }
     }
@@ -107,13 +115,13 @@ function objectIsEqual(v1, v2, options) {
   const v1Keys = keysIncludingFromPrototype(v1),
     v2Keys = keysIncludingFromPrototype(v2);
   if (v1Keys.length != v2Keys.length) {
-    return verboseFail ? `Object sizes differ: ${description(v1)} vs ${description(v2)}` : false;
+    return verboseFail ? `Object sizes differ: \n${description(v1)}\n ... vs ...\n${description(v2)}` : false;
   }
   for (const v1Key of v1Keys) {
     const res = isEqual(v1[v1Key], v2[v1Key], options);
     if (res !== true) {
       return verboseFail
-        ? `${res}\n > Values for key ${v1Key} differ: ${description(v1)} vs ${description(v2)}`
+        ? `${res}\n > Values for key ${v1Key} differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
         : false;
     }
   }
@@ -124,7 +132,9 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
   const { unordered, exact, verboseFail } = options;
 
   if (v1.length < v2.length)
-    return verboseFail ? `First array is smaller than second: ${description(v1)} vs ${description(v2)}` : false;
+    return verboseFail
+      ? `First array is smaller than second: \n${description(v1)}\n ... vs ...\n${description(v2)}`
+      : false;
   if (!v1.length) return true;
 
   let supersetMatch = v1.length > v2.length;
@@ -136,7 +146,7 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
       if (res == '>') supersetMatch = true;
       else if (res !== true)
         return verboseFail
-          ? `${res}\n > Array values at index ${index} differ: ${description(v1)} vs ${description(v2)}`
+          ? `${res}\n > Array values at index ${index} differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
           : false;
       index++;
     }
@@ -183,9 +193,9 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
         return verboseFail
           ? `Member ${description(
               v2[c2Index]
-            )} of second array has no equivalent superset in the first, or all such supersets are already matched with an exact match in the second array: ${description(
+            )} of second array has no equivalent superset in the first, or all such supersets are already matched with an exact match in the second array: \n${description(
               v1
-            )} vs ${description(v2)}`
+            )}\n ... vs ...\n${description(v2)}`
           : false;
     }
     const c2IndexesInOrder = Object.keys(unusedC2Indexes).sort(
@@ -199,14 +209,119 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
       for (const c1Index of supersetsC1Indexes) {
         if (unusedC1Indexes[c1Index]) {
           delete unusedC1Indexes[c1Index];
-          if (findMapping(c2IndexIndex)) return true;
+          if (findMapping(c2IndexIndex + 1)) return true;
           unusedC1Indexes[c1Index] = true;
         }
       }
     }
 
-    return findMapping(0) ? '>' : false;
+    return findMapping(0)
+      ? '>'
+      : verboseFail
+        ? `No mapping could be found between the arrays:
+${description(v1)}
+     ... vs ...
+${description(v2)}`
+        : false;
   }
+
+  const c = [
+      {
+        type: 'DIV',
+        attributes: {
+          'nobo-depth': '1',
+          'nobo-template-dpid': 'app__1__template',
+          'nobo-dom-dpid': 'template__3__dom',
+          'nobo-children-dpid': 'app__1__users',
+          'nobo-child-depth': '2',
+          'nobo-cb-uid': '6',
+        },
+        classes: { 'users-model-child': 1 },
+      },
+      {
+        type: 'DIV',
+        attributes: {
+          thedomtype: 'user',
+          name: '1 user name',
+          'nobo-depth': '2',
+          'nobo-template-dpid': 'user__1__template',
+          'nobo-dom-dpid': 'template__1__dom',
+          'nobo-backup-text-0': '${bio}',
+          'nobo-backup--name': '${name}',
+          'nobo-row-id': 'user__1',
+          'nobo-val-dpids': 'user__1__bio user__1__name',
+          'nobo-use-user__1__bio': '=0',
+          'nobo-use-user__1__name': 'name',
+          'nobo-cb-uid': '8',
+        },
+        textNodes: ['1 user bio'],
+      },
+      {
+        type: 'DIV',
+        attributes: {
+          thedomtype: 'user',
+          name: '2 user name',
+          'nobo-depth': '2',
+          'nobo-template-dpid': 'user__2__template',
+          'nobo-dom-dpid': 'template__1__dom',
+          'nobo-backup-text-0': '${bio}',
+          'nobo-backup--name': '${name}',
+          'nobo-row-id': 'user__2',
+          'nobo-val-dpids': 'user__2__bio user__2__name',
+          'nobo-use-user__2__bio': '=0',
+          'nobo-use-user__2__name': 'name',
+          'nobo-cb-uid': '9',
+        },
+        textNodes: ['2 user bio'],
+      },
+    ],
+    d = [
+      {
+        type: 'DIV',
+        attributes: {
+          'nobo-depth': '1',
+          'nobo-template-dpid': 'app__1__template',
+          'nobo-dom-dpid': 'template__3__dom',
+          'nobo-children-dpid': 'app__1__users',
+          'nobo-child-depth': '2',
+        },
+        classes: { 'users-model-child': 1 },
+      },
+      {
+        type: 'DIV',
+        attributes: {
+          thedomtype: 'user',
+          name: '2 user name',
+          'nobo-depth': '2',
+          'nobo-template-dpid': 'user__2__template',
+          'nobo-dom-dpid': 'template__1__dom',
+          'nobo-backup-text-0': '${bio}',
+          'nobo-backup--name': '${name}',
+          'nobo-row-id': 'user__2',
+          'nobo-val-dpids': 'user__2__bio user__2__name',
+          'nobo-use-user__2__bio': '=0',
+          'nobo-use-user__2__name': 'name',
+        },
+        textNodes: ['2 user bio'],
+      },
+      {
+        type: 'DIV',
+        attributes: {
+          thedomtype: 'user',
+          name: '1 user name',
+          'nobo-depth': '2',
+          'nobo-template-dpid': 'user__1__template',
+          'nobo-dom-dpid': 'template__1__dom',
+          'nobo-backup-text-0': '${bio}',
+          'nobo-backup--name': '${name}',
+          'nobo-row-id': 'user__1',
+          'nobo-val-dpids': 'user__1__bio user__1__name',
+          'nobo-use-user__1__bio': '=0',
+          'nobo-use-user__1__name': 'name',
+        },
+        textNodes: ['1 user bio'],
+      },
+    ];
 }
 
 function keyObjectIncludingFromPrototype(object) {
@@ -240,16 +355,18 @@ function objectIsEqualOrSuperset(v1, v2, options) {
   const v1Keys = keysIncludingFromPrototype(v1),
     v2Keys = keysIncludingFromPrototype(v2);
   if (v1Keys.length < v2Keys.length)
-    return verboseFail ? `First object has fewer keys than second: ${description(v1)} vs ${description(v2)}` : false;
+    return verboseFail
+      ? `First object has fewer keys than second: \n${description(v1)}\n ... vs ...\n${description(v2)}`
+      : false;
   let supersetMatch = v1Keys.length > v2Keys.length;
   for (const v2Key of v2Keys) {
     const res = isEqual(v1[v2Key], v2[v2Key], options);
     if (res == '>') supersetMatch = true;
     else if (res !== true)
       return verboseFail
-        ? `${res}\n > Values for key ${v2Key} are not equal or superset/subset: ${description(v1)} vs ${description(
-            v2
-          )}`
+        ? `${res}\n > Values for key ${v2Key} are not equal or superset/subset: \n${description(
+            v1
+          )}\n ... vs ...\n${description(v2)}`
         : false;
   }
   return supersetMatch ? '>' : true;

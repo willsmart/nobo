@@ -27,9 +27,11 @@ function makeClassWatchable(watchableClass) {
           me.firstListenerAdded.call(me);
         }
       } else {
-        let index = me.listeners.findIndex(listener2 => listener.callbackKey == listener2.callbackKey);
-        if (index == -1) me.listeners.push(listener);
-        else me.listeners[index] = listener;
+        const listeners = me.listeners.slice();
+        let index = listeners.findIndex(listener2 => listener.callbackKey == listener2.callbackKey);
+        if (index == -1) listeners.push(listener);
+        else listeners[index] = listener;
+        me.listeners = listeners;
       }
       return listener.callbackKey;
     },
@@ -40,26 +42,26 @@ function makeClassWatchable(watchableClass) {
       if (!me.listeners) return;
       let index = me.listeners.findIndex(listener => listener.callbackKey == callbackKey);
       if (index == -1) return;
-      const listener = me.listeners.splice(index, 1)[0];
-      if (!me.listeners.length) {
+      const listeners = me.listeners.slice(),
+        listener = listeners.splice(index, 1)[0];
+      if (!listeners.length) {
         delete me.listeners;
         if (typeof me.lastListenerRemoved == 'function') {
           me.lastListenerRemoved.call(me);
         }
+      } else {
+        me.listeners = listeners;
       }
       return listener;
     },
 
     forEachListener: function(type, callback) {
-      const me = this;
+      const me = this,
+        { listeners } = me;
 
-      if (!me.listeners) return;
-      if (!me.listeners.length) {
-        delete me.listeners;
-        return;
-      }
+      if (!listeners) return;
 
-      for (const listener of me.listeners) {
+      for (const listener of listeners) {
         if (typeof listener[type] == 'function') callback.call(me, listener);
       }
     },

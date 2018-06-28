@@ -40,7 +40,7 @@ class TestRig {
   ) {
     const rig = this;
 
-    const { equals, unsorted, exact, sameObject, includes, includedBy, essential, throws } = options;
+    const { equals, unordered, exact, sameObject, includes, includedBy, essential, throws } = options;
     let didThrow = false;
     try {
       if (typeof value == 'function') value = value();
@@ -56,12 +56,13 @@ class TestRig {
     if (options.hasOwnProperty('throws')) {
       res = !didThrow && options.throws ? 'Expected a throw' : true;
     } else if (options.hasOwnProperty('sameObject')) {
-      res = value === options.sameObject || `Values are different objects: ${value} vs ${options.sameObject}`;
+      res =
+        value === options.sameObject || `Values are different objects:\n${value}\n ... vs ...\n${options.sameObject}`;
     } else if (options.hasOwnProperty('includes')) {
       res = isEqual(value, includes, {
         allowSuperset: true,
         verboseFail: true,
-        unordered: true,
+        unordered,
       });
       if (res !== true && res !== '>') {
         res = `${res}
@@ -71,7 +72,7 @@ class TestRig {
       res = isEqual(includedBy, value, {
         allowSuperset: true,
         verboseFail: true,
-        unordered: true,
+        unordered,
       });
       if (res !== true && res !== '>') {
         res = `${res}
@@ -80,7 +81,7 @@ class TestRig {
     } else {
       res = isEqual(value, equals, {
         verboseFail: true,
-        unsorted,
+        unordered,
         exact,
       });
     }
@@ -125,6 +126,8 @@ class TestRig {
     await rig.start();
     await code.call(rig, rig);
     await rig.end();
+
+    return rig;
   }
 
   async start() {
