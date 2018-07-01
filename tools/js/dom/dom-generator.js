@@ -25,6 +25,7 @@ class DomGenerator {
       'createElementsForVariantOfRow',
       'createChildElements',
       'createElementsUsingDatapointIds',
+      'prepPage',
       'watch',
       'stopWatching',
     ];
@@ -155,18 +156,41 @@ class DomGenerator {
     return { additionalSiblings, lids };
   }
 
+  prepPage() {
+    const domGenerator = this;
+
+    const element = document.getElementById('page');
+    domGenerator._prepChildrenPlaceholderAndCreateChildren({
+      element,
+      proxyableDatapointId: 'page__1__items',
+      childDepth: 1,
+    });
+    domGenerator.notifyListeners('onprepelement', { element, proxyableRowId: 'page__1' });
+  }
+
   prepChildrenPlaceholderAndCreateChildren({ element, proxyableRowId, lidCounter, depth }) {
     const domGenerator = this;
 
-    let lid,
-      fieldName = childrenFieldNameForElement(element);
+    let fieldName = childrenFieldNameForElement(element);
     if (!fieldName) return { additionalSiblings: [] };
 
     const proxyableDatapointId = ConvertIds.recomposeId({ proxyableRowId, fieldName }).proxyableDatapointId,
       childDepth = +(depth || 0) + 1;
 
+    return domGenerator._prepChildrenPlaceholderAndCreateChildren({
+      element,
+      proxyableDatapointId,
+      lidCounter,
+      childDepth,
+    });
+  }
+
+  _prepChildrenPlaceholderAndCreateChildren({ element, proxyableDatapointId, lidCounter, childDepth }) {
+    const domGenerator = this;
+
     element.setAttribute('nobo-children-dpid', proxyableDatapointId);
     element.setAttribute('nobo-child-depth', childDepth);
+    let lid;
     if (lidCounter) element.setAttribute('nobo-lid', (lid = lidCounter[0]++));
 
     const variant = element.getAttribute('variant') || undefined,

@@ -44,10 +44,10 @@ class WSClientDatapoints {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints;
 
-    for (const datapoint of Object.values(clientDatapoints.subscribedDatapoints)) {
+    for (const [proxyableDatapointId, datapoint] of Object.entries(clientDatapoints.subscribedDatapoints)) {
       if (!datapoint) continue;
       datapoint.stopWatching({
-        callbackKey: clientDatapoints.callbackKey,
+        callbackKey: `${clientDatapoints.callbackKey}__${proxyableDatapointId}`,
       });
       serverDatapoints.releaseRefForDatapoint(datapoint);
     }

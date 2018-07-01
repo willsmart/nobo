@@ -212,6 +212,7 @@ class DomUpdater {
 
     if (domUpdater.domChanges.length) {
       const changes = domUpdater.domChanges;
+      console.log('Changes: ', changes);
       domUpdater.domChanges = [];
       for (const change of changes) {
         domUpdater.applyDomChange(change);
@@ -245,6 +246,7 @@ class DomUpdater {
         if (element.parentNode) {
           element.parentNode.removeChild(element);
         }
+        if (element == end) break;
       }
     }
 

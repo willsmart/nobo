@@ -50,7 +50,9 @@ class DatapointCache {
     cache.newlyUpdatedDatapointIds = [];
     cache.newlyValidDatapoints = [];
 
-    cache._templates = new Templates({ cache, appDbRowId });
+    if (!isClient) {
+      cache._templates = new Templates({ cache, appDbRowId });
+    }
   }
 
   get templates() {
