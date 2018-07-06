@@ -6,7 +6,7 @@ $stdout.sync = true
 $env = 'prod'
 $base_join_dir = 'joined'
 $secrets_dir = "secrets"
-$ignore_in_app = /^log\/$|^tmp\/$|^\.|.pid(?:.lock)?$/
+$ignore_in_app = /^log\/$|^tmp\/$|^\.|.pid(?:.lock)?$|\bsecrets.dat$/
 $can_pushback = true
 
 args = ARGV.dup
@@ -44,7 +44,7 @@ until (arg=args.shift).nil?
 end
 
 $base_dirs = ['nobo','app',$env,'secrets']
-$pushback_order = ['app','nobo','secrets']
+$pushback_order = ['app',$env,'nobo','secrets']
 
 def self.safe_JSON_parse(json)
   return if json.nil?
@@ -55,9 +55,9 @@ def self.safe_JSON_parse(json)
   end
 end
 
-if !$secrets_dir.nil? and File.exist?("#{$secrets_dir}.dat") and File.exist?('bin/decrypt_secrets')
+if !$secrets_dir.nil? and File.exist?("#{$secrets_dir}.dat") and File.exist?('nobo/bin/decrypt_secrets')
   puts " >> Decypting secrets\e[2m"
-  system('bin/decrypt_secrets')
+  system('nobo/bin/decrypt_secrets')
   print "\e[22m"
 end
 
@@ -81,6 +81,10 @@ def ascendingTimes(tm1,tm2,deb=false)
     puts "#{tm2} - #{tm1} = #{tm2-tm1} (vs 0.0001)"
   end 
   tm2-tm1>0.0001
+end
+
+def is_secret_change?(file)
+  !$secrets_dir.nil? and file.start_with?("#{$secrets_dir}/") and !file.end_with?('/secrets.dat')
 end
 
 def sync
@@ -173,14 +177,14 @@ def sync
                   touch pushback_path, jtm, "C"
                   all_entries[file] = [pushback_dir]
                   pushback_entries[file] = true
-                  secrets_changed = true if !$secrets_dir.nil? and pushback_path.start_with?("#{$secrets_dir}/")
+                  secrets_changed = true if is_secret_change? pushback_path
                 else
                   puts "    >> #{path}: pushing back newer join file as #{pushback_path}"
                   ret+=1
                   FileUtils.cp path, pushback_path
                   touch pushback_dir, jdtm, "D"
                   touch pushback_path, jtm, "E"
-                  secrets_changed = true if !$secrets_dir.nil? and pushback_path.start_with?("#{$secrets_dir}/")
+                  secrets_changed = true if is_secret_change? pushback_path
                 end
               end
             else
@@ -208,7 +212,7 @@ def sync
               ret+=1
               FileUtils.rm_rf(file)
               touch dir, jdtm, "G"
-              secrets_changed = true if !$secrets_dir.nil? and file.start_with?("#{$secrets_dir}/")
+              secrets_changed = true if is_secret_change? file
             end
             next
           end
@@ -236,12 +240,14 @@ def sync
       next unless ($ignore_in_app !~ info[:joined])
       next if info[:_files].empty?
       props={}
+      prop_is_secret = false
       ptm=nil
       for file in info[:_files]
         if File.exist? "#{file}.props" and (hash=safe_JSON_parse(File.read("#{file}.props"))).is_a?(Hash)
           _ptm = mtime("#{file}.props")
           ptm=_ptm if ptm.nil? or ascendingTimes(ptm,_ptm)
           props.merge! hash
+          prop_is_secret = true if is_secret_change? file
         end
       end
 
@@ -265,7 +271,7 @@ def sync
             FileUtils.cp info[:joined], info[:files].last
             tm=jtm
             touch info[:files].last, tm, "H"
-            secrets_changed = true if !$secrets_dir.nil? and info[:files].last.start_with?("#{$secrets_dir}/")
+            secrets_changed = true if is_secret_change? info[:files].last
             was_pushback = true
           else 
             next
@@ -298,6 +304,7 @@ def sync
           ret+=1
           File.open(info[:joined], 'w') {|file| file.write body}
         end
+        secrets_changed = true if prop_is_secret or is_secret_change? info[:files].last
       end
 
       unless was_pushback
@@ -310,9 +317,9 @@ def sync
   end
 
 
-  if secrets_changed and Dir.exist?($secrets_dir) and File.exist?('bin/encrypt_secrets')
+  if secrets_changed and Dir.exist?($secrets_dir) and File.exist?('nobo/bin/encrypt_secrets')
     puts " >> Re-encrypting secrets\e[2m"
-    system("bin/encrypt_secrets")
+    system("nobo/bin/encrypt_secrets")
     print "\e[22m"
   end
 

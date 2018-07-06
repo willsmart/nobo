@@ -6,7 +6,10 @@ toolsdir="$bindir/../tools"
 export pidfile="$bindir/../../joiner.pid"
 function finish {
     res=$?
-    rm -f "$pidfile"
+    if [[ -f "$pidfile" ]]; then
+        kill `cat "$pidfile"`
+        rm -f "$pidfile"
+    fi
     echo "joiner out"
     exit $res
 }
