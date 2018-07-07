@@ -16,7 +16,7 @@ const CodeSnippet = require('./general/code-snippet');
 
 const ConvertIds = require('./convert-ids');
 
-// other implied dependencies
+//  other implied dependencies
 
 //const DatapointCache = require('./datapoint-cache'); // via constructor arg: cache
 //    uses pretty much the whole public api
