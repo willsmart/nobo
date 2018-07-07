@@ -6,6 +6,7 @@
 //   This should be called in response to a signal from the db
 // They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
 
+
 const ChangeCase = require('change-case');
 
 const clone = require('./general/clone');
