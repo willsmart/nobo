@@ -6,7 +6,7 @@ $stdout.sync = true
 $env = 'prod'
 $base_join_dir = 'joined'
 $secrets_dir = "secrets"
-$ignore_in_app = /^log\/$|^tmp\/$|^\.|.pid(?:.lock)?$|\bsecrets.dat$|\/node_modules\//
+$ignore_in_app = /^log\/$|^tmp\/$|^\.|.pid(?:.lock)?$|\bsecrets.dat$|node_modules/
 $can_pushback = true
 
 args = ARGV.dup
