@@ -5,3 +5,6 @@ tools/template-manager/log
 tools/page-server/log
 tools/js/client/bundles
 tools/page-server/app/assets/javascripts/nobo.js
+tools/page-server/public/assets
+tools/page-server/log
+index.html

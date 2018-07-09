@@ -58,7 +58,7 @@ class WebSocketServer {
     return MyCrypto.encrypt(`${userId}`, 'phoenix');
   }
 
-  async start({ port = 3100 } = {}) {
+  async start({ port = 3000 } = {}) {
     const server = this;
 
     server.appCookiePrefix = await this.cache.getOrCreateDatapoint(

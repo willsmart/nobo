@@ -13,7 +13,7 @@ class WebSocketClient {
     return ['sendMessage', 'sendPayload', 'isOpen', 'watch', 'stopWatching', 'signOut'];
   }
 
-  constructor({ port = 3100 } = {}) {
+  constructor({ port = 3000 } = {}) {
     const client = this;
 
     client._isOpen = false;
@@ -24,7 +24,9 @@ class WebSocketClient {
 
     function open() {
       const ws = (client.ws = new WebSocket(
-        `ws://localhost:${port}${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
+        `${window.location.protocol == 'https:' ? 'wss' : 'ws'}://${window.location.host}:${port}${
+          client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''
+        }`
       ));
       delete client.phoenix;
       ws.onopen = function open() {
