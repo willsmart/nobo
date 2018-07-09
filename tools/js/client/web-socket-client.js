@@ -23,10 +23,12 @@ class WebSocketClient {
     };
 
     function open() {
+      const host =
+        window.location.protocol == 'https:'
+          ? `wss://sock.${window.location.host}`
+          : `ws://${window.location.host}:${port}`;
       const ws = (client.ws = new WebSocket(
-        `${window.location.protocol == 'https:' ? 'wss' : 'ws'}://${window.location.host}:${port}${
-          client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''
-        }`
+        `${host}${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
       ));
       delete client.phoenix;
       ws.onopen = function open() {
