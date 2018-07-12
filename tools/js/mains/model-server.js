@@ -39,14 +39,14 @@ const DatapointCache = require('../datapoint-cache');
   });
   console.log('Listening for DB model changes');
 
-  if (args['--prompter']) {
+  if (args['--prompter'] || process.env.PROMPTER) {
     await connection.dbListener.startDBChangeNotificationPrompter({
       cache,
     });
     console.log('Listening and responding as the DB change notification prompter');
   } else {
     console.log(
-      "This server hasn't been started as the DB change notification prompter (there must be, but can only be one). To start as the DBCNP use the '--prompter' command line flag"
+      "This server hasn't been started as the DB change notification prompter (there must be, but can only be one). To start as the DBCNP use the '--prompter' command line flag or the PROMPTER env var"
     );
   }
   const wsserver = new WebSocketServer({
