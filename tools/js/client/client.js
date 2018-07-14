@@ -10,7 +10,8 @@ const PageState = require('./page-state'),
   StateToCacheConnection = require('./state-to-cache-connection'),
   CacheToStateConnection = require('./cache-to-state-connection'),
   StateWsConnection = require('./state-ws-connection'),
-  { DatapointCache, Schema } = require('../datapoint-cache-module');
+  { DatapointCache, Schema } = require('../datapoint-cache-module'),
+  appClient = require('./app-client');
 
 const schema = new Schema();
 schema.loadSource([
@@ -130,7 +131,7 @@ const appDbRowId = 1,
     cache,
   }),
   pageState = new PageState({
-    getDatapoint,
+    cache,
   }),
   clientActions = new ClientActions({ domGenerator: domGenerator });
 
@@ -169,4 +170,5 @@ document.nobo = {
   domUpdater,
   pageState,
   clientActions,
+  appClient,
 };

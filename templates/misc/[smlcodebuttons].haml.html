@@ -1,0 +1,18 @@
+<div class='code-buttons d-flex flex-wrap focus-code-on-click'>
+<div class='btn-group mr-auto'>
+<button class='highlight-off-button btn btn-tiny btn-xs btn-outline-secondary' onclick='$(this).closest(&#39;.codeBox&#39;).trigger(&#39;syntaxhighlightoff&#39;);return document.aautil.cancelBubble();' type='button'>
+Plain
+</button>
+<button class='highlight-on-button btn btn-tiny btn-xs btn-outline-secondary' onclick='$(this).closest(&#39;.codeBox&#39;).trigger(&#39;syntaxhighlighton&#39;);return document.aautil.cancelBubble();' type='button'>
+Highlight
+</button>
+</div>
+<div class='btn-group highlight-style ml-auto'>
+<button class='highlight-blocky-button btn btn-tiny btn-xs btn-outline-secondary' onclick='$(this).closest(&#39;.codeBox&#39;).trigger(&#39;syntaxhighlightblocky&#39;);return document.aautil.cancelBubble();' type='button'>
+Blocky
+</button>
+<button class='highlight-basic-button btn btn-tiny btn-xs btn-outline-secondary' onclick='$(this).closest(&#39;.codeBox&#39;).trigger(&#39;syntaxhighlightbasic&#39;);return document.aautil.cancelBubble();' type='button'>
+Simple
+</button>
+</div>
+</div>

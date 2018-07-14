@@ -19,7 +19,7 @@ Rails.application.configure do
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
 
-  config.serve_static_assets = false
+  config.serve_static_files = false
   config.assets.digest = false 
 
   # Raise an error on page load if there are pending migrations.

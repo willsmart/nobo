@@ -330,7 +330,7 @@ function stringToProxyableDatapoint(datapointId, permissive) {
       proxyableDatapointId: datapointId,
       proxyableRowId: match[1],
       typeName: ChangeCase.pascalCase(match[2]),
-      fieldName: match[5],
+      fieldName: ChangeCase.camelCase(match[5]),
     },
     match[3]
       ? {

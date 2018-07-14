@@ -4,11 +4,6 @@
 // This is an intermediary between the datapoint-cache and the shared-state
 
 const PublicApi = require('../general/public-api');
-const SharedState = require('../general/shared-state');
-const clone = require('../general/clone');
-const { TemporaryState } = SharedState;
-
-const callbackKey = 'cache-to-state-connection';
 
 // other implied dependencies
 
@@ -71,9 +66,6 @@ class CacheToStateConnection {
     if (!datapoints.length) return;
 
     const { sharedState } = this;
-
-    const fieldsByRowByType = {},
-      committers = {};
 
     sharedState.withTemporaryState(tempState => {
       const datapointsById = tempState.atPath('datapointsById');

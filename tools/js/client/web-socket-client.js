@@ -26,7 +26,7 @@ class WebSocketClient {
       const host =
         window.location.protocol == 'https:'
           ? `wss://sock.${window.location.host}`
-          : `ws://${window.location.host}:${port}`;
+          : `ws://${window.location.hostname}:${port}`;
       const ws = (client.ws = new WebSocket(
         `${host}${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
       ));

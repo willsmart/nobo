@@ -47,6 +47,11 @@ class Datapoint {
       'fieldIfAny',
       'datapointId',
       'proxyableDatapointId',
+      'rowId',
+      'proxyableRowId',
+      'typeName',
+      'fieldName',
+      'dbRowId',
     ];
   }
 
@@ -56,10 +61,12 @@ class Datapoint {
     log(`creating datapoint ${datapointId}`);
 
     const datapointInfo = ConvertIds.decomposeId({
-      datapointId,
+      proxyableDatapointId: datapointId,
     });
     datapoint._datapointId = datapointInfo.datapointId;
     datapoint._proxyableDatapointId = datapointInfo.proxyableDatapointId;
+    datapoint._rowId = datapointInfo.rowId;
+    datapoint._proxyableRowId = datapointInfo.proxyableRowId;
     datapoint._typeName = datapointInfo.typeName;
     datapoint._dbRowId = datapointInfo.dbRowId;
     datapoint._fieldName = datapointInfo.fieldName;
@@ -96,7 +103,15 @@ class Datapoint {
   }
 
   get proxyableDatapointId() {
-    return this._datapointId;
+    return this._proxyableDatapointId;
+  }
+
+  get rowId() {
+    return this._rowId;
+  }
+
+  get proxyableRowId() {
+    return this._proxyableRowId;
   }
 
   get typeName() {
@@ -299,6 +314,7 @@ class Datapoint {
   makeVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
     const datapoint = this,
       field = {
+        isClient: true, // force this field to evaluate locally
         isId,
         isMultiple,
         name: datapoint.fieldName,

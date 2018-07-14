@@ -1,5 +1,7 @@
 const PublicApi = require('./general/public-api');
 const ConvertIds = require('./convert-ids');
+const ChangeCase = require('change-case');
+const RequiredDatapoints = require('./required-datapoints');
 
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
 
@@ -77,11 +79,28 @@ class WSClientDatapoints {
           clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
         },
       });
+
+      clientDatapoints.subscribedDatapoints[proxyableDatapointId] = datapoint;
+
+      if (datapoint.fieldName && datapoint.fieldName.startsWith('template')) {
+        const variant = ChangeCase.camelCase(datapoint.fieldName.substring('template'.length)) || undefined;
+
+        serverDatapoints.requiredDatapoints
+          .forView({ rowId: datapoint.rowId, variant })
+          .then(requiredDatapointCallbackKeys => {
+            clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
+
+            for (const [proxyableDatapointId, callbackKey] of Object.entries(requiredDatapointCallbackKeys)) {
+              clientDatapoints.subscribe({ proxyableDatapointId, user });
+              const datapoint = serverDatapoints.cache.getExistingDatapoint({ datapointId });
+              if (datapoint) datapoint.stopWatching({ callbackKey });
+            }
+          });
+        return;
+      }
+
+      clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
     }
-
-    clientDatapoints.subscribedDatapoints[proxyableDatapointId] = datapoint;
-
-    clientDatapoints.queueSendDiff({ proxyableDatapointId, datapoint });
   }
 
   unsubscribe({ proxyableDatapointId }) {
@@ -218,13 +237,15 @@ class WSClientDatapoints {
 class WSServerDatapoints {
   // public methods
   static publicMethods() {
-    return [];
+    return ['requiredDatapoints'];
   }
 
   constructor({ wsserver }) {
     const serverDatapoints = this;
 
-    serverDatapoints._cache = wsserver.cache;
+    const cache = (serverDatapoints._cache = wsserver.cache);
+    serverDatapoints._requiredDatapoints = new RequiredDatapoints({ cache });
+
     serverDatapoints.clientsWithPayloads = {};
     serverDatapoints.nextClientIndex = 1;
     serverDatapoints.payloadByFromVersionByDatapointId = {};
@@ -240,7 +261,7 @@ class WSServerDatapoints {
         })),
     });
 
-    serverDatapoints.cache.watch({
+    cache.watch({
       callbackKey,
       onvalid: () => {
         serverDatapoints.sendPayloadsToClients();
@@ -248,22 +269,78 @@ class WSServerDatapoints {
     });
   }
 
+  get requiredDatapoints() {
+    return this._requiredDatapoints;
+  }
+
   get cache() {
     return this._cache;
   }
 
-  addRefForDatapoint({ datapointId }) {
+  setRequiredDatapoints({ datapointId, requiredDatapointCallbackKeys }) {
+    const serverDatapoints = this,
+      datapointInfo = serverDatapoints.datapointInfos[datapointId],
+      ret = [];
+    if (!datapointInfo) {
+      return ret;
+    }
+
+    const requiredDatapointIdsWere = Object.keys(datapointInfo.requiredDatapointCallbackKeys);
+
+    for (const [requiredDatapointId, callbackKey] of Object.entries(requiredDatapointCallbackKeys)) {
+      if (!datapointInfo.requiredDatapointCallbackKeys[requiredDatapointId]) {
+        ret.push(
+          serverDatapoints.addRefForDatapoint({
+            datapointId: requiredDatapointId,
+            requiredByDatapointId: datapointId,
+            callbackKey,
+          })
+        );
+      } else ret.push(serverDatapoints.datapointInfos[requiredDatapointId]);
+    }
+    for (const requiredDatapointId of requiredDatapointIdsWere) {
+      if (!requiredDatapointCallbackKeys[requiredDatapointId]) {
+        serverDatapoints.releaseRefForDatapoint({
+          datapointId: requiredDatapointId,
+          requiredByDatapointId: datapointId,
+          callbackKey: datapointInfo.requiredDatapointCallbackKeys[requiredDatapointId],
+        });
+      }
+    }
+
+    return ret;
+  }
+
+  addRefForDatapoint({ datapointId, requiredByDatapointId, callbackKey }) {
     const serverDatapoints = this,
       datapoint = serverDatapoints.cache.getOrCreateDatapoint({
         datapointId,
       });
 
     let datapointInfo = serverDatapoints.datapointInfos[datapointId];
+
+    if (requiredByDatapointId && callbackKey) {
+      let parentDatapointInfo = serverDatapoints.datapointInfos[requiredByDatapointId];
+      if (!parentDatapointInfo) {
+        datapoint.stopWatching({ callbackKey });
+        return;
+      }
+
+      const { requiredDatapointCallbackKeys } = parentDatapointInfo;
+      if (requiredDatapointCallbackKeys[datapointId]) {
+        datapoint.stopWatching({ callbackKey });
+        return datapointInfo;
+      }
+
+      requiredDatapointCallbackKeys[datapointId] = callbackKey;
+    }
+
     if (datapointInfo) {
       datapointInfo.refCnt++;
     } else {
       datapointInfo = serverDatapoints.datapointInfos[datapointId] = {
         datapoint,
+        requiredDatapointCallbackKeys: {},
         refCnt: 1,
         currentVersion: datapoint.invalid ? 0 : 1,
       };
@@ -277,14 +354,40 @@ class WSServerDatapoints {
 
       if (datapoint.invalid) serverDatapoints.cache.queueValidationJob();
     }
+
     return datapointInfo;
   }
 
-  releaseRefForDatapoint({ datapointId }) {
-    const serverDatapoints = this;
+  releaseRefForDatapoint({ datapointId, requiredByDatapointId }) {
+    const serverDatapoints = this,
+      datapointInfo = serverDatapoints.datapointInfos[datapointId];
 
-    let datapointInfo = serverDatapoints.datapointInfos[datapointId];
-    if (datapointInfo && !--datapointInfo.refCnt) {
+    if (!datapointInfo) return;
+
+    if (requiredByDatapointId && callbackKey) {
+      let parentDatapointInfo = serverDatapoints.datapointInfos[requiredByDatapointId];
+      if (!parentDatapointInfo) return;
+
+      const { requiredDatapointCallbackKeys } = parentDatapointInfo;
+      if (!requiredDatapointCallbackKeys[datapointId]) return datapointInfo;
+
+      const datapoint = serverDatapoints.cache.getExistingDatapoint({
+        datapointId,
+      });
+      if (datapoint) datapoint.stopWatching({ callbackKey: requiredDatapointCallbackKeys[datapointId] });
+      delete requiredDatapointCallbackKeys[datapointId];
+    }
+
+    if (!--datapointInfo.refCnt) {
+      for (const [requiredDatapointId, callbackKey] of Object.entries(datapointInfo.requiredDatapointCallbackKeys)) {
+        serverDatapoints.releaseRefForDatapoint({ datapointId: requiredDatapointId });
+
+        const datapoint = serverDatapoints.cache.getExistingDatapoint({
+          datapointId,
+        });
+        if (datapoint) datapoint.stopWatching({ callbackKey });
+      }
+
       datapointInfo.datapoint.stopWatching({
         callbackKey,
       });

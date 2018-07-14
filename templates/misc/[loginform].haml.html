@@ -1,0 +1,16 @@
+<div class='textWithField d-flex flex-column align-content-right toggle-group toggle-modal' toggle='login'>
+<a class='using-this-model toggle-button' toggle='login'>
+${title||"Sign in"}
+</a>
+<div class='login-form toggle-focus toggle-fader' style='display:none;' toggle='login'>
+<form action='none' onsubmit='document.aautil.killTopModal();$(&#39;#${__id} input&#39;).blur();return document.modelDOM.submitWSMessage(event,&#39;${message||&quot;signIn&quot;}&#39;, &#39;User&#39;,&#39;#${__id} form&#39;);'>
+<div class='field d-flex flex-column align-content-center'>
+<input id='${__id}_email' name='email' onblur='setTimeout(function(){if (!$(&#39;#${__id}_password&#39;).is(&#39;:focus&#39;)) {$(&#39;#${__id}&#39;).removeClass(&#39;showForm&#39;);}},10);' onclick='event.stopPropagation();' onfocus='' placeholder='email' size='20' type='email'>
+<input autocomplete='off' id='${__id}_password' name='password' onblur='setTimeout(function(){if (!$(&#39;#${__id}_email&#39;).is(&#39;:focus&#39;)) {$(&#39;#${__id}&#39;).removeClass(&#39;showForm&#39;);}},10);' onclick='event.stopPropagation();' onfocus='this.setSelectionRange(0, this.value.length);' placeholder='password' size='20' type='password'>
+<br>
+<input name='commit' type='submit' value='Go!'>
+<input class='hidden' name='user[remember_me]' type='hidden' value='1'>
+</div>
+</form>
+</div>
+</div>

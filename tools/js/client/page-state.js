@@ -4,6 +4,8 @@ const SharedState = require('../general/shared-state');
 
 let globalPageState;
 
+const callbackKey = 'page-state';
+
 // API is auto-generated at the bottom from the public interface of this class
 
 class PageState {
@@ -12,8 +14,29 @@ class PageState {
     return ['visit', 'global'];
   }
 
-  constructor({ getDatapoint, defaultPageDatapointInfo } = {}) {
+  constructor({ cache, defaultPageDatapointInfo } = {}) {
     const pageState = this;
+
+    let itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint({ datapointId: 'page__1__items' }));
+
+    itemsDatapoint.setVirtualField({
+      getterFunction: () => {
+        const state = PageState.currentWindowState;
+        return state && state.pageDatapointId ? [state.pageDatapointId] : [];
+      },
+      isId: true,
+      isMultiple: true,
+    });
+
+    itemsDatapoint.watch({
+      callbackKey,
+      onvalid: datapoint => {
+        const items = datapoint.valueIfAny;
+        if (Array.isArray(items)) {
+          pageState.visit(items.length && typeof items[0] == 'string' ? items[0] : undefined);
+        }
+      },
+    });
 
     globalPageState = pageState;
 
@@ -25,37 +48,13 @@ class PageState {
         fieldName: '',
       });
 
-    pageState.getDatapoint = getDatapoint;
+    pageState.cache = cache;
 
     window.onpopstate = event => {
       const pageState = this;
 
       pageState.visit();
     };
-
-    pageState.callbackKey = SharedState.global.watch({
-      onchangedstate: function(diff, changes, forEachChangedKeyPath) {
-        forEachChangedKeyPath((keyPath, change) => {
-          switch (keyPath.length) {
-            case 0:
-              return true;
-            case 1:
-              return keyPath[0] == 'datapointsById';
-            case 2:
-              if (keyPath[0] == 'datapointsById') {
-                if (keyPath[1] == 'page__1__items' && Array.isArray(change.is)) {
-                  pageState.visit(change.is.length && typeof change[0] == 'string' ? change.is[0] : undefined);
-                }
-                if (keyPath[1] == PageState.currentWindowState.titleDatapointId) {
-                  pageState.updateState(PageState.currentWindowState.pageDatapointId);
-                }
-              }
-            default:
-              return false;
-          }
-        });
-      },
-    });
   }
 
   static get global() {
@@ -82,11 +81,7 @@ class PageState {
   visit(rowOrDatapointId) {
     const pageState = this;
 
-    const state = pageState.updateState(rowOrDatapointId);
-
-    SharedState.global.withTemporaryState(
-      tempState => (tempState.atPath('datapointsById').page__1__items = [state.pageDatapointId])
-    );
+    pageState.updateState(rowOrDatapointId);
   }
 
   updateState(rowOrDatapointId) {
@@ -113,7 +108,18 @@ class PageState {
         fieldName: 'name',
       }).proxyableDatapointId;
 
-    const title = pageState.getDatapoint(titleDatapointId, '');
+    const titleDatapoint = pageState.cache.getOrCreateDatapoint({ datapointId: titleDatapointId });
+    if (titleDatapoint !== pageState.titleDatapoint) {
+      if (pageState.titleDatapoint) pageState.titleDatapoint.stopWatching({ callbackKey });
+      (pageState.titleDatapoint = titleDatapoint).watch({
+        callbackKey,
+        onvalid: () => {
+          pageState.updateState(PageState.currentWindowState.pageDatapointId);
+        },
+      });
+    }
+
+    const title = typeof titleDatapoint.valueIfAny == 'string' ? titleDatapoint.valueIfAny : undefined;
 
     const oldState = PageState.currentWindowState,
       newState = {
@@ -124,13 +130,18 @@ class PageState {
       };
 
     if (!oldState.nobo) {
+      if (title) document.title = title;
       window.history.replaceState(newState, title, pageState.pathNameForState(newState));
+      pageState.itemsDatapoint.invalidate();
     } else if (newState.pageDatapointId == oldState.pageDatapointId) {
       if (newState.title != oldState.title) {
+        if (title) document.title = title;
         window.history.replaceState(newState, title, pageState.pathNameForState(newState));
       }
     } else {
+      if (title) document.title = title;
       window.history.pushState(newState, title, pageState.pathNameForState(newState));
+      pageState.itemsDatapoint.invalidate();
     }
 
     return newState;

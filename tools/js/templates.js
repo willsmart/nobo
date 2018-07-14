@@ -1,6 +1,9 @@
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('./general/public-api');
 const mapValues = require('./general/map-values');
+const DomGenerator = require('./dom/dom-generator');
+const DomUpdater = require('./dom/dom-updater');
+const { htmlToElement } = require('./dom/node-dom-functions');
 
 // other implied dependencies
 
@@ -15,7 +18,7 @@ const mapValues = require('./general/map-values');
 class Templates {
   // public methods
   static publicMethods() {
-    return ['load', 'getTemplateReferencingDatapoint'];
+    return ['load', 'getTemplateReferencingDatapoint', 'template'];
   }
 
   constructor({ cache, appDbRowId = 1 }) {
@@ -26,6 +29,14 @@ class Templates {
     templates.templatesByRowId = {};
     templates.templatesByVariantClassOwnership = {};
     templates.bubbledTemplatesByVariantClassOwnership = {};
+
+    templates.domGenerator = new DomGenerator({
+      htmlToElement,
+      cache: {
+        getExistingDatapoint: () => undefined,
+        getOrCreateDatapoint: () => undefined,
+      },
+    });
 
     this.callbackKey = cache
       .getOrCreateDatapoint({
@@ -40,6 +51,10 @@ class Templates {
           }
         },
       });
+  }
+
+  template({ rowId }) {
+    return this.templatesByRowId[rowId];
   }
 
   get appTemplatesDatapointId() {
@@ -238,6 +253,7 @@ class Templates {
 }
 
 class Template {
+  // TODO publicapi
   constructor({ templates, rowId }) {
     const template = this,
       cache = templates.cache;
@@ -259,7 +275,6 @@ class Template {
           fieldName,
         })
       ));
-      const callbackProperty = `${fieldName}Changed`;
       datapoint.watch({
         callbackKey,
         onvalid: () => {
@@ -271,7 +286,69 @@ class Template {
       });
     }
 
+    const datapoint = cache.getOrCreateDatapoint({
+      datapointId: ConvertIds.recomposeId({
+        rowId,
+        fieldName: 'dom',
+      }).datapointId,
+    });
+    datapoint.watch({
+      callbackKey,
+      onvalid: datapoint => {
+        template.updateDom(datapoint.valueIfAny);
+      },
+    });
+
+    template.updateDom(datapoint.valueIfAny);
+
     template.refreshInTemplatesTree();
+  }
+
+  updateDom(domString) {
+    const template = this,
+      { templates } = template;
+
+    if (!(domString && typeof domString == 'string')) domString = '<div></div>';
+
+    if (template.domString == domString) return;
+    template.domString = domString;
+
+    const elements = templates.domGenerator.createElementsUsingDatapointIds({
+      domString,
+      proxyableRowId: 'placeholder__1',
+    });
+
+    const displayedFields = {},
+      children = {};
+
+    elements.forEach(addElement);
+
+    function addElement(element) {
+      const childrenDatapointId = element.getAttribute('nobo-children-dpid'),
+        valueDatapointIdsString = element.getAttribute('nobo-val-dpids'),
+        valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined;
+
+      if (childrenDatapointId) {
+        const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: childrenDatapointId });
+        children[datapointInfo.fieldName] = children[datapointInfo.fieldName] || {};
+        children[datapointInfo.fieldName][element.getAttribute('variant') || 'default'] = true;
+      }
+      if (valueDatapointIds) {
+        for (const datapointId of valueDatapointIds) {
+          const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: datapointId });
+          displayedFields[datapointInfo.fieldName] = true;
+        }
+      }
+      for (const child of element.childNodes) {
+        if (child.nodeType == 1) addElement(child);
+      }
+    }
+
+    template.displayedFields = Object.keys(displayedFields);
+    template.children = Object.keys(children).map(fieldName => ({
+      fieldName,
+      variants: Object.keys(children[fieldName]),
+    }));
   }
 
   refreshInTemplatesTree() {

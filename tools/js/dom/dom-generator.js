@@ -67,6 +67,7 @@ class DomGenerator {
     templateDatapointId,
     domDatapointId = undefined,
     proxyableRowId = undefined,
+    domString = undefined,
     depth = 1,
   }) {
     const domGenerator = this;
@@ -85,10 +86,10 @@ class DomGenerator {
     if (domDatapointId) {
       const domDatapoint = domGenerator.cache.getExistingDatapoint({ datapointId: domDatapointId });
       if (domDatapoint && typeof domDatapoint.valueIfAny == 'string') {
-        element = (domGenerator.htmlToElement || htmlToElement)(domDatapoint.valueIfAny);
+        domString = domDatapoint.valueIfAny;
       }
     }
-
+    if (domString) element = (domGenerator.htmlToElement || htmlToElement)(domString);
     if (!element) element = (domGenerator.htmlToElement || htmlToElement)('<div></div>');
 
     element.setAttribute('nobo-depth', depth);

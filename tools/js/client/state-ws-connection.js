@@ -45,7 +45,7 @@ class StateWsConnection {
           }
         });
 
-        if (payloadObject) {
+        if (payloadObject && Object.keys(payloadObject.datapoints).length) {
           wsclient.sendPayload({
             payloadObject,
           });

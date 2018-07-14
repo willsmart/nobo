@@ -13,6 +13,19 @@ const fs = require('fs');
 const { promisify } = require('util');
 const YAML = require('yamljs');
 
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
+
+async function execHaml(hamlFilename) {
+  const htmlFilename = `${hamlFilename}.html`;
+  console.log(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
+  const { stdout, stderr, error } = await exec(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
+  console.log(stdout);
+  console.log(stderr);
+  if (error) return;
+  return await readFile_p(htmlFilename, 'utf8');
+}
+
 const readFile_p = promisify(fs.readFile);
 const writeFile_p = promisify(fs.writeFile);
 const readdir_p = promisify(fs.readdir);
@@ -39,7 +52,7 @@ async function forEachPromise(iterable, callback) {
   console.log('Read the template files and update the db templates');
   console.log('   args: ' + JSON.stringify(args));
 
-  const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)\.(html(?:\.haml)?|haml)/;
+  const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)((\.haml)?\.html|\.haml)$/;
 
   const templateDir = 'templates';
   const connectionFilename = 'db/connection.json';
@@ -65,12 +78,15 @@ async function forEachPromise(iterable, callback) {
       console.log(`Skipping '${filename}' (unknown name format)`);
       return;
     }
+    if (match[6]) return;
+
+    let body;
 
     const isHaml = match[5].endsWith('haml');
-
-    let body = await readFile_p(path, 'utf8');
     if (isHaml) {
-      return; // the curerent version of the HAML node module is hopelessly broken. For now the update-db-templates script uses the CMD tool
+      body = await execHaml(path);
+      if (!path) return;
+
       /*      console.log(`Parsing HAML file '${filename}'`);
       try {
         body = Haml(body, {
@@ -80,6 +96,8 @@ async function forEachPromise(iterable, callback) {
         console.log(`\n\n\nCould not parse HAML file '${filename}':\n${err.stack || err.message}\n\n\n\n`);
       }
       */
+    } else {
+      body = await readFile_p(path, 'utf8');
     }
 
     const template = {

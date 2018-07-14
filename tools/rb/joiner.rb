@@ -44,7 +44,7 @@ until (arg=args.shift).nil?
 end
 
 $base_dirs = ['nobo','app',$env,'secrets']
-$pushback_order = ['app',$env,'nobo','secrets']
+$pushback_order = ['app','nobo','secrets']
 
 def self.safe_JSON_parse(json)
   return if json.nil?

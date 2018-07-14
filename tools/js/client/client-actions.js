@@ -2,7 +2,7 @@ const PublicApi = require('../general/public-api');
 const ConvertIds = require('../convert-ids');
 const SharedState = require('../general/shared-state');
 const PageState = require('./page-state');
-const { elementForUniquePath, uniquePathForElement } = require('../dom/dom-functions');
+const { uniquePathForElement } = require('../dom/dom-functions');
 
 let globalClientActions;
 const callbackKey = 'client-actions';
@@ -32,13 +32,6 @@ class ClientActions {
   }
 
   installOnElement({ element, proxyableRowId }) {
-    const clientActions = this;
-    let _elementIndex;
-    function elementIndex() {
-      if (_elementIndex !== undefined) return _elementIndex;
-      _elementIndex = clientActions.nextElementIndex++;
-      element.classList.add(`nobo-element-${_elementIndex}`);
-    }
     for (const className of element.classList) {
       switch (className) {
         case 'pushModel':
