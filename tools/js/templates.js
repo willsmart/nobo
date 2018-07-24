@@ -315,7 +315,7 @@ class Template {
 
     const elements = templates.domGenerator.createElementsUsingDatapointIds({
       domString,
-      proxyableRowId: 'placeholder__1',
+      rowId: 'placeholder__1',
     });
 
     const displayedFields = {},
@@ -329,13 +329,13 @@ class Template {
         valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined;
 
       if (childrenDatapointId) {
-        const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: childrenDatapointId });
+        const datapointInfo = ConvertIds.decomposeId({ datapointId: childrenDatapointId });
         children[datapointInfo.fieldName] = children[datapointInfo.fieldName] || {};
         children[datapointInfo.fieldName][element.getAttribute('variant') || 'default'] = true;
       }
       if (valueDatapointIds) {
         for (const datapointId of valueDatapointIds) {
-          const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: datapointId });
+          const datapointInfo = ConvertIds.decomposeId({ datapointId: datapointId });
           displayedFields[datapointInfo.fieldName] = true;
         }
       }

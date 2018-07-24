@@ -28,33 +28,33 @@ module.exports = {
   templateDatapointIdforVariantOfRow,
 };
 
-function datapointChildrenClass(proxyableDatapointId) {
-  return `children--${proxyableDatapointId}`;
+function datapointChildrenClass(datapointId) {
+  return `children--${datapointId}`;
 }
 
-function datapointValueFieldClass(proxyableDatapointId) {
-  return `value--${proxyableDatapointId}`;
+function datapointValueFieldClass(datapointId) {
+  return `value--${datapointId}`;
 }
 
-function datapointTemplateFieldClass(proxyableDatapointId) {
-  return `template--${proxyableDatapointId}`;
+function datapointTemplateFieldClass(datapointId) {
+  return `template--${datapointId}`;
 }
 
-function datapointDomFieldClass(proxyableDatapointId) {
-  return `dom--${proxyableDatapointId}`;
+function datapointDomFieldClass(datapointId) {
+  return `dom--${datapointId}`;
 }
 
-function childrenPlaceholders(proxyableDatapointId) {
-  return document.getElementsByClassName(datapointChildrenClass(proxyableDatapointId));
+function childrenPlaceholders(datapointId) {
+  return document.getElementsByClassName(datapointChildrenClass(datapointId));
 }
-function datapointValueElements(proxyableDatapointId) {
-  return document.getElementsByClassName(datapointValueFieldClass(proxyableDatapointId));
+function datapointValueElements(datapointId) {
+  return document.getElementsByClassName(datapointValueFieldClass(datapointId));
 }
-function datapointTemplateElements(proxyableDatapointId) {
-  return document.getElementsByClassName(datapointTemplateFieldClass(proxyableDatapointId));
+function datapointTemplateElements(datapointId) {
+  return document.getElementsByClassName(datapointTemplateFieldClass(datapointId));
 }
-function datapointDomElements(proxyableDatapointId) {
-  return document.getElementsByClassName(datapointDomFieldClass(proxyableDatapointId));
+function datapointDomElements(datapointId) {
+  return document.getElementsByClassName(datapointDomFieldClass(datapointId));
 }
 
 function elementChildrenFieldName(element) {
@@ -82,11 +82,11 @@ function htmlToElement(html) {
   return element;
 }
 
-function templateDatapointIdForRowAndVariant(proxyableRowId, variant) {
+function templateDatapointIdForRowAndVariant(rowId, variant) {
   return ConvertIds.recomposeId({
-    proxyableRowId,
+    rowId,
     fieldName: `template_${variant}`,
-  }).proxyableDatapointId;
+  }).datapointId;
 }
 
 function nextChild(placeholderUid, previousChildElement) {
@@ -228,20 +228,20 @@ function uniquePathForElement(element) {
   return;
 }
 
-function templateDatapointIdforVariantOfRow({ variant = undefined, proxyableRowOrDatapointId }) {
+function templateDatapointIdforVariantOfRow({ variant = undefined, rowOrDatapointId }) {
   variant = variant || '';
-  let proxyableRowId = proxyableRowOrDatapointId;
+  let rowId = rowOrDatapointId;
 
   if (
-    typeof proxyableRowOrDatapointId == 'string' &&
-    ConvertIds.proxyableDatapointRegex.test(proxyableRowOrDatapointId)
+    typeof rowOrDatapointId == 'string' &&
+    ConvertIds.datapointRegex.test(rowOrDatapointId)
   ) {
-    ({ proxyableRowId, fieldName: variant } = ConvertIds.decomposeId({
-      proxyableDatapointId: proxyableRowOrDatapointId,
+    ({ rowId, fieldName: variant } = ConvertIds.decomposeId({
+      datapointId: rowOrDatapointId,
     }));
   }
 
-  return typeof proxyableRowId == 'string' && ConvertIds.proxyableRowRegex.test(proxyableRowId)
-    ? templateDatapointIdForRowAndVariant(proxyableRowId, variant)
+  return typeof rowId == 'string' && ConvertIds.rowRegex.test(rowId)
+    ? templateDatapointIdForRowAndVariant(rowId, variant)
     : undefined;
 }

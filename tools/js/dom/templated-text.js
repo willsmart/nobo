@@ -14,9 +14,9 @@ class TemplatedText {
     return ['evaluate', 'dependencyTree', 'nodesByDatapointId'];
   }
 
-  constructor({ text, proxyableRowId, cache }) {
+  constructor({ text, rowId, cache }) {
     this.templateString = text;
-    this.proxyableRowId = proxyableRowId;
+    this.rowId = rowId;
     this.cache = cache;
   }
 
@@ -29,7 +29,7 @@ class TemplatedText {
     const templatedText = this,
       templateString = templatedText.templateString,
       cache = templatedText.cache,
-      proxyableRowId = templatedText.proxyableRowId;
+      rowId = templatedText.rowId;
     if (templatedText._dependencyTree) return templatedText._dependencyTree;
     templatedText._nodesByDatapointId = {};
     const rootPart = locateEndOfString(templateString, false);
@@ -64,15 +64,14 @@ class TemplatedText {
           delete node.code;
           return;
         }
-        if (proxyableRowId) {
+        if (rowId) {
           for (const [fieldName, subNames] of Object.entries(node.code.names)) {
             if (typeof subNames == 'object' && Object.keys(subNames).length) continue;
             node.datapointIdsByName = node.datapointIdsByName || {};
-            const proxyableDatapointId = ConvertIds.recomposeId({ proxyableRowId, fieldName }).proxyableDatapointId;
-            node.datapointIdsByName[fieldName] = proxyableDatapointId;
-            templatedText._nodesByDatapointId[proxyableDatapointId] =
-              templatedText._nodesByDatapointId[proxyableDatapointId] || [];
-            templatedText._nodesByDatapointId[proxyableDatapointId].push(node);
+            const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
+            node.datapointIdsByName[fieldName] = datapointId;
+            templatedText._nodesByDatapointId[datapointId] = templatedText._nodesByDatapointId[datapointId] || [];
+            templatedText._nodesByDatapointId[datapointId].push(node);
           }
         }
       }
@@ -104,9 +103,9 @@ class TemplatedText {
           '' +
           node.code.evaluate((...names) => {
             if (names.length > 1) return '...';
-            const proxyableDatapointId = node.datapointIdsByName[names[0]];
-            if (!proxyableDatapointId) return '...';
-            const datapoint = this.cache.getOrCreateDatapoint({ datapointId: proxyableDatapointId });
+            const datapointId = node.datapointIdsByName[names[0]];
+            if (!datapointId) return '...';
+            const datapoint = this.cache.getOrCreateDatapoint({ datapointId: datapointId });
             const ret = (datapoint ? datapoint.valueIfAny : undefined) || '...';
             return Array.isArray(ret) && !ret.length ? undefined : ret;
           });

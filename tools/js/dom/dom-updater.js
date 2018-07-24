@@ -105,7 +105,7 @@ class DomUpdater {
                 domUpdater.queueDomChange({
                   replace: [startElement, endElement],
                   withElements: domGenerator.createChildElements({
-                    proxyableDatapointId: childrenDatapointId,
+                    datapointId: childrenDatapointId,
                     variant,
                     depth: childDepth,
                   }),
@@ -117,7 +117,7 @@ class DomUpdater {
                       insertAfter: childRangeAtIndex({ placeholderDiv: element, index: diffPart.insertAt - 1 })[1],
                       withElements: domGenerator.createElementsForVariantOfRow({
                         variant,
-                        proxyableRowOrDatapointId: diffPart.value,
+                        rowOrDatapointId: diffPart.value,
                         depth: childDepth,
                       }),
                     });
@@ -134,7 +134,7 @@ class DomUpdater {
                       replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.at }),
                       withElements: domGenerator.createElementsForVariantOfRow({
                         variant,
-                        proxyableRowOrDatapointId: diffPart.value,
+                        rowOrDatapointId: diffPart.value,
                         depth: childDepth,
                       }),
                     });
@@ -154,7 +154,7 @@ class DomUpdater {
               onvalid: () => {
                 const usesString = element.getAttribute(`nobo-use-${datapointId}`),
                   uses = usesString ? usesString.split(' ') : undefined,
-                  proxyableRowId = element.getAttribute('nobo-row-id');
+                  rowId = element.getAttribute('nobo-row-id');
 
                 if (uses) {
                   for (const use of uses) {
@@ -169,7 +169,7 @@ class DomUpdater {
 
                           const templatedText = new TemplatedText({
                             cache,
-                            proxyableRowId,
+                            rowId,
                             text: templateText,
                           });
                           childNode.textContent = templatedText.evaluate.string;
@@ -181,7 +181,7 @@ class DomUpdater {
                       templateText = element.getAttribute(`nobo-backup--${name}`);
                     const templatedText = new TemplatedText({
                       cache,
-                      proxyableRowId,
+                      rowId,
                       text: templateText,
                     });
                     element.setAttribute(name, templatedText.evaluate.string);

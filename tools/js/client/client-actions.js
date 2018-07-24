@@ -25,18 +25,18 @@ class ClientActions {
     clientActions.domGenerator = domGenerator;
     domGenerator.watch({
       callbackKey,
-      onprepelement: ({ element, proxyableRowId }) => {
-        clientActions.installOnElement({ element, proxyableRowId });
+      onprepelement: ({ element, rowId }) => {
+        clientActions.installOnElement({ element, rowId });
       },
     });
   }
 
-  installOnElement({ element, proxyableRowId }) {
+  installOnElement({ element, rowId }) {
     for (const className of element.classList) {
       switch (className) {
         case 'pushModel':
           element.addEventListener('click', () => {
-            if (proxyableRowId) PageState.global.visit(proxyableRowId);
+            if (rowId) PageState.global.visit(rowId);
           });
       }
     }

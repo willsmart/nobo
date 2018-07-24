@@ -166,7 +166,7 @@ class WebSocketClient {
       ConvertIds.recomposeId({
         typeName: 'App',
         proxyKey: 'default',
-      }).proxyableRowId,
+      }).rowId,
       ConvertIds.recomposeId({
         typeName: 'App',
         dbRowId: 1,
@@ -183,7 +183,7 @@ class WebSocketClient {
         ConvertIds.recomposeId({
           typeName: 'User',
           proxyKey: 'me',
-        }).proxyableRowId,
+        }).rowId,
         ConvertIds.recomposeId({
           typeName: 'User',
           dbRowId: userId,
@@ -193,7 +193,7 @@ class WebSocketClient {
         ConvertIds.recomposeId({
           typeName: 'User',
           proxyKey: 'default',
-        }).proxyableRowId,
+        }).rowId,
         ConvertIds.recomposeId({
           typeName: 'User',
           dbRowId: userId,
@@ -204,7 +204,7 @@ class WebSocketClient {
         ConvertIds.recomposeId({
           typeName: 'User',
           proxyKey: 'me',
-        }).proxyableproxyableRowIdViewId,
+        }).rowId,
         ConvertIds.recomposeId({
           typeName: 'App',
           dbRowId: 1,
@@ -214,7 +214,7 @@ class WebSocketClient {
         ConvertIds.recomposeId({
           typeName: 'User',
           proxyKey: 'default',
-        }).proxyableRowId,
+        }).rowId,
         ConvertIds.recomposeId({
           typeName: 'App',
           dbRowId: 1,

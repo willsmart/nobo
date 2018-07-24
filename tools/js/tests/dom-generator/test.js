@@ -47,7 +47,7 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that the depth and template dpid attributes are set correctly for nil variant unloaded template`,
-    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'user__1' })[0]),
+    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', rowOrDatapointId: 'user__1' })[0]),
     {
       equals: {
         type: 'DIV',
@@ -59,7 +59,7 @@ module.exports = async function(rig) {
   await rig.assert(
     `that the depth and template dpid attributes are set correctly for non-nil variant unloaded template`,
     domTree(
-      domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', proxyableRowOrDatapointId: 'user__1' })[0]
+      domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', rowOrDatapointId: 'user__1' })[0]
     ),
     {
       equals: {
@@ -77,7 +77,7 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that the dom datapoint id attribute is set correctly for nil variant loaded template`,
-    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'user__1' })[0]),
+    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', rowOrDatapointId: 'user__1' })[0]),
     {
       includes: {
         attributes: { 'nobo-dom-dpid': 'template__1__dom' },
@@ -88,7 +88,7 @@ module.exports = async function(rig) {
   await rig.assert(
     `that the dom datapoint id attribute is set correctly for non-nil variant loaded template`,
     domTree(
-      domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', proxyableRowOrDatapointId: 'user__1' })[0]
+      domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', rowOrDatapointId: 'user__1' })[0]
     ),
     {
       includes: {
@@ -104,7 +104,7 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that the correct template dom is used`,
-    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'user__1' })[0]),
+    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', rowOrDatapointId: 'user__1' })[0]),
     {
       includes: {
         attributes: { thedomtype: 'user' },
@@ -119,7 +119,7 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that a more complicated dom tree is generated correctly`,
-    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'app__1' })),
+    domTree(domGenerator.createElementsForVariantOfRow({ variant: '', rowOrDatapointId: 'app__1' })),
     {
       equals: [
         {

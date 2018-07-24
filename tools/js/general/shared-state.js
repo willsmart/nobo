@@ -10,7 +10,7 @@ const { shallowCopy, shallowCopyObjectIfSame } = require('./clone');
 //  The callback you provide is passed a TemporaryState object, which you can modify using the atPath accessor
 //
 // eg
-//  SharedState.requestCommit(temp=>{temp.atPath('datapoints',proxyableDatapointId).name = 'newName'})
+//  SharedState.requestCommit(temp=>{temp.atPath('datapoints',datapointId).name = 'newName'})
 class TemporaryState {
   static publicMethods() {
     return ['atPath', 'state', 'current'];

@@ -1,0 +1,4 @@
+#!/bin/bash
+bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+"$bindir/update-db-schema"
+"$bindir/update-db-templates"

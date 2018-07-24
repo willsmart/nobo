@@ -114,10 +114,10 @@ const appDbRowId = 1,
     isClient: true,
   }),
   stateToCacheConnection = new StateToCacheConnection({ cache, sharedState }),
-  getDatapoint = (proxyableDatapointId, defaultValue) => {
-    let datapoint = cache.getExistingDatapoint({ datapointId: proxyableDatapointId });
+  getDatapoint = (datapointId, defaultValue) => {
+    let datapoint = cache.getExistingDatapoint({ datapointId });
     if (!datapoint) {
-      datapoint = cache.getOrCreateDatapoint({ datapointId: proxyableDatapointId });
+      datapoint = cache.getOrCreateDatapoint({ datapointId });
       datapoint.watch({});
     }
     return datapoint.valueIfAny || defaultValue;

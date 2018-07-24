@@ -81,13 +81,13 @@ class RequiredDatapoints {
             for (const childRowOrDatapointId of children) {
               let childRowId,
                 childVariant = variant;
-              if (ConvertIds.proxyableRowIdRegex.test(childRowOrDatapointId)) {
+              if (ConvertIds.rowRegex.test(childRowOrDatapointId)) {
                 childRowId = childRowOrDatapointId;
                 childVariant = variant;
               } else {
-                const datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: childRowOrDatapointId });
-                if (!(datapointInfo.proxyableRowId && datapointInfo.fieldName)) continue;
-                childRowId = datapointInfo.proxyableRowId;
+                const datapointInfo = ConvertIds.decomposeId({ datapointId: childRowOrDatapointId });
+                if (!(datapointInfo.rowId && datapointInfo.fieldName)) continue;
+                childRowId = datapointInfo.rowId;
                 childVariant = datapointInfo.fieldName;
               }
               requiredDatapoints._forView({ rowId: childRowId, variant: childVariant, ret, promises });

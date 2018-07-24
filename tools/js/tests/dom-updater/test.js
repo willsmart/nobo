@@ -51,7 +51,7 @@ module.exports = async function(rig) {
   await cache.validateAll();
 
   let holder = htmlToElement('<div></div>');
-  let [element] = domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'user__1' });
+  let [element] = domGenerator.createElementsForVariantOfRow({ variant: '', rowOrDatapointId: 'user__1' });
   holder.appendChild(element);
   await cache.validateAll();
   element = holder.firstChild;
@@ -93,7 +93,7 @@ module.exports = async function(rig) {
     },
   });
 
-  let elements = domGenerator.createElementsForVariantOfRow({ variant: '', proxyableRowOrDatapointId: 'app__1' });
+  let elements = domGenerator.createElementsForVariantOfRow({ variant: '', rowOrDatapointId: 'app__1' });
   holder = htmlToElement('<div></div>');
   for (const element of elements) holder.appendChild(element);
   await cache.validateAll();

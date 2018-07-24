@@ -87,13 +87,13 @@ class PageState {
   updateState(rowOrDatapointId) {
     const pageState = this;
 
-    let pageDatapointInfo = ConvertIds.proxyableDatapointRegex.test(rowOrDatapointId)
+    let pageDatapointInfo = ConvertIds.datapointRegex.test(rowOrDatapointId)
       ? ConvertIds.recomposeId({
-          proxyableDatapointId: rowOrDatapointId,
+          datapointId: rowOrDatapointId,
           permissive: true,
         })
       : ConvertIds.recomposeId({
-          proxyableRowId: rowOrDatapointId,
+          rowId: rowOrDatapointId,
           fieldName: '',
           permissive: true,
         });
@@ -103,10 +103,10 @@ class PageState {
         pageDatapointInfo = pageState.defaultPageDatapointInfo;
       }
     }
-    const pageDatapointId = pageDatapointInfo.proxyableDatapointId,
+    const pageDatapointId = pageDatapointInfo.datapointId,
       titleDatapointId = ConvertIds.recomposeId(pageDatapointInfo, {
         fieldName: 'name',
-      }).proxyableDatapointId;
+      }).datapointId;
 
     const titleDatapoint = pageState.cache.getOrCreateDatapoint({ datapointId: titleDatapointId });
     if (titleDatapoint !== pageState.titleDatapoint) {
@@ -149,13 +149,12 @@ class PageState {
 
   pathNameForState(state) {
     const pageState = this,
-      datapointInfo = ConvertIds.decomposeId({ proxyableDatapointId: state.pageDatapointId, permissive: true });
+      datapointInfo = ConvertIds.decomposeId({ datapointId: state.pageDatapointId, permissive: true });
     if (!datapointInfo) return;
     const regex = /(?=((?:[\!\$&'\(\)\*\+,;=a-zA-Z0-9\-._~:@\/?]|%[0-9a-fA-F]{2})*))\1./g,
       titleForFragment = !state.title ? undefined : state.title.substring(0, 100).replace(regex, '$1-');
 
-    const dbRowIdOrProxyKey =
-      datapointInfo.proxyKey == 'default' ? '' : datapointInfo.dbRowId || datapointInfo.proxyKey;
+    const dbRowIdOrProxyKey = datapointInfo.proxyKey == 'default' ? '' : datapointInfo.dbRowIdOrProxyKey;
     let ret = `/${datapointInfo.typeName}`;
     if (dbRowIdOrProxyKey || datapointInfo.fieldName || titleForFragment) {
       ret += `/${dbRowIdOrProxyKey || ''}`;

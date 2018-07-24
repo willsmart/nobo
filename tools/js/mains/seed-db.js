@@ -27,4 +27,4 @@ const writeFile_p = promisify(fs.writeFile);
 ${err.stack}.
 `);
   }
-})();
+})().then(() => process.exit(0));

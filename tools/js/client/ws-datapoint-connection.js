@@ -24,11 +24,11 @@ class WsDatapointConnection {
       onpayload: ({ messageIndex, messageType, payloadObject }) => {
         if (payloadObject.diffs) {
           SharedState.requestCommit(state => {
-            for (const [proxyableDatapointId, diff] of Object.entries(payloadObject.diffs)) {
-              state.atPath('datapointsById')[proxyableDatapointId] = diff;
-              const subscription = subscriptions[proxyableDatapointId]
+            for (const [datapointId, diff] of Object.entries(payloadObject.diffs)) {
+              state.atPath('datapointsById')[datapointId] = diff;
+              const subscription = subscriptions[datapointId]
               if (subscription) {
-                const datapoint = cache.getExistingDatapoint({datapointId: proxyableDatapointId})
+                const datapoint = cache.getExistingDatapoint({datapointId})
                 if (subscription.send) {
                   datapoint.commit()
                 }
@@ -37,7 +37,7 @@ class WsDatapointConnection {
                 }
           )
               // TODO...
-              // const datapoint = state.atPath('datapointsById', proxyableDatapointId)
+              // const datapoint = state.atPath('datapointsById', datapointId)
               // applyDiffToDatapoint({
               //   from: datapoint,
               //   diff
@@ -53,11 +53,11 @@ class WsDatapointConnection {
 
         let payloadObject;
 
-        for (const proxyableDatapointId of Object.keys(datapointsById)) {
-          if (ConvertIds.proxyableDatapointRegex.test(proxyableDatapointId)) {
+        for (const datapointId of Object.keys(datapointsById)) {
+          if (ConvertIds.datapointRegex.test(datapointId)) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
-            payloadObject.datapoints[proxyableDatapointId] = 1;
+            payloadObject.datapoints[datapointId] = 1;
           }
         }
 
@@ -70,13 +70,13 @@ class WsDatapointConnection {
     });
   }
 
-  sendDatapoints(serverValuesByProxyableDatapointId) {
+  sendDatapoints(serverValuesByDatapointId) {
     const datapointConnecton = this,
       { sentDatapointIds } = datapointConnecton;
 
-    Object.assign(sentDatapointIds, serverValuesByProxyableDatapointId)
+    Object.assign(sentDatapointIds, serverValuesByDatapointId)
     datapointConnecton.wsclient.sendPayload({
-      payloadObject: { diffs: valuesByProxyableDatapointId },
+      payloadObject: { diffs: valuesByDatapointId },
     });
   }
 
@@ -84,10 +84,10 @@ class WsDatapointConnection {
     const datapointConnecton = this,
     { subscriptions } = datapointConnecton
 
-    if (!proxyableDatapointIds.length) return;
+    if (!datapointIds.length) return;
     const datapointsById = {};
-    for (const proxyableDatapointId of proxyableDatapointIds) datapointsById[proxyableDatapointId] = 1;
-    Object.assign(sentDatapointIds, serverValuesByProxyableDatapointId)
+    for (const datapointId of datapointIds) datapointsById[datapointId] = 1;
+    Object.assign(sentDatapointIds, serverValuesByDatapointId)
 
     datapointConnecton.wsclient.sendPayload({
       payloadObject: { datapoints: datapointsById },

@@ -3,9 +3,6 @@ args=$@
 bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
-cd "$toolsdir/js"
-if ! ret=$(npm install 2>&1) ; then echo "$ret" ; fi
-
 cd "$bindir/.."
 
 node "$toolsdir/js/mains/update-db-schema.js" dryRun=0 $args

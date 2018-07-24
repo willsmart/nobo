@@ -43,9 +43,9 @@ class CacheToStateConnection {
         return;
       }
 
-      let value = datapointsById[datapoint.proxyableDatapointId];
-      if (!datapointsById.hasOwnProperty(datapoint.proxyableDatapointId)) {
-        newDatapointIds.push(datapoint.proxyableDatapointId);
+      let value = datapointsById[datapoint.datapointId];
+      if (!datapointsById.hasOwnProperty(datapoint.datapointId)) {
+        newDatapointIds.push(datapoint.datapointId);
         value = '...';
       }
 
@@ -81,7 +81,7 @@ class CacheToStateConnection {
           return;
         }
 
-        datapointsById[datapoint.proxyableDatapointId] = datapoint.newValue;
+        datapointsById[datapoint.datapointId] = datapoint.newValue;
         datapoint.commit();
       });
     });

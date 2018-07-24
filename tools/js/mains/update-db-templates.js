@@ -4,14 +4,10 @@
 // TODO this is the result of a rabid day's coding. Clean
 
 const Parse5 = require('parse5');
-//const Haml = require("haml");
 const Connection = require('../db/postgresql-connection');
-const SchemaToSQL = require('../db/postgresql-schema.js');
 const processArgs = require('../general/process-args');
-const strippedValues = require('../general/stripped-values');
 const fs = require('fs');
 const { promisify } = require('util');
-const YAML = require('yamljs');
 
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
@@ -20,14 +16,13 @@ async function execHaml(hamlFilename) {
   const htmlFilename = `${hamlFilename}.html`;
   console.log(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
   const { stdout, stderr, error } = await exec(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
-  console.log(stdout);
-  console.log(stderr);
+  if (stdout.length) console.log(stdout);
+  if (stderr.length) console.log(stderr);
   if (error) return;
   return await readFile_p(htmlFilename, 'utf8');
 }
 
 const readFile_p = promisify(fs.readFile);
-const writeFile_p = promisify(fs.writeFile);
 const readdir_p = promisify(fs.readdir);
 const lstat_p = promisify(fs.lstat);
 
@@ -256,6 +251,8 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
     newTemplates = [],
     templatesWas = (await connection.query('SELECT id from template;')).rows.map(row => row.id);
 
+  let hadChanges = false;
+
   await dealWithTemplatesDirectory({
     path: templateDir,
     templatesByOwnershipClassVariant,
@@ -285,6 +282,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
     if (!template.modified) continue;
 
     console.log(`Template: ${template.filename} has changed dom or filename`);
+    hadChanges = true;
     await connection.query(
       'UPDATE template SET dom=$1::text, includes_template_filenames=$2::text, filename=$3::character varying, file_modified_at=$4::character varying WHERE id=$5::integer;',
       [
@@ -301,6 +299,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
 
   for (const template of newTemplates) {
     console.log(`New template: ${template.filename}`);
+    hadChanges = true;
     await connection.query(
       'INSERT INTO template(app_id, class_filter, dom, includes_template_filenames, filename, file_modified_at, owner_only, variant) VALUES ($1::integer, $2::character varying, $3::text, $4::text, $5::character varying, $6::character varying, $7::boolean, $8::character varying);',
       [
@@ -326,8 +325,12 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
   const deleteTemplates = templatesWas.filter(id => !templatesById[id]);
   if (deleteTemplates.length) {
     console.log(`Deleting ${deleteTemplates.length} template rows`);
+    hadChanges = true;
     await connection.query('DELETE FROM template WHERE id = ANY ($1::integer[]);', [deleteTemplates]);
   }
 
+  if (!hadChanges) {
+    console.log('All templates were already up to date.');
+  }
   console.log('Done');
-})();
+})().then(() => process.exit(0));

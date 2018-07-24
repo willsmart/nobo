@@ -53,7 +53,7 @@ class StateToCacheConnection {
               return false;
           }
 
-          if (!ConvertIds.proxyableDatapointRegex.test(keyPath[1])) return false;
+          if (!ConvertIds.datapointRegex.test(keyPath[1])) return false;
 
           let datapoint;
           if (change.is === undefined) {

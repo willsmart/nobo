@@ -46,9 +46,9 @@ class Datapoint {
       'invalid',
       'fieldIfAny',
       'datapointId',
-      'proxyableDatapointId',
+      'datapointId',
       'rowId',
-      'proxyableRowId',
+      'rowId',
       'typeName',
       'fieldName',
       'dbRowId',
@@ -61,12 +61,12 @@ class Datapoint {
     log(`creating datapoint ${datapointId}`);
 
     const datapointInfo = ConvertIds.decomposeId({
-      proxyableDatapointId: datapointId,
+      datapointId: datapointId,
     });
     datapoint._datapointId = datapointInfo.datapointId;
-    datapoint._proxyableDatapointId = datapointInfo.proxyableDatapointId;
+    datapoint._datapointId = datapointInfo.datapointId;
     datapoint._rowId = datapointInfo.rowId;
-    datapoint._proxyableRowId = datapointInfo.proxyableRowId;
+    datapoint._rowId = datapointInfo.rowId;
     datapoint._typeName = datapointInfo.typeName;
     datapoint._dbRowId = datapointInfo.dbRowId;
     datapoint._fieldName = datapointInfo.fieldName;
@@ -102,16 +102,16 @@ class Datapoint {
     return this._datapointId;
   }
 
-  get proxyableDatapointId() {
-    return this._proxyableDatapointId;
+  get datapointId() {
+    return this._datapointId;
   }
 
   get rowId() {
     return this._rowId;
   }
 
-  get proxyableRowId() {
-    return this._proxyableRowId;
+  get rowId() {
+    return this._rowId;
   }
 
   get typeName() {

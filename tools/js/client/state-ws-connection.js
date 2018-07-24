@@ -30,7 +30,7 @@ class StateWsConnection {
           if (
             keyPath.length == 2 &&
             keyPath[0] == 'datapointsById' &&
-            ConvertIds.proxyableDatapointRegex.test(keyPath[1])
+            ConvertIds.datapointRegex.test(keyPath[1])
           ) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
@@ -58,10 +58,10 @@ class StateWsConnection {
       onpayload: ({ messageIndex, messageType, payloadObject }) => {
         if (payloadObject.diffs) {
           sharedState.requestCommit(state => {
-            for (const [proxyableDatapointId, diff] of Object.entries(payloadObject.diffs)) {
-              state.atPath('datapointsById')[proxyableDatapointId] = diff;
+            for (const [datapointId, diff] of Object.entries(payloadObject.diffs)) {
+              state.atPath('datapointsById')[datapointId] = diff;
               // TODO...
-              // const datapoint = state.atPath('datapointsById', proxyableDatapointId)
+              // const datapoint = state.atPath('datapointsById', datapointId)
               // applyDiffToDatapoint({
               //   from: datapoint,
               //   diff
@@ -77,11 +77,11 @@ class StateWsConnection {
 
         let payloadObject;
 
-        for (const proxyableDatapointId of Object.keys(datapointsById)) {
-          if (ConvertIds.proxyableDatapointRegex.test(proxyableDatapointId)) {
+        for (const datapointId of Object.keys(datapointsById)) {
+          if (ConvertIds.datapointRegex.test(datapointId)) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
-            payloadObject.datapoints[proxyableDatapointId] = 1;
+            payloadObject.datapoints[datapointId] = 1;
           }
         }
 
