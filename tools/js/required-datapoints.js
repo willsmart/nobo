@@ -17,11 +17,11 @@ class RequiredDatapoints {
     requiredDatapoints.templates = cache.templates;
   }
 
-  async forView({ rowId, ownerOnly = false, variant }) {
+  async forView({ rowId, ownerOnly = false, variant, rowProxy }) {
     const requiredDatapoints = this,
       ret = {},
       promises = [];
-    requiredDatapoints._forView({ rowId, ownerOnly, variant, ret, promises });
+    requiredDatapoints._forView({ rowId, ownerOnly, variant, ret, promises, rowProxy });
     while (promises.length) {
       const promisesCopy = promises.slice();
       promises.splice(0, promises.length);
@@ -30,12 +30,19 @@ class RequiredDatapoints {
     return ret;
   }
 
-  _forView({ rowId, ownerOnly = false, variant, ret = {}, promises = [] }) {
+  getOrCreateDatapoint({ datapointId, rowProxy }) {
+    const datapointInfo = rowProxy.makeConcrete({ datapointId });
+    if (!datapointInfo) return;
+    return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
+  }
+
+  _forView({ rowId, ownerOnly = false, variant, ret = {}, promises = [], rowProxy }) {
     const requiredDatapoints = this,
-      { templates, cache } = requiredDatapoints;
+      { templates } = requiredDatapoints;
 
     const templateDatapointId = ConvertIds.recomposeId({ rowId, fieldName: `template_${variant || ''}` }).datapointId,
-      templateDatapoint = cache.getOrCreateDatapoint({ datapointId: templateDatapointId });
+      templateDatapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId: templateDatapointId, rowProxy });
+    if (!templateDatapoint) return;
     ret[templateDatapointId] = { callbackKey: templateDatapoint.watch({}) };
 
     if (templateDatapoint.invalid) {
@@ -51,15 +58,18 @@ class RequiredDatapoints {
       if (!template) return;
 
       const domDatapointId = ConvertIds.recomposeId({ rowId: templateRowId, fieldName: 'dom' }).datapointId,
-        domDatapoint = cache.getOrCreateDatapoint({ datapointId: domDatapointId });
-      ret[domDatapointId] = { callbackKey: domDatapoint.watch({}) };
-      if (domDatapoint.invalid) {
-        promises.push(domDatapoint.value);
+        domDatapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId: domDatapointId, rowProxy });
+      if (domDatapoint) {
+        ret[domDatapointId] = { callbackKey: domDatapoint.watch({}) };
+        if (domDatapoint.invalid) {
+          promises.push(domDatapoint.value);
+        }
       }
 
       for (const fieldName of template.displayedFields) {
         const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-        const datapoint = cache.getOrCreateDatapoint({ datapointId });
+        const datapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId, rowProxy });
+        if (!datapoint) continue;
         ret[datapointId] = { callbackKey: datapoint.watch({}) };
         if (datapoint.invalid) {
           promises.push(datapoint.value);
@@ -67,7 +77,8 @@ class RequiredDatapoints {
       }
       for (const { fieldName, variants } of template.children) {
         const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-        const datapoint = cache.getOrCreateDatapoint({ datapointId });
+        const datapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId, rowProxy });
+        if (!datapoint) continue;
         ret[datapointId] = { callbackKey: datapoint.watch({}) };
         if (datapoint.invalid) {
           promises.push(datapoint.value.then(children => handleChildren(children)));
@@ -90,7 +101,7 @@ class RequiredDatapoints {
                 childRowId = datapointInfo.rowId;
                 childVariant = datapointInfo.fieldName;
               }
-              requiredDatapoints._forView({ rowId: childRowId, variant: childVariant, ret, promises });
+              requiredDatapoints._forView({ rowId: childRowId, variant: childVariant, ret, promises, rowProxy });
             }
           }
         }

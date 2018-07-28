@@ -59,19 +59,19 @@ class WSClientDatapoints {
     delete serverDatapoints.clientsWithPayloads[clientDatapoints.index];
   }
 
-  subscribe({ datapointId, user }) {
+  subscribe({ datapointId, rowProxy }) {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints;
 
     if (clientDatapoints.subscribedDatapoints.hasOwnProperty(datapointId))
       return clientDatapoints.subscribedDatapoints[datapointId];
 
-    const nonProxyDatapointId = clientDatapoints.followProxyDatapointId({ datapointId, user });
+    const nonProxyDatapointInfo = rowProxy.makeConcrete({ datapointId });
 
     let datapoint;
-    if (nonProxyDatapointId) {
+    if (nonProxyDatapointInfo) {
       ({ datapoint } = serverDatapoints.addRefForDatapoint({
-        datapointId: nonProxyDatapointId,
+        datapointId: nonProxyDatapointInfo.datapointId,
       }));
       datapoint.watch({
         callbackKey: `${clientDatapoints.callbackKey}__${datapointId}`,
@@ -83,15 +83,16 @@ class WSClientDatapoints {
       clientDatapoints.subscribedDatapoints[datapointId] = datapoint;
 
       if (datapoint.fieldName && datapoint.fieldName.startsWith('template')) {
-        const variant = ChangeCase.camelCase(datapoint.fieldName.substring('template'.length)) || undefined;
+        const variant = ChangeCase.camelCase(datapoint.fieldName.substring('template'.length)) || undefined,
+          rowId = ConvertIds.decomposeId({ datapointId }).rowId;
 
         serverDatapoints.requiredDatapoints
-          .forView({ rowId: datapoint.rowId, variant })
+          .forView({ rowId, variant, rowProxy })
           .then(requiredDatapointCallbackKeys => {
             clientDatapoints.queueSendDiff({ datapointId, datapoint });
 
             for (const [datapointId, callbackKey] of Object.entries(requiredDatapointCallbackKeys)) {
-              clientDatapoints.subscribe({ datapointId, user });
+              clientDatapoints.subscribe({ datapointId, rowProxy });
               const datapoint = serverDatapoints.cache.getExistingDatapoint({ datapointId });
               if (datapoint) datapoint.stopWatching({ callbackKey });
             }
@@ -154,37 +155,15 @@ class WSClientDatapoints {
     return diff;
   }
 
-  handlePayload({ messageIndex, messageType, payloadObject, session }) {
+  handlePayload({ payloadObject, rowProxy }) {
     const clientDatapoints = this;
 
     if (payloadObject.datapoints)
-      clientDatapoints.recievedDatapointsFromClient({ datapoints: payloadObject.datapoints, session });
+      clientDatapoints.recievedDatapointsFromClient({ datapoints: payloadObject.datapoints, rowProxy });
   }
 
-  followProxyDatapointId({ datapointId, user }) {
-    if (!ConvertIds.proxyDatapointRegex.test(datapointId)) return datapointId;
-    const datapointInfo = ConvertIds.decomposeId({ datapointId });
-    switch (datapointInfo.typeName) {
-      case 'User':
-        switch (datapointInfo.proxyKey) {
-          case '':
-          case 'me':
-          case 'default':
-            if (user) return ConvertIds.recomposeId(datapointInfo, { dbRowId: user.id }).datapointId;
-            break;
-        }
-      case 'App':
-        switch (datapointInfo.proxyKey) {
-          case 'default':
-            return ConvertIds.recomposeId(datapointInfo, { dbRowId: 1 }).datapointId;
-        }
-    }
-  }
-
-  recievedDatapointsFromClient({ datapoints: datapointsFromClient, session }) {
-    const clientDatapoints = this,
-      serverDatapoints = clientDatapoints.serverDatapoints,
-      { user } = session;
+  recievedDatapointsFromClient({ datapoints: datapointsFromClient, rowProxy }) {
+    const clientDatapoints = this;
 
     for (let [datapointId, datapointFromClient] of Object.entries(datapointsFromClient)) {
       if (datapointFromClient === 0)
@@ -228,7 +207,7 @@ class WSClientDatapoints {
       } else if (subscribe) {
         clientDatapoints.subscribe({
           datapointId,
-          user,
+          rowProxy,
         });
       }
     }
@@ -398,9 +377,6 @@ class WSServerDatapoints {
     return datapointInfo;
   }
 
-  queueValidateJob() {
-    const serverDatapoints = this;
-  }
   diffForDatapoint({ datapointId, nonProxyDatapointId, value, fromVersion }) {
     const serverDatapoints = this,
       payloadByFromVersion = serverDatapoints.payloadByFromVersionByDatapointId[datapointId]

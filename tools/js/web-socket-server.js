@@ -6,6 +6,7 @@ const ConvertIds = require('./convert-ids');
 const PublicApi = require('./general/public-api');
 const makeClassWatchable = require('./general/watchable');
 const ServerDatapoints = require('./server-datapoints');
+const RowProxy = require('./row-proxy');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -116,7 +117,7 @@ class WebSocketServer {
         session,
         ws,
         index: nextWsIndex++,
-        userId: session.userId,
+        userId: 1, //session.user ? session.user.id : undefined,
       });
 
       server.notifyListeners('onclientConnected', client);
@@ -155,80 +156,15 @@ class WebSocketServer {
 }
 
 class WebSocketClient {
-  constructor({ server, session, ws, index }) {
+  constructor({ server, session, ws, index, userId }) {
     const client = this;
 
     client.server = server;
     client.session = session;
     client.ws = ws;
     client.index = index;
-    client.mapProxyRowId(
-      ConvertIds.recomposeId({
-        typeName: 'App',
-        proxyKey: 'default',
-      }).rowId,
-      ConvertIds.recomposeId({
-        typeName: 'App',
-        dbRowId: 1,
-      }).rowId
-    );
-    client.login(1);
-  }
 
-  login(userId) {
-    const client = this;
-
-    if (userId) {
-      client.mapProxyRowId(
-        ConvertIds.recomposeId({
-          typeName: 'User',
-          proxyKey: 'me',
-        }).rowId,
-        ConvertIds.recomposeId({
-          typeName: 'User',
-          dbRowId: userId,
-        }).rowId
-      );
-      client.mapProxyRowId(
-        ConvertIds.recomposeId({
-          typeName: 'User',
-          proxyKey: 'default',
-        }).rowId,
-        ConvertIds.recomposeId({
-          typeName: 'User',
-          dbRowId: userId,
-        }).rowId
-      );
-    } else {
-      client.mapProxyRowId(
-        ConvertIds.recomposeId({
-          typeName: 'User',
-          proxyKey: 'me',
-        }).rowId,
-        ConvertIds.recomposeId({
-          typeName: 'App',
-          dbRowId: 1,
-        }).rowId
-      );
-      client.mapProxyRowId(
-        ConvertIds.recomposeId({
-          typeName: 'User',
-          proxyKey: 'default',
-        }).rowId,
-        ConvertIds.recomposeId({
-          typeName: 'App',
-          dbRowId: 1,
-        }).rowId
-      );
-    }
-  }
-
-  mapProxyRowId(proxyRowId, rowId) {
-    // TODO
-  }
-
-  logout() {
-    this.login();
+    client.rowProxy = new RowProxy({ policy: RowProxy.userIdPolicy({ userId }) });
   }
 
   serverReceivedMessage(message) {
@@ -270,7 +206,7 @@ class WebSocketClient {
       messageIndex,
       messageType,
       payloadObject,
-      session: client.session,
+      rowProxy: client.rowProxy,
     });
   }
 

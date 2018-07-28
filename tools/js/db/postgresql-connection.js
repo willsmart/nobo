@@ -111,7 +111,10 @@ class PostgresqlConnection {
 
   async query(sql, argArray) {
     //console.log(sql);
-    return this.pool.query(sql, argArray);
+    return this.pool.query(sql, argArray).catch(err => {
+      console.log(`Failed query ${sql}\nStack: ${err.stack}`);
+      throw err;
+    });
   }
 
   // methods to load rows and views
