@@ -10,7 +10,8 @@ const PageState = require('./page-state'),
   StateToCacheConnection = require('./state-to-cache-connection'),
   CacheToStateConnection = require('./cache-to-state-connection'),
   StateWsConnection = require('./state-ws-connection'),
-  { DatapointCache, Schema } = require('../datapoint-cache-module'),
+  DatapointCache = require('../datapoint-cache'),
+  Schema = require('./schema'),
   appClient = require('./app-client');
 
 const schema = new Schema();

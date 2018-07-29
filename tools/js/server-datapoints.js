@@ -59,14 +59,14 @@ class WSClientDatapoints {
     delete serverDatapoints.clientsWithPayloads[clientDatapoints.index];
   }
 
-  subscribe({ datapointId, rowProxy }) {
+  async subscribe({ datapointId, rowProxy }) {
     const clientDatapoints = this,
       serverDatapoints = clientDatapoints.serverDatapoints;
 
     if (clientDatapoints.subscribedDatapoints.hasOwnProperty(datapointId))
       return clientDatapoints.subscribedDatapoints[datapointId];
 
-    const nonProxyDatapointInfo = rowProxy.makeConcrete({ datapointId });
+    const nonProxyDatapointInfo = await rowProxy.makeConcrete({ datapointId });
 
     let datapoint;
     if (nonProxyDatapointInfo) {
@@ -92,7 +92,7 @@ class WSClientDatapoints {
             clientDatapoints.queueSendDiff({ datapointId, datapoint });
 
             for (const [datapointId, callbackKey] of Object.entries(requiredDatapointCallbackKeys)) {
-              clientDatapoints.subscribe({ datapointId, rowProxy });
+              await clientDatapoints.subscribe({ datapointId, rowProxy });
               const datapoint = serverDatapoints.cache.getExistingDatapoint({ datapointId });
               if (datapoint) datapoint.stopWatching({ callbackKey });
             }

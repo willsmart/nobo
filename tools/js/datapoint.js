@@ -285,9 +285,10 @@ class Datapoint {
         },
       });
     }
-    match = /^template(\w*)$/.exec(datapoint.fieldName);
+    match = /^publicTemplate(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
       const variant = ChangeCase.camelCase(match[1]);
+
       return datapoint.makeVirtualField({
         isId: true,
         isMultiple: false,
@@ -297,6 +298,27 @@ class Datapoint {
               variant,
               classFilter: datapoint.typeName,
               ownerOnly: false,
+            }).datapointId,
+          },
+        },
+        getterFunction: args => {
+          return args.template;
+        },
+      });
+    }
+    match = /^privateTemplate(\w*)$/.exec(datapoint.fieldName);
+    if (templates && match) {
+      const variant = ChangeCase.camelCase(match[1]);
+
+      return datapoint.makeVirtualField({
+        isId: true,
+        isMultiple: false,
+        names: {
+          template: {
+            datapointId: templates.getTemplateReferencingDatapoint({
+              variant,
+              classFilter: datapoint.typeName,
+              ownerOnly: true,
             }).datapointId,
           },
         },
