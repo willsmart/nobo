@@ -790,12 +790,38 @@ ALTER SEQUENCE "` +
     }
 
     return {
-      update:
+      delete:
         `
-        -- ` +
+      -- ` +
         sqlField.sqlName +
         `
-            IF ((OLD."` +
+          IF (OLD."` +
+        sqlField.sqlName +
+        `" IS NOT NULL) THEN
+              INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, OLD.id, '` +
+        sqlField.sqlName +
+        `') ON CONFLICT DO NOTHING;
+          END IF;
+      `,
+      insert:
+        `
+-- ` +
+        sqlField.sqlName +
+        `
+    IF (NEW."` +
+        sqlField.sqlName +
+        `" IS NOT NULL) THEN
+        INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '` +
+        sqlField.sqlName +
+        `') ON CONFLICT DO NOTHING;
+    END IF;
+`,
+      update:
+        `
+-- ` +
+        sqlField.sqlName +
+        `
+    IF ((OLD."` +
         sqlField.sqlName +
         `" IS NULL AND NEW."` +
         sqlField.sqlName +
@@ -808,10 +834,10 @@ ALTER SEQUENCE "` +
         `" <> NEW."` +
         sqlField.sqlName +
         `")) THEN
-                INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '` +
+        INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '` +
         sqlField.sqlName +
         `') ON CONFLICT DO NOTHING;
-            END IF;
+    END IF;
 `,
     };
   }

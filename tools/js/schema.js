@@ -47,7 +47,7 @@ class SchemaDefn {
 
   getType(name) {
     let schema = this;
-    if (typeof name == 'object') return name.getEnclosingType();
+    if (name && typeof name == 'object') return name.getEnclosingType();
     return (
       this._allTypes[name] ||
       (this._allTypes[name] = {
@@ -99,10 +99,11 @@ class SchemaDefn {
                 if (name == undefined) return this;
                 return this.dataType.getField(name, dataType, isVirtual, isMultiple);
               },
-              getDatapointId: function({ dbRowId }) {
+              getDatapointId: function({ dbRowId, proxyKey }) {
                 return ConvertIds.recomposeId({
                   typeName: this.enclosingType.name,
-                  dbRowId: dbRowId,
+                  dbRowId,
+                  proxyKey,
                   fieldName: this.name,
                 }).datapointId;
               },

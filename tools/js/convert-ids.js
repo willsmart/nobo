@@ -159,7 +159,9 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
   if (!typeNameRegex.test(ret.typeName)) throw new Error('Type name has invalid characters or format');
 
   if (dbRowId) {
-    if (!dbRowIdRegex.test(dbRowId)) throw new Error('Db row id has invalid characters or format');
+    if (!dbRowIdRegex.test(dbRowId)) {
+      throw new Error('Db row id has invalid characters or format');
+    }
     ret.dbRowId = +dbRowId;
     ret.rowId = `${ret.typeName}__${ret.dbRowId}`;
 

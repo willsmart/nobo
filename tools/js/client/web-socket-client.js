@@ -115,7 +115,7 @@ class WebSocketClient {
       payloadObject = {
         array: payloadObject,
       };
-    } else if (typeof payloadObject != 'object') {
+    } else if (!payloadObject || typeof payloadObject != 'object') {
       payloadObject = {
         message: `${payloadObject}`,
       };

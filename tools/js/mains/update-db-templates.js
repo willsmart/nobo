@@ -6,6 +6,7 @@
 const Parse5 = require('parse5');
 const Connection = require('../db/postgresql-connection');
 const processArgs = require('../general/process-args');
+const TemplatedText = require('../dom/templated-text');
 const fs = require('fs');
 const { promisify } = require('util');
 
@@ -170,7 +171,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
     console.log(`Couldn't read template file ${filename} (at ${path}). Skipping`);
     return;
   }
-  if (!(template.roots || (template.roots = Parse5.parseFragment(template.dom).childNodes))) {
+  if (!(template.domTree || (template.domTree = Parse5.parseFragment(`${template.dom}`)))) {
     console.log(`Couldn't parse template file ${filename} (at ${path}). Skipping`);
     return;
   }
@@ -179,11 +180,59 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
 
   template.includesTemplatesByFilename = {};
 
-  async function checkForIncludeComment(node, index, siblings, templatesByFilename) {
+  async function checkForIncludeComment(node, nodeIndex, siblings, template, templatesByFilename) {
     if (node.tagName == 'include') {
-      const attrs = {};
-      node.attrs.forEach(({ name, value }) => (attrs[name] = value));
+      const attrs = {},
+        fields = {};
+      node.attrs.forEach(({ name, value }) => {
+        attrs[name] = value;
+        if (name.endsWith('_field')) fields[name.substring(0, name.length - '_field'.length)] = value;
+      });
 
+      const hasVariant = attrs.variant !== undefined,
+        hasClassFilter = attrs.classfilter !== undefined,
+        hasPublic = attrs.public;
+      if (hasVariant || hasClassFilter || hasPublic) {
+        const variant = attrs.variant || undefined,
+          classFilter = attrs.classfilter || undefined;
+
+        const tryClassFilters = hasClassFilter
+            ? [classFilter]
+            : template.classFilter
+              ? [template.classFilter, undefined]
+              : [undefined],
+          tryVariants = hasVariant ? [variant] : template.variant ? [template.variant, undefined] : [undefined],
+          tryOwnerships = hasPublic ? [false] : template.ownerOnly ? [true, false] : [false],
+          tryCombos = [];
+        for (const classFilter of tryClassFilters) {
+          for (const variant of tryVariants) {
+            for (const ownerOnly of tryOwnerships) {
+              tryCombos.push([classFilter, variant, ownerOnly]);
+            }
+          }
+        }
+
+        let includedTemplate;
+        for (const [classFilter, variant, ownerOnly] of tryCombos) {
+          includedTemplate = Object.values(templatesByFilename).find(
+            template =>
+              template.classFilter == classFilter && template.variant == variant && template.ownerOnly == ownerOnly
+          );
+          if (includedTemplate) break;
+        }
+
+        if (!includedTemplate) {
+          console.log(`Could not find a template to use for an include tag in '${template.filename}'
+  Include tag has:
+    ${hasClassFilter ? `classfilter=${classFilter}` : 'no classfilter specified'}
+    ${hasVariant ? `variant=${variant}` : 'no variant specified'}
+    ${hasPublic ? `public=true` : 'no public specifier'}
+`);
+          return;
+        }
+
+        attrs.filename = includedTemplate.filename;
+      }
       if (attrs.filename) {
         if (!templatesByFilename[attrs.filename]) {
           console.log(`Ignoring include of unknown template '${attrs.filename}' in template '${template.filename}'`);
@@ -195,7 +244,16 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
           template.includesTemplatesByFilename[attrs.filename] = true;
           const subtemplate = templatesByFilename[attrs.filename];
           await processTemplateIncludes({ template: subtemplate, templatesByFilename }, stack);
-          siblings.splice(index, 1, ...subtemplate.roots);
+          if (!Object.keys(fields).length) {
+            siblings.splice(nodeIndex, 1, ...subtemplate.processedRoots);
+          } else {
+            const newSiblings = Parse5.parseFragment(subtemplate.processedDom).childNodes;
+            let index = 0;
+            for (const newSibling of newSiblings) {
+              substituteFields(subtemplate.processedRoots[index++], newSibling, fields);
+            }
+            siblings.splice(nodeIndex, 1, ...newSiblings);
+          }
         }
       } else {
         console.log(`Ignoring include tag without filename in template '${template.filename}'`);
@@ -206,18 +264,137 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
     if (node.childNodes) {
       let childIndex = 0;
       for (const child of node.childNodes) {
-        await checkForIncludeComment(child, childIndex++, node.childNodes, templatesByFilename);
+        await checkForIncludeComment(child, childIndex++, node.childNodes, template, templatesByFilename);
       }
     }
   }
 
   let index = 0;
-  for (const root of template.roots) {
-    await checkForIncludeComment(root, index++, template.roots, templatesByFilename);
+  for (const root of template.domTree.childNodes) {
+    await checkForIncludeComment(root, index++, template.domTree.childNodes, template, templatesByFilename);
   }
+  template.processedDom = Parse5.serialize(template.domTree);
+  template.processedRoots = Parse5.parseFragment(template.processedDom || template.dom).childNodes;
 
   delete stack[template.filename];
   delete template.mayHaveUnprocessedIncludes;
+}
+
+function substituteFields(originalElement, element, fields) {
+  if (!originalElement.templateInfo) originalElement.templateInfo = scrapeTemplateInfo(originalElement);
+  const templateInfo = originalElement.templateInfo;
+
+  if (element.childNodes) {
+    let index = 0;
+    for (const childNode of element.childNodes) {
+      if (childNode.nodeName == '#text') {
+        childNode.value = doSubstitution(index++, childNode.value);
+      }
+    }
+  }
+
+  if (element.attrs) {
+    for (const attr of element.attrs) {
+      const { name, value } = attr;
+      if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
+
+      attr.value = doSubstitution(` ${name}`, value);
+    }
+  }
+
+  function doSubstitution(templateKey, value) {
+    const indexes = templateInfo[templateKey];
+    if (!indexes) return value;
+
+    let newValue = '',
+      prevIndex = 0;
+    for (const [index, fieldName] of indexes) {
+      const fieldValue = fields[fieldName];
+      if (!fieldValue) continue;
+      if (index > prevIndex) newValue += value.substring(prevIndex, index);
+      newValue += fieldValue;
+      prevIndex = index + fieldName.length;
+    }
+    if (prevIndex < value.length) newValue += value.substring(prevIndex);
+
+    return newValue;
+  }
+
+  if (element.childNodes) {
+    let index = 0;
+    for (const childNode of element.childNodes) {
+      const originalChildNode = originalElement.childNodes[index++];
+      substituteFields(originalChildNode, childNode, fields);
+    }
+  }
+
+  return;
+}
+
+function scrapeTemplateInfo(element) {
+  const ret = {};
+  let index = 0;
+  if (element.childNodes) {
+    for (const childNode of element.childNodes) {
+      if (childNode.nodeName == '#text') {
+        const templatedText = new TemplatedText({
+          text: childNode.value,
+        });
+        if (!templatedText.dependencyTree) continue;
+
+        dealWithChildren(childNode.value, index++, 0, templatedText.dependencyTree.children);
+        console.log(templatedText.dependencyTree);
+      }
+    }
+  }
+
+  if (element.attrs) {
+    for (const { name, value } of element.attrs) {
+      if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
+
+      const templatedText = new TemplatedText({
+        text: value,
+      });
+      if (!templatedText.dependencyTree) continue;
+
+      dealWithChildren(value, ` ${name}`, 0, templatedText.dependencyTree.children);
+      console.log(name, templatedText.dependencyTree);
+    }
+  }
+
+  for (const indexes of Object.values(ret)) {
+    indexes.sort((a, b) => a[0] - b[0]);
+  }
+
+  return ret;
+
+  function substringIndexes(str, find, rangeStart, rangeEnd) {
+    var result = [];
+    var index = rangeStart - 1;
+    while (index < rangeEnd) {
+      index = str.indexOf(find, index + 1);
+      if (index == -1) break;
+      result.push(index);
+    }
+    return result;
+  }
+
+  function dealWithChildren(string, retKey, rangeStart, children) {
+    if (!children) return;
+    for (const { code, range, children: subchildren } of children) {
+      if (code && range) {
+        for (const name of Object.keys(code.names)) {
+          const indexes = (ret[retKey] = ret[retKey] || []);
+          indexes.push(
+            ...substringIndexes(string, name, rangeStart + range[0], rangeStart + range[1]).map(index => [index, name])
+          );
+        }
+      }
+      if (range && subchildren) {
+        dealWithChildren(rangeStart + range[0], subchildren);
+      }
+    }
+  }
 }
 
 // main
@@ -286,7 +463,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
     await connection.query(
       'UPDATE template SET dom=$1::text, includes_template_filenames=$2::text, filename=$3::character varying, file_modified_at=$4::character varying WHERE id=$5::integer;',
       [
-        template.dom,
+        template.processedDom || template.dom,
         Object.keys(template.includesTemplatesByFilename).join('|'),
         template.filename,
         template.fileModifiedAt,
@@ -305,7 +482,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
       [
         appId,
         template.classFilter,
-        template.dom,
+        template.processedDom || template.dom,
         Object.keys(template.includesTemplatesByFilename).join('|'),
         template.filename,
         template.fileModifiedAt,

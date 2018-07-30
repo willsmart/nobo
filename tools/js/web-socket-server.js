@@ -16,10 +16,11 @@ class WebSocketServer {
     return ['start', 'cache', 'watch', 'stopWatching'];
   }
 
-  constructor({ cache }) {
+  constructor({ cache, schema }) {
     const server = this;
 
     server._cache = cache;
+    server._schema = schema;
 
     server.serverDatapoints = new ServerDatapoints({
       wsserver: server,
@@ -28,6 +29,10 @@ class WebSocketServer {
 
   get cache() {
     return this._cache;
+  }
+
+  get schema() {
+    return this._schema;
   }
 
   get sessionCookieName() {
@@ -164,7 +169,9 @@ class WebSocketClient {
     client.ws = ws;
     client.index = index;
 
-    client.rowProxy = new RowProxy({ policy: RowProxy.userIdPolicy({ userId }) });
+    const { cache, schema } = server;
+    client.userId = userId;
+    client.rowProxy = new RowProxy({ policy: RowProxy.userIdPolicy({ userId, cache, schema }) });
   }
 
   serverReceivedMessage(message) {
@@ -187,7 +194,7 @@ class WebSocketClient {
       payloadObject = {
         array: payloadObject,
       };
-    } else if (typeof payloadObject != 'object') {
+    } else if (!payloadObject || typeof payloadObject != 'object') {
       payloadObject = {
         message: `${payloadObject}`,
       };
@@ -207,6 +214,7 @@ class WebSocketClient {
       messageType,
       payloadObject,
       rowProxy: client.rowProxy,
+      userId: client.userId,
     });
   }
 

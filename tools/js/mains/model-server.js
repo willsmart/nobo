@@ -36,6 +36,7 @@ const DatapointCache = require('../datapoint-cache');
 
   await connection.dbListener.listenForDatapointChanges({
     cache,
+    schema,
   });
   console.log('Listening for DB model changes');
 
@@ -51,6 +52,7 @@ const DatapointCache = require('../datapoint-cache');
   }
   const wsserver = new WebSocketServer({
     cache,
+    schema,
   });
   await wsserver.start();
 })();

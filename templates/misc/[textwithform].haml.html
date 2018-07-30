@@ -1,4 +1,3 @@
-<div class='textWithField inline-block posting-text-parent' lines='${{lines|single}}'><span class='editable posting-text' contentEditable='true' lines='${{lines|single}}' message='${message|}' model='${__model}' name='${name}'>
-${title}
-</span></div>
-}
+<div class='textWithField inline-block posting-text-parent' lines='${lines||&quot;single&quot;}'>
+<span class='editable posting-text' contentEditable='true' lines='${lines||&quot;single&quot;}' message='${message||&quot;&quot;}' model='${__model}' name='${name}'>${title}</span>
+</div>

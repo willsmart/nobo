@@ -66,7 +66,7 @@ class DbSeeder {
         seeds = YAML.load(filename);
       }
       if (Array.isArray(seeds)) seeder._seeds.push(...seeds);
-      else if (typeof seeds == 'object') seeder._seeds.push(seeds);
+      else if (seeds && typeof seeds == 'object') seeder._seeds.push(seeds);
     }
 
     return seeder._seeds;
@@ -133,7 +133,7 @@ class DbSeeder {
           findBy[fieldName] = [];
         }
       }
-    } else if (typeof seed.id == 'object') {
+    } else if (seed.id && typeof seed.id == 'object') {
       findBy = {};
       for (const [fieldName, value] of Object.entries(seed.id)) {
         if (type.fields[fieldName]) {
@@ -256,7 +256,7 @@ class DbSeeder {
         };
       }
 
-      if (typeof value != 'object') {
+      if (!value || typeof value != 'object') {
         console.log(
           `Cannot set id-typed field ${field.name}, in type '${
             type.name

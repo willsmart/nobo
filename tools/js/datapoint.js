@@ -262,7 +262,7 @@ class Datapoint {
 
   get virtualFieldIfAny() {
     const datapoint = this,
-      { templates, cache } = datapoint;
+      { templates, cache, schema } = datapoint;
 
     let match = /^dom(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
@@ -285,45 +285,71 @@ class Datapoint {
         },
       });
     }
-    match = /^publicTemplate(\w*)$/.exec(datapoint.fieldName);
+    match = /^template(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
       const variant = ChangeCase.camelCase(match[1]);
 
+      const type = schema.allTypes[datapoint.typeName],
+        ownerField = type ? type.fields['owner'] : undefined;
+      if (!ownerField) {
+        return datapoint.makeVirtualField({
+          isId: true,
+          isMultiple: false,
+          names: {
+            template: {
+              datapointId: templates.getTemplateReferencingDatapoint({
+                variant,
+                classFilter: datapoint.typeName,
+                ownerOnly: false,
+              }).datapointId,
+            },
+          },
+          getterFunction: args => {
+            return { public: args.template };
+          },
+        });
+      }
       return datapoint.makeVirtualField({
         isId: true,
         isMultiple: false,
         names: {
-          template: {
+          public: {
             datapointId: templates.getTemplateReferencingDatapoint({
               variant,
               classFilter: datapoint.typeName,
               ownerOnly: false,
             }).datapointId,
           },
-        },
-        getterFunction: args => {
-          return args.template;
-        },
-      });
-    }
-    match = /^privateTemplate(\w*)$/.exec(datapoint.fieldName);
-    if (templates && match) {
-      const variant = ChangeCase.camelCase(match[1]);
-
-      return datapoint.makeVirtualField({
-        isId: true,
-        isMultiple: false,
-        names: {
-          template: {
+          private: {
             datapointId: templates.getTemplateReferencingDatapoint({
               variant,
               classFilter: datapoint.typeName,
               ownerOnly: true,
             }).datapointId,
           },
+          owner: {
+            datapointId: ownerField.getDatapointId({ dbRowId: datapoint.dbRowId, proxyKey: datapoint.proxyKey }),
+          },
         },
         getterFunction: args => {
-          return args.template;
+          if (args.owner) {
+            let ownerId;
+            if (args.owner == 'id') {
+              ownerId = datapoint.dbRowId;
+            } else {
+              const ownerRowId = Array.isArray(args.owner) && args.owner.length == 1 ? args.owner[0] : undefined,
+                ownerInfo = ownerRowId ? ConvertIds.decomposeId({ rowId: ownerRowId }) : {};
+              ownerId = ownerInfo.dbRowId || 0;
+            }
+            return {
+              public: args.public,
+              private: args.private,
+              ownerId: ownerId,
+            };
+          }
+          return {
+            public: args.public,
+          };
         },
       });
     }
@@ -340,10 +366,11 @@ class Datapoint {
         isId,
         isMultiple,
         name: datapoint.fieldName,
-        getDatapointId: ({ dbRowId }) =>
+        getDatapointId: ({ dbRowId, proxyKey }) =>
           ConvertIds.recomposeId({
             typeName: datapoint.typeName,
             dbRowId,
+            proxyKey,
             fieldName: datapoint.fieldName,
           }),
       };

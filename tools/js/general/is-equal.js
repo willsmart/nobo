@@ -49,7 +49,7 @@ function isEqual(v1, v2, options = {}) {
     return allowSuperset ? arrayIsEqualOrSuperset(v1, v2, options) : arrayIsEqual(v1, v2, options);
   }
 
-  if (typeof v1 == 'object') {
+  if (v1 && typeof v1 == 'object') {
     return allowSuperset ? objectIsEqualOrSuperset(v1, v2, options) : objectIsEqual(v1, v2, options);
   }
 

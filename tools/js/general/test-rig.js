@@ -169,7 +169,7 @@ class TestRig {
   }
 
   async task(name, code) {
-    if (typeof name == 'object') name = name.name;
+    if (name && typeof name == 'object') name = name.name;
 
     const rig = this;
 
@@ -195,7 +195,7 @@ class TestRig {
   }
 
   startTask(name) {
-    if (typeof name == 'object') name = name.name;
+    if (name && typeof name == 'object') name = name.name;
 
     const rig = this;
 

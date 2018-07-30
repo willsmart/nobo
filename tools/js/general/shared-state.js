@@ -159,12 +159,14 @@ class SharedState {
 
       function forEachDeletedElement(depth, keyPath, arrayOrObject, callback) {
         if (Array.isArray(arrayOrObject)) forEachDeletedArrayElement(depth, keyPath, arrayOrObject, callback);
-        if (typeof arrayOrObject == 'object') forEachDeletedObjectElement(depth, keyPath, arrayOrObject, callback);
+        if (arrayOrObject && typeof arrayOrObject == 'object')
+          forEachDeletedObjectElement(depth, keyPath, arrayOrObject, callback);
       }
 
       function forEachInsertedElement(depth, keyPath, arrayOrObject, callback) {
         if (Array.isArray(arrayOrObject)) forEachInsertedArrayElement(depth, keyPath, arrayOrObject, callback);
-        if (typeof arrayOrObject == 'object') forEachInsertedObjectElement(depth, keyPath, arrayOrObject, callback);
+        if (arrayOrObject && typeof arrayOrObject == 'object')
+          forEachInsertedObjectElement(depth, keyPath, arrayOrObject, callback);
       }
 
       function forEachDeletedArrayElement(depth, keyPath, array, callback) {
@@ -270,8 +272,8 @@ class SharedState {
 
     if (diff.objectDiff) {
       for (const [key, childDiff] of Object.entries(diff.objectDiff)) {
-        const wasChild = typeof was == 'object' && !Array.isArray(was) ? was[key] : undefined,
-          isChild = typeof is == 'object' && !Array.isArray(is) ? is[key] : undefined;
+        const wasChild = was && typeof was == 'object' && !Array.isArray(was) ? was[key] : undefined,
+          isChild = is && typeof is == 'object' && !Array.isArray(is) ? is[key] : undefined;
 
         retChanges.push({
           depth,

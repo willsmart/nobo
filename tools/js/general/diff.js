@@ -32,7 +32,7 @@ function diffAny(was, is) {
           value: is,
         };
   }
-  if (typeof is == 'object') return diffObject(typeof was == 'object' ? was : undefined, is);
+  if (is && typeof is == 'object') return diffObject(was && typeof was == 'object' ? was : undefined, is);
   if (typeof was == typeof is && was == is) return;
   return {
     value: is,

@@ -27,11 +27,7 @@ class StateWsConnection {
         forEachChangedKeyPath((keyPath, change) => {
           if (keyPath.length == 1 && keyPath[0] == 'datapointsById') return true;
 
-          if (
-            keyPath.length == 2 &&
-            keyPath[0] == 'datapointsById' &&
-            ConvertIds.datapointRegex.test(keyPath[1])
-          ) {
+          if (keyPath.length == 2 && keyPath[0] == 'datapointsById' && ConvertIds.datapointRegex.test(keyPath[1])) {
             if (!payloadObject) payloadObject = {};
             if (!payloadObject.datapoints) payloadObject.datapoints = {};
             switch (change.type) {

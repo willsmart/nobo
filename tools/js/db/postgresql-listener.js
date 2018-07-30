@@ -3,6 +3,7 @@
 
 // TODO describe
 
+const ConvertIds = require('../convert-ids');
 const PostgresqlConnection = require('../db/postgresql-connection');
 const PublicApi = require('../general/public-api');
 
@@ -26,7 +27,7 @@ class PostgresqlListener {
     return this._connection;
   }
 
-  async listenForDatapointChanges({ cache }) {
+  async listenForDatapointChanges({ cache, schema }) {
     return this.listen({
       channel: 'modelchanges',
       callbackKey: 'listenForDatapointChanges',
@@ -36,6 +37,8 @@ class PostgresqlListener {
           if (Array.isArray(changes)) {
             changes.forEach(datapointId => {
               if (datapointId.endsWith('_id')) datapointId = datapointId.substring(0, datapointId.length - 3);
+              if (datapointId.endsWith('__+') || datapointId.endsWith('__-')) return;
+
               const datapoint = cache.getExistingDatapoint({
                 datapointId,
               });

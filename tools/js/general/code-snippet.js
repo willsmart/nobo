@@ -64,8 +64,8 @@ class CodeSnippet {
     if (typeof func != 'function') return;
 
     delete codeSnippet._script;
-    if (typeof names != 'object') names = {};
-    codeSnippet._names = typeof names == 'object' ? names : {};
+    if (!names || typeof names != 'object') names = {};
+    codeSnippet._names = names && typeof names == 'object' ? names : {};
     codeSnippet._func = func;
   }
 
@@ -88,7 +88,7 @@ class CodeSnippet {
     try {
       codeSnippet._names = applyIgnore(CodeSnippet.namesFromAst(jsep(code)));
       function applyIgnore(names) {
-        if (typeof names != 'object') return names;
+        if (!names || typeof names != 'object') return names;
         const ret = {};
         for (const [name, value] of Object.entries(names)) {
           if (codeSnippet.ignoreNames[name]) continue;
@@ -114,7 +114,7 @@ class CodeSnippet {
       if (codeSnippet.ignoreNames[name]) continue;
       hasName = true;
       stack.push(name);
-      if (typeof value != 'object' || !codeSnippet.forEachName(callback, value, stack)) {
+      if (!value || typeof value != 'object' || !codeSnippet.forEachName(callback, value, stack)) {
         callback(...stack);
       }
       stack.pop();
@@ -140,7 +140,7 @@ class CodeSnippet {
         let values = valuesByName;
         let index = 0;
         for (const name of names) {
-          if (typeof values != 'object') return;
+          if (!values || typeof values != 'object') return;
           if (index < names.length - 1) values = values[name];
           else return values[name];
           index++;
@@ -178,7 +178,7 @@ class CodeSnippet {
   static namesFromAst(ast, toNames) {
     toNames = toNames || {};
 
-    if (typeof ast != 'object' || !ast.type) return toNames;
+    if (!ast || typeof ast != 'object' || !ast.type) return toNames;
 
     if (ast.type == 'Identifier' && ast.name) {
       toNames[ast.name] = {};
