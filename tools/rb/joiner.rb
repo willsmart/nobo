@@ -44,7 +44,8 @@ until (arg=args.shift).nil?
 end
 
 $base_dirs = ['nobo','app',$env,'secrets']
-$pushback_order = ['app','nobo','secrets']
+$pushback_order = ['app','nobo',$env,'secrets']
+$force_recent_dirs = [$env]
 
 def self.safe_JSON_parse(json)
   return if json.nil?
@@ -76,10 +77,15 @@ def touch(file, mtime, deb)
   FileUtils.touch file, :mtime => mtime
 end
 
-def ascendingTimes(tm1,tm2,deb=false)
-  if deb 
-    puts "#{tm2} - #{tm1} = #{tm2-tm1} (vs 0.0001)"
-  end 
+def ascendingTimes(tm1,file1,tm2,file2,deb=false)
+  for dir in $force_recent_dirs do
+    if file1.start_with? dir
+      return false
+    end
+    if file2.start_with? dir
+      return tm2-tm1>0.0001 || tm1-tm2>0.0001
+    end
+  end
   tm2-tm1>0.0001
 end
 
@@ -147,9 +153,10 @@ def sync
             if (is_pushback = info[:is_pushback]).nil?
               for dir in dirs
                 _dtm = info[:mtimes][dir]
+                dtm_file = dir
                 dtm = _dtm if dtm.nil? or dtm<_dtm
               end
-              is_pushback = !ascendingTimes(jdtm, dtm)
+              is_pushback = !ascendingTimes(jdtm,info[:joined], dtm,dtm_file)
             end
 
             if is_pushback
@@ -223,7 +230,7 @@ def sync
           dtm = info[:mtimes][dir]
           file = "#{dir}/#{subdir}"
           tm = mtime(file)
-          mtimes[file] = (ascendingTimes(dtm, tm) ? tm : dtm)
+          mtimes[file] = (ascendingTimes(dtm, dir, tm, file) ? tm : dtm)
         end
 
         stack.push({
@@ -242,17 +249,25 @@ def sync
       props={}
       prop_is_secret = false
       ptm=nil
+      ptm_file = nil
       for file in info[:_files]
         if File.exist? "#{file}.props" and (hash=safe_JSON_parse(File.read("#{file}.props"))).is_a?(Hash)
           _ptm = mtime("#{file}.props")
-          ptm=_ptm if ptm.nil? or ascendingTimes(ptm,_ptm)
+          if ptm.nil? or ascendingTimes(ptm, ptm_file,_ptm, "#{file}.props")
+            ptm=_ptm 
+            ptm_file = file
+          end
           props.merge! hash
           prop_is_secret = true if is_secret_change? file
         end
       end
 
       tm = mtime(info[:files].last)
-      tm = ptm if !ptm.nil? and ascendingTimes(tm, ptm)
+      tm_file = info[:files].last
+      if !ptm.nil? and ascendingTimes(tm,tm_file, ptm,ptm_file)
+        tm = ptm 
+        tm_file=ptm_file
+      end
 
       was_pushback = false
 
@@ -260,16 +275,16 @@ def sync
         FileUtils.rm_rf(info[:joined]) if Dir.exist? info[:joined]
         if File.exist? info[:joined]
           jtm = mtime(info[:joined])
-          if ascendingTimes(jtm,tm)
+          if ascendingTimes(jtm,info[:joined],tm,tm_file)
             puts "    >> #{info[:joined]}: copy modified file from #{info[:files].last}"
             ret+=1
             FileUtils.cp info[:files].last, info[:joined]
-          elsif ascendingTimes(tm,jtm) and $can_pushback
-            ascendingTimes(tm,jtm,true)
+          elsif ascendingTimes(tm,tm_file,jtm,info[:joined]) and $can_pushback
             puts "    >> #{info[:joined]}: push back join file to #{info[:files].last}"
             ret+=1
             FileUtils.cp info[:joined], info[:files].last
             tm=jtm
+            tm_file = info[:joined]
             touch info[:files].last, tm, "H"
             secrets_changed = true if is_secret_change? info[:files].last
             was_pushback = true
@@ -289,11 +304,11 @@ def sync
 
         if File.exist? info[:joined]
           jtm = mtime(info[:joined])
-          if ascendingTimes(jtm,tm)
+          if ascendingTimes(jtm,info[:joined],tm,tm_file)
             puts "    >> #{info[:joined]}: copy modified templated file from #{info[:files].last} and associated prop file(s)"
             ret+=1
             File.open(info[:joined], 'w') {|file| file.write body}
-          elsif ascendingTimes(tm,jtm)
+          elsif ascendingTimes(tm,tm_file,jtm,info[:joined])
             puts "    >> #{info[:joined]}: !!!  can't push back join file to #{info[:files].last} since it has one or more prop files, and that's beyond me at the moment, please edit the data at its source"
             ret+=1
           else 
@@ -342,6 +357,7 @@ else
     if !paused and sync>0
       puts "... #{Time.now.to_s}\n"
     end
+    $force_recent_dirs = []
     # begin
     #   system("stty raw -echo") #=> Raw mode, no echo
     #   char = STDIN.read_nonblock(1)

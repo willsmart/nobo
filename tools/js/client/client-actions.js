@@ -32,14 +32,27 @@ class ClientActions {
   }
 
   installOnElement({ element, rowId }) {
-    for (const className of element.classList) {
-      switch (className) {
-        case 'pushModel':
-          element.addEventListener('click', () => {
-            if (rowId) PageState.global.visit(rowId);
+    if (
+      element.classList.contains('pushModel') ||
+      element.hasAttribute('pushmodel') ||
+      element.hasAttribute('pushvariant')
+    )
+      do {
+        let pushModel = element.getAttribute('pushmodel') || rowId;
+        if (ConvertIds.rowRegex.test(pushModel) && element.hasAttribute('pushvariant')) {
+          const modelInfo = ConvertIds.recomposeId({
+            rowId: pushModel,
+            fieldName: element.getAttribute('pushvariant'),
           });
-      }
-    }
+          if (!modelInfo) break;
+          pushModel = modelInfo.datapointId;
+        }
+        if (!pushModel) break;
+        element.addEventListener('click', () => {
+          PageState.global.visit(pushModel);
+        });
+      } while (0);
+
     let value;
     if ((value = element.getAttribute('clickvariant')) && ConvertIds.fieldNameRegex.test(value)) {
       element.addEventListener('click', () => {
