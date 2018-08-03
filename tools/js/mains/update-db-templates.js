@@ -7,6 +7,7 @@ const Parse5 = require('parse5');
 const Connection = require('../db/postgresql-connection');
 const processArgs = require('../general/process-args');
 const TemplatedText = require('../dom/templated-text');
+const locateEnd = require('../general/locate-end');
 const fs = require('fs');
 const { promisify } = require('util');
 
@@ -59,6 +60,7 @@ async function dealWithTemplatesDirectory({
   newTemplates,
   templatesByFilename,
   templatesByOwnershipClassVariant,
+  args,
 }) {
   const filenames = await readdir_p(path);
 
@@ -72,6 +74,7 @@ async function dealWithTemplatesDirectory({
         newTemplates,
         templatesByFilename,
         templatesByOwnershipClassVariant,
+        args,
       });
     } else if (stat.isFile()) {
       await dealWithTemplateFile({
@@ -81,6 +84,7 @@ async function dealWithTemplatesDirectory({
         newTemplates,
         templatesByFilename,
         templatesByOwnershipClassVariant,
+        args,
       });
     }
   }
@@ -93,6 +97,7 @@ async function dealWithTemplateFile({
   newTemplates,
   templatesByFilename,
   templatesByOwnershipClassVariant,
+  args,
 }) {
   const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)(?:(\.haml)?\.html|\.haml)$/,
     match = templateFileRegex.exec(filename);
@@ -129,7 +134,7 @@ async function dealWithTemplateFile({
 
   const row = await findTemplateByFilename(matchedFilename),
     fileModifiedAt = '' + fs.statSync(path).mtime,
-    modified = !row || row.file_modified_at != fileModifiedAt,
+    modified = !row || row.file_modified_at != fileModifiedAt || args.all,
     includesTemplateFilenames =
       row && row.includes_template_filenames ? row.includes_template_filenames.split('|') : [];
 
@@ -186,7 +191,10 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
         fields = {};
       node.attrs.forEach(({ name, value }) => {
         attrs[name] = value;
-        if (name.endsWith('_field')) fields[name.substring(0, name.length - '_field'.length)] = value;
+        const match = /^([\w-]+)_field$/.exec(name);
+        if (match) {
+          fields[match[1]] = value;
+        }
       });
 
       const hasVariant = attrs.variant !== undefined,
@@ -308,12 +316,31 @@ function substituteFields(originalElement, element, fields) {
 
     let newValue = '',
       prevIndex = 0;
-    for (const [index, fieldName] of indexes) {
+    for (const [range, fieldName, isCode] of indexes) {
       const fieldValue = fields[fieldName];
-      if (!fieldValue) continue;
-      if (index > prevIndex) newValue += value.substring(prevIndex, index);
-      newValue += fieldValue;
-      prevIndex = index + fieldName.length;
+      if (fieldValue === undefined) continue;
+      if (range[0] > prevIndex) newValue += value.substring(prevIndex, range[0]);
+      if (isCode) {
+        newValue += '`';
+        let prevIndex = 0,
+          match;
+        const regex = /((?:\\\\.|(?!`|\$\{).)*)(`|\$\{)/g;
+        while ((match = regex.exec(fieldValue))) {
+          if (match[2] == '`') {
+            newValue += `${fieldValue.substring(prevIndex, match.index + match[1].length)}\\\``;
+            prevIndex = match.index + match[0].length;
+          } else {
+            const root = locateEnd(fieldValue, '}', match.index + match[0].length);
+            newValue += fieldValue.substring(prevIndex, root.range[1]);
+            prevIndex = regex.lastIndex = root.range[1];
+          }
+        }
+        if (prevIndex < fieldValue.length) newValue += fieldValue.substring(prevIndex);
+        newValue += '`';
+      } else {
+        newValue += fieldValue;
+      }
+      prevIndex = range[1];
     }
     if (prevIndex < value.length) newValue += value.substring(prevIndex);
 
@@ -368,26 +395,22 @@ function scrapeTemplateInfo(element) {
 
   return ret;
 
-  function substringIndexes(str, find, rangeStart, rangeEnd) {
-    var result = [];
-    var index = rangeStart - 1;
-    while (index < rangeEnd) {
-      index = str.indexOf(find, index + 1);
-      if (index == -1) break;
-      result.push(index);
-    }
-    return result;
-  }
-
   function dealWithChildren(string, retKey, rangeStart, children) {
     if (!children) return;
     for (const { code, range, children: subchildren } of children) {
       if (code && range) {
+        const value = string.substring(rangeStart + range[0], rangeStart + range[1]);
+        const indexes = (ret[retKey] = ret[retKey] || []);
         for (const name of Object.keys(code.names)) {
-          const indexes = (ret[retKey] = ret[retKey] || []);
-          indexes.push(
-            ...substringIndexes(string, name, rangeStart + range[0], rangeStart + range[1]).map(index => [index, name])
-          );
+          if (value == `${${name}}`) {
+            indexes.push([[rangeStart + range[0], rangeStart + range[1]], name, false]);
+          } else {
+            const regex = new RegExp(`\\b${name}\\b`, 'g'); // TODO this is not the ideal way to detect where the name is used and could easily find false positives. It will do for now
+            let match;
+            while ((match = regex.exec(value))) {
+              indexes.push([[rangeStart + match.index, rangeStart + match.index + name.length], name, true]);
+            }
+          }
         }
       }
       if (range && subchildren) {
@@ -436,6 +459,7 @@ function scrapeTemplateInfo(element) {
     templatesById,
     templatesByFilename,
     newTemplates,
+    args,
   });
 
   function getModified(template) {

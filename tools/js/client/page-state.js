@@ -54,6 +54,7 @@ class PageState {
       const pageState = this;
 
       pageState.visit();
+      pageState.itemsDatapoint.invalidate();
     };
   }
 
