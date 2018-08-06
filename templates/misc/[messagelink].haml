@@ -1,2 +1,2 @@
-%a.message-link{title:'${alt|}',  onclick:"${killmodal?'document.aautil.killTopModal();':''} return  document.modelDOM.submitWSMessage(event,'${message|}','${modelid||__model}');"}> 
+%a.message-link{title:'${alt||""}',  onclick:"${killmodal?'document.aautil.killTopModal();':''} return  document.modelDOM.submitWSMessage(event,'${message||\"\"}','${modelid||__model}');"}> 
   ${title} 

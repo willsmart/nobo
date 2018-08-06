@@ -2,6 +2,6 @@
   // ${topLevelSortOrdinal} possibly used by the wrapper, this forces it to be included in the model
   // ${sortOrdinal} possibly used by the wrapper, this forces it to be included in the model
   %span.anchor-link-bubble
-    %a.model-anchor.grey-link{href:'#${__basemodel}${anchor|}'}>
+    %a.model-anchor.grey-link{href:'#${__basemodel}${anchor||""}'}>
       ${breadcrumbTitle||"?"}
   %span{ondragenter:"console.log('hi');"}

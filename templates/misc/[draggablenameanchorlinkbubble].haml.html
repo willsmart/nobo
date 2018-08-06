@@ -1,7 +1,7 @@
 <span style='order: ${${order}|0};'>
 <!-- / ${topLevelSortOrdinal} possibly used by the wrapper, this forces it to be included in the model -->
 <!-- / ${sortOrdinal} possibly used by the wrapper, this forces it to be included in the model -->
-<span class='anchor-link-bubble model-draggable' dragcontextfield='${contextfield}' dragcontextmodelid='${contextmodel}' draggable='true'><a class='model-anchor grey-link' draggable='false' href='#${__basemodel}${anchor|}'>
+<span class='anchor-link-bubble model-draggable' dragcontextfield='${contextfield}' dragcontextmodelid='${contextmodel}' draggable='true'><a class='model-anchor grey-link' draggable='false' href='#${__basemodel}${anchor||&quot;&quot;}'>
 ${breadcrumbTitle||"?"}
 </a></span>
 <span aftermodelid='${__basemodel}' class='model-drag-space' dragcontextfield='${contextfield}' dragcontextmodelid='${contextmodel}'>

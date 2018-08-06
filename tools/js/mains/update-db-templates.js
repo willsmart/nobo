@@ -402,7 +402,7 @@ function scrapeTemplateInfo(element) {
         const value = string.substring(rangeStart + range[0], rangeStart + range[1]);
         const indexes = (ret[retKey] = ret[retKey] || []);
         for (const name of Object.keys(code.names)) {
-          if (value == `${${name}}`) {
+          if (value == `\${${name}}`) {
             indexes.push([[rangeStart + range[0], rangeStart + range[1]], name, false]);
           } else {
             const regex = new RegExp(`\\b${name}\\b`, 'g'); // TODO this is not the ideal way to detect where the name is used and could easily find false positives. It will do for now
