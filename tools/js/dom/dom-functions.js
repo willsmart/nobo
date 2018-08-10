@@ -1,4 +1,3 @@
-const PublicApi = require('../general/public-api');
 const ConvertIds = require('../convert-ids');
 
 // API is just all the functions

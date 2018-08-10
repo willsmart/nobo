@@ -2,7 +2,6 @@ const PublicApi = require('../general/public-api');
 const ConvertIds = require('../convert-ids');
 const TemplatedText = require('./templated-text');
 const makeClassWatchable = require('../general/watchable');
-const SharedState = require('../general/shared-state');
 
 const {
   templateDatapointIdForRowAndVariant,

@@ -6,8 +6,6 @@
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../convert-ids');
 const SharedState = require('../general/shared-state');
-const clone = require('../general/clone');
-const { TemporaryState } = SharedState;
 
 const callbackKey = 'state-to-cache-connection';
 

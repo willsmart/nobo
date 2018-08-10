@@ -1,22 +1,8 @@
 const PublicApi = require('../general/public-api');
-const ConvertIds = require('../convert-ids');
 const TemplatedText = require('./templated-text');
-const SharedState = require('../general/shared-state');
 const diffAny = require('../general/diff');
-const { elementForUniquePath } = require('../dom/dom-functions');
 
 const {
-  templateDatapointIdForRowAndVariant,
-  htmlToElement,
-  datapointTemplateFieldClass,
-  datapointDomFieldClass,
-  datapointChildrenClass,
-  datapointValueFieldClass,
-  childrenFieldNameForElement,
-  childrenPlaceholders,
-  datapointValueElements,
-  datapointTemplateElements,
-  datapointDomElements,
   rangeForElement,
   childRangeAtIndex,
 } = require('./dom-functions');

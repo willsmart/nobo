@@ -2,8 +2,6 @@ const ConvertIds = require('./convert-ids');
 const PublicApi = require('./general/public-api');
 const mapValues = require('./general/map-values');
 const DomGenerator = require('./dom/dom-generator');
-const DomUpdater = require('./dom/dom-updater');
-const { htmlToElement } = require('./dom/node-dom-functions');
 
 // other implied dependencies
 
@@ -21,7 +19,7 @@ class Templates {
     return ['load', 'getTemplateReferencingDatapoint', 'template'];
   }
 
-  constructor({ cache, appDbRowId = 1 }) {
+  constructor({ cache, htmlToElement, appDbRowId = 1 }) {
     const templates = this;
 
     templates.cache = cache;

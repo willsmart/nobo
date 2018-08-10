@@ -409,7 +409,7 @@ class WSServerDatapoints {
     return (payloadByFromVersion[fromVersion] = value === undefined ? null : value);
   }
 
-  queueSendPayloads({ delay = 100 } = {}) {
+  queueSendPayloads({ delay = 1 } = {}) {
     const serverDatapoints = this;
 
     if (delay <= 0) {

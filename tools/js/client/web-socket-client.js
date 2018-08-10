@@ -1,5 +1,4 @@
 const WebSocket = require('isomorphic-ws');
-const ConvertIds = require('../convert-ids');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
 const SharedState = require('../general/shared-state');
@@ -62,6 +61,7 @@ class WebSocketClient {
           return;
         }
 
+        performance.mark('receive');
         console.log('Got message from server:   ' + message.data);
 
         client.notifyListeners(
@@ -148,6 +148,7 @@ class WebSocketClient {
     const message = `${
       messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
     }${JSON.stringify(payloadObject)}`;
+    performance.mark('send');
     console.log('Sending message to server:   ' + message);
 
     client.ws.send(message);

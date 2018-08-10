@@ -8,6 +8,7 @@ const WebSocketServer = require('../web-socket-server');
 const Connection = require('../db/postgresql-connection');
 const DbDatapointConnection = require('../db/db-datapoint-connection');
 const DatapointCache = require('../datapoint-cache');
+const { htmlToElement } = require('../dom/node-dom-functions');
 
 (async function() {
   var args = processArgs();
@@ -32,7 +33,7 @@ const DatapointCache = require('../datapoint-cache');
 
   const schema = await connection.schemaLayoutConnection.currentSchema,
     datapointConnection = new DbDatapointConnection({ schema, connection }),
-    cache = new DatapointCache({ schema, datapointConnection });
+    cache = new DatapointCache({ schema, htmlToElement, datapointConnection });
 
   await connection.dbListener.listenForDatapointChanges({
     cache,

@@ -7,7 +7,6 @@
 // API is auto-generated at the bottom from the public interface of the CodeSnippet class
 
 const PublicApi = require('./public-api');
-const vm = require('vm');
 const jsep = require('jsep');
 
 const jsepChildKeys = {
@@ -27,12 +26,113 @@ const jsepChildArrayKeys = {
   defaults: true,
 };
 
-const resultKey = '___result___';
+const permissable_globals = { Function: true, Math: true, Object: true };
+
+class Code {
+  static withString(codeString) {
+    const codes = Code.codes || (Code.codes = {});
+    return codes[codeString] || (codes[codeString] = new Code(codeString));
+  }
+
+  constructor(codeString) {
+    const code = this;
+    code.codeString = codeString;
+    code.names = {};
+    code.eval({});
+  }
+
+  proxiedFunction() {
+    const code = this,
+      { proxy, codeString } = code;
+
+    // sad to say but this code has to use with in order to catch variable usage.
+    // with is deprecated so I'll investigate alternatives
+    // This is wrapped in a 'new Function' call to temporarily turn off strict mode
+    const ret = new Function('proxy', `return function(context) {with(proxy) {"use strict";return (${codeString})}}`)(
+      proxy
+    );
+
+    return ret;
+  }
+
+  get proxy() {
+    const code = this;
+    if (code._proxy) return code._proxy;
+    const { names } = code;
+    return (code._proxy = new Proxy(
+      {},
+      {
+        get: (_target, key) => {
+          if (typeof key != 'string') return;
+          if (!(key in names)) {
+            names[key] = true;
+          }
+          if (key in code.outputContext) return code.outputContext[key];
+          return code.context[key];
+        },
+        set: (_target, key, value) => {
+          code.outputContext[key] = value;
+        },
+        has: (_target, key) => {
+          return typeof key == 'string' && (key in code.outputContext || !(key in permissable_globals));
+        },
+      }
+    ));
+  }
+
+  static safeEval(code, context) {
+    return function(code) {
+      return eval(code);
+    }.call(context || {}, code);
+  }
+
+  get func() {
+    const code = this;
+    if (code.err) return;
+    if (!code._func) {
+      try {
+        code._func = code.proxiedFunction();
+        if (typeof code.func != 'function') throw new Error('Code is not an expression');
+      } catch (err) {
+        code.err = `Failed to compile code snippet: ${code.codeString}\nError: ${err}\n`;
+        console.error(code.err);
+        return;
+      }
+    }
+    return code._func;
+  }
+
+  // I figure this is a reasonable way to ensure that nobo supports all features of javascript, while leaning on
+  //  js itself to do the parsing.
+  // Essentially, each time the code encounters a reference error, the name is added and the code rerun
+  // This does incur a one-time recompile and except cost which is bounded to the number of names used by the code.
+  //  In all the scenarios I aim to use this code, the number of referenced names will be small, so that's fine
+  // A core concept of CodeSnippet is that all snippets are sandboxed with no sideeffects drifting out of the sandbox
+  //  so rerunning codesnippets is ok, and will not cause any instability/undefined states
+  eval(context) {
+    const code = this;
+
+    const func = code.func;
+    if (!func) return;
+
+    try {
+      code.context = context;
+      code.outputContext = {};
+      const ret = func(context);
+      return ret;
+    } catch (err) {
+      console.log(
+        `Couldn't eval code snippet: ${code.codeString}\n with args: ${JSON.stringify(context)}\n error: ${err.message}`
+      );
+      return;
+    }
+  }
+}
 
 class CodeSnippet {
   // public methods
   static publicMethods() {
-    return ['evaluate', 'names', 'script', 'func', 'parse', 'setAsFunction'];
+    return ['evaluate', 'names', 'func', 'parse', 'setAsFunction'];
   }
 
   constructor({ code, func, names, ignoreNames = {} }) {
@@ -42,20 +142,19 @@ class CodeSnippet {
     codeSnippet.defaultTimeout = 1000;
     codeSnippet.ignoreNames = ignoreNames;
 
-    codeSnippet.setAsFunction({ func, names });
-    codeSnippet.parse({ code });
+    if (typeof func == 'function') {
+      codeSnippet.setAsFunction({ func, names });
+    } else {
+      codeSnippet.code = Code.withString(code);
+    }
   }
 
   get names() {
-    return this._names;
-  }
-
-  get script() {
-    return this._script;
+    return this._names || this.code.names;
   }
 
   get func() {
-    return this._func;
+    return this._func || this.code.func;
   }
 
   setAsFunction({ func, names }) {
@@ -63,44 +162,10 @@ class CodeSnippet {
 
     if (typeof func != 'function') return;
 
-    delete codeSnippet._script;
+    delete codeSnippet._func;
     if (!names || typeof names != 'object') names = {};
     codeSnippet._names = names && typeof names == 'object' ? names : {};
     codeSnippet._func = func;
-  }
-
-  parse({ code }) {
-    const codeSnippet = this;
-
-    if (typeof code != 'string') return;
-
-    delete codeSnippet._func;
-    delete codeSnippet._script;
-    codeSnippet._names = {};
-    try {
-      codeSnippet._script = new vm.Script(`___result___ = (${code})`, {
-        displayErrors: true,
-      });
-    } catch (err) {
-      console.log(`Failed to compile code snippet: ${code}\n${err}\n`);
-      return;
-    }
-    try {
-      codeSnippet._names = applyIgnore(CodeSnippet.namesFromAst(jsep(code)));
-      function applyIgnore(names) {
-        if (!names || typeof names != 'object') return names;
-        const ret = {};
-        for (const [name, value] of Object.entries(names)) {
-          if (codeSnippet.ignoreNames[name]) continue;
-          ret[name] = applyIgnore(value);
-        }
-        return ret;
-      }
-    } catch (err) {
-      console.log(`Failed to parse code snippet: ${code}\n${err}\n`);
-      delete codeSnippet._script;
-      return;
-    }
   }
 
   forEachName(callback, names, stack) {
@@ -133,7 +198,6 @@ class CodeSnippet {
       } = arg;
 
     const sandbox = {};
-    sandbox[resultKey] = defaultValue;
 
     if (typeof valueForNameCallback != 'function') {
       valueForNameCallback = (...names) => {
@@ -159,62 +223,14 @@ class CodeSnippet {
       });
     });
 
+    let ret = codeSnippet.defaultValue;
     if (codeSnippet._func) {
-      sandbox[resultKey] = codeSnippet._func(sandbox);
-    } else if (codeSnippet._script) {
-      try {
-        codeSnippet._script.runInNewContext(sandbox, {
-          displayErrors: true,
-          timeout,
-        });
-      } catch (err) {
-        console.log(`Failed to run code snippet:\n${err}\n`);
-      }
+      ret = codeSnippet._func(sandbox);
+    } else {
+      ret = codeSnippet.code.eval(sandbox);
     }
 
-    return sandbox[resultKey];
-  }
-
-  static namesFromAst(ast, toNames) {
-    toNames = toNames || {};
-
-    if (!ast || typeof ast != 'object' || !ast.type) return toNames;
-
-    if (ast.type == 'Identifier' && ast.name) {
-      toNames[ast.name] = {};
-      return toNames;
-    }
-
-    if (ast.type == 'MemberExpression') {
-      memberHandler: do {
-        const namesArray = [];
-        let object = ast;
-        for (; object.type == 'MemberExpression'; object = object.object) {
-          if (object.property.type != 'Identifier') break memberHandler;
-          namesArray.unshift(object.property.name);
-        }
-        if (object.type != 'Identifier') break;
-        namesArray.unshift(object.name);
-
-        let names = toNames;
-        for (const name of namesArray) {
-          names = names[name] = names[name] || {};
-        }
-        return toNames;
-      } while (false);
-    }
-
-    if (ast.type == 'CallExpression' && ast.callee.type == 'MemberExpression') {
-      CodeSnippet.namesFromAst(ast.callee.object, toNames);
-    }
-
-    for (const [key, val] of Object.entries(ast)) {
-      if (jsepChildKeys[key]) CodeSnippet.namesFromAst(val, toNames);
-      else if (jsepChildArrayKeys[key] && Array.isArray(val)) {
-        for (const child of val) CodeSnippet.namesFromAst(child, toNames);
-      }
-    }
-    return toNames;
+    return ret;
   }
 }
 

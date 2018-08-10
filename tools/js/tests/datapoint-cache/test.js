@@ -3,6 +3,7 @@
 
 const DatapointCache = require('../../datapoint-cache');
 const DbDatapointConnection = require('../../db/db-datapoint-connection');
+const { htmlToElement } = require('./dom/node-dom-functions');
 
 module.exports =
   // api:

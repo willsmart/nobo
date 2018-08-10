@@ -20,6 +20,23 @@ const Templates = require('./templates');
 //const DbDatapointConnection = require('./db/db-datapoint-connection'); // via constructor arg: datapointConnection
 //   uses validateDatapoionts and commitDatapoints
 
+class NullDatapointConnection {
+  constructor({ cache }) {
+    this.cache = cache;
+  }
+
+  validateDatapoints({ datapoints }) {
+    datapoints.forEach(datapoint => {
+      datapoint.validate({ value: undefined });
+    });
+  }
+
+  commitDatapoints({ datapoints }) {
+    datapoints.forEach(datapoint => {
+      datapoint.commit({ updateIndex: datapoint.__private.updateIndex });
+    });
+  }
+}
 // API is auto-generated at the bottom from the public interface of this class
 class DatapointCache {
   // public methods
@@ -39,19 +56,19 @@ class DatapointCache {
     ];
   }
 
-  constructor({ schema, datapointConnection, appDbRowId = 1, isClient = false }) {
+  constructor({ schema, htmlToElement, datapointConnection, appDbRowId = 1, isClient = false }) {
     const cache = this;
 
     cache.isClient = isClient;
     cache.schema = schema;
-    cache.datapointConnection = datapointConnection;
+    cache.datapointConnection = datapointConnection || new NullDatapointConnection({ cache });
     cache.datapointsById = {};
     cache.newlyInvalidDatapointIds = [];
     cache.newlyUpdatedDatapointIds = [];
     cache.newlyValidDatapoints = [];
 
     if (!isClient) {
-      cache._templates = new Templates({ cache, appDbRowId });
+      cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
     }
   }
 
@@ -65,7 +82,7 @@ class DatapointCache {
     delete cache.datapointsById[datapointId];
   }
 
-  queueValidationJob({ delay = 100 } = {}) {
+  queueValidationJob({ delay = 1 } = {}) {
     const cache = this;
 
     if (delay <= 0) {
@@ -86,27 +103,12 @@ class DatapointCache {
     }
   }
 
-  validateNewlyInvalidDatapoints({ delay } = {}) {
+  validateNewlyInvalidDatapoints() {
     const cache = this;
 
-    if (cache._validateTimeout) {
-      clearTimeout(cache._validateTimeout);
-      delete cache._validateTimeout;
-    }
-
-    if (delay > 0) {
-      delay = delay === true ? 100 : +delay;
-
-      if (cache._validateTimeout) return;
-      cache._validateTimeout = setTimeout(() => {
-        delete cache._validateTimeout;
-        cache.validateNewlyInvalidDatapoints();
-      }, delay);
-    }
-
-    if (cache._validateTimeout) {
-      clearTimeout(cache._validateTimeout);
-      delete cache._validateTimeout;
+    if (cache._updateTimeout) {
+      clearTimeout(cache._updateTimeout);
+      delete cache._updateTimeout;
     }
 
     const datapoints = cache.newlyInvalidDatapointIds
@@ -143,8 +145,34 @@ class DatapointCache {
     });
   }
 
+  queueUpdateJob({ delay = 1 } = {}) {
+    const cache = this;
+
+    if (delay <= 0) {
+      cache.commitNewlyUpdatedDatapoints();
+      return;
+    }
+
+    if (cache._updateTimeout) return;
+    cache._updateTimeout = setTimeout(() => {
+      delete cache._updateTimeout;
+      cache.commitNewlyUpdatedDatapoints();
+    }, delay);
+  }
+
+  async updateAll() {
+    while (true) {
+      if (!(await this.commitNewlyUpdatedDatapoints()).length) break;
+    }
+  }
+
   commitNewlyUpdatedDatapoints({ returnWait = true } = {}) {
     const cache = this;
+
+    if (cache._updateTimeout) {
+      clearTimeout(cache._updateTimeout);
+      delete cache._updateTimeout;
+    }
 
     const datapoints = cache.newlyUpdatedDatapointIds
       .map(datapointId => cache.datapointsById[datapointId])

@@ -60,7 +60,7 @@ class TemplatedText {
       }
       if (!node.children) {
         node.code = new CodeSnippet({ code: templateString.substring(part.range[0] + 2, part.range[1] - 1) });
-        if (!node.code.script) {
+        if (!node.code.func) {
           delete node.code;
           return;
         }

@@ -5,7 +5,7 @@ const Cookie = require('cookie');
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('./general/public-api');
 const makeClassWatchable = require('./general/watchable');
-const ServerDatapoints = require('./server-datapoints');
+const WebSocketProtocol = require('./web-socket-protocol');
 const RowProxy = require('./row-proxy');
 
 // API is auto-generated at the bottom from the public interface of this class
@@ -22,8 +22,10 @@ class WebSocketServer {
     server._cache = cache;
     server._schema = schema;
 
-    server.serverDatapoints = new ServerDatapoints({
-      wsserver: server,
+    server.wsp = new WebSocketProtocol({
+      cache,
+      ws: server,
+      isServer: true,
     });
   }
 
@@ -206,7 +208,7 @@ class WebSocketClient {
           messageType: 'Phoenix',
           payloadObject: client.server.encryptedPhoenixUserId(1),
         });
-      });
+      }, 100);
     }
 
     client.notifyListeners('onpayload', {

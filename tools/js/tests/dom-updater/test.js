@@ -38,7 +38,7 @@ module.exports = async function(rig) {
   const schema = rig.schema,
     connection = rig.connection,
     datapointConnection = new DbDatapointConnection({ schema, connection }),
-    cache = new DatapointCache({ schema, datapointConnection }),
+    cache = new DatapointCache({ schema, htmlToElement, datapointConnection }),
     domGenerator = new DomGenerator({
       htmlToElement,
       cache,

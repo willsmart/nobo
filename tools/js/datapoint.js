@@ -36,6 +36,8 @@ class Datapoint {
   static publicMethods() {
     return [
       'invalidate',
+      'validate',
+      'commit',
       'updateValue',
       'commit',
       'watch',
@@ -184,11 +186,11 @@ class Datapoint {
     return datapoint.publicApi;
   }
 
-  validate({ value } = {}) {
+  validate({ value, evenIfValid } = {}) {
     const datapoint = this,
       { cache } = datapoint;
 
-    if (!datapoint._invalid || datapoint.invalidDependencyDatapointCount) return;
+    if ((!evenIfValid && !datapoint._invalid) || datapoint.invalidDependencyDatapointCount) return;
 
     const getter = datapoint.getterIfAny;
     if (getter) {
@@ -244,6 +246,8 @@ class Datapoint {
     datapoint.updateIndex = (datapoint.updateIndex || 0) + 1;
 
     cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
+
+    cache.queueUpdateJob();
 
     return datapoint.publicApi;
   }
