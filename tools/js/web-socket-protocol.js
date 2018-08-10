@@ -28,6 +28,16 @@ class WebSocketConnection {
       }),
     });
     wsp.connections[wsc.index] = wsc;
+
+    if (!wsp.isServer) {
+      for (const datapoint of wsp.cache.datapoints) {
+        wsp.queueSendDatapoint({
+          theirDatapointId: datapoint.datapointId,
+          datapointId: datapoint.datapointId,
+          index: wsc.index,
+        });
+      }
+    }
   }
 
   close() {
@@ -152,7 +162,7 @@ class WebSocketConnection {
       }
       if (value !== undefined) {
         const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
-        datapoint.validate({ value, evenIfValid: true });
+        datapoint.updateValue({ newValue: value });
         const pdatapoint = wsp.datapoints[datapointId];
         if (pdatapoint && pdatapoint.values.length) {
           pdatapoint.values[pdatapoint.values.length - 1].versionByConnectionIndex[index] = cdatapoint.theirVersion;
@@ -218,6 +228,8 @@ class WebSocketConnection {
     const wsc = this,
       { index, datapoints, wsp, ws } = wsc,
       cdatapoint = datapoints[theirDatapointId];
+
+    if (!cdatapoint) return 1;
 
     if (!values.length) {
       cdatapoint.myVersion = 1;

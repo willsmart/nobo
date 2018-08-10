@@ -33,7 +33,11 @@ class NullDatapointConnection {
 
   commitDatapoints({ datapoints }) {
     datapoints.forEach(datapoint => {
-      datapoint.commit({ updateIndex: datapoint.__private.updateIndex });
+      if (datapoint.__private.updated) {
+        const { newValue } = datapoint.__private;
+        datapoint.commit({ updateIndex: datapoint.__private.updateIndex });
+        datapoint.validate({ value: newValue, evenIfValid: true });
+      }
     });
   }
 }
@@ -49,6 +53,7 @@ class DatapointCache {
       'queueValidationJob',
       'commitNewlyUpdatedDatapoints',
 
+      'datapoints',
       'templates',
 
       'watch',
@@ -70,6 +75,10 @@ class DatapointCache {
     if (!isClient) {
       cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
     }
+  }
+
+  get datapoints() {
+    return Object.values(this.datapointsById);
   }
 
   get templates() {
