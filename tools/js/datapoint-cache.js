@@ -56,6 +56,8 @@ class DatapointCache {
       'datapoints',
       'templates',
 
+      'isClient',
+
       'watch',
       'stopWatching',
     ];
@@ -64,7 +66,7 @@ class DatapointCache {
   constructor({ schema, htmlToElement, datapointConnection, appDbRowId = 1, isClient = false }) {
     const cache = this;
 
-    cache.isClient = isClient;
+    cache._isClient = isClient;
     cache.schema = schema;
     cache.datapointConnection = datapointConnection || new NullDatapointConnection({ cache });
     cache.datapointsById = {};
@@ -75,6 +77,10 @@ class DatapointCache {
     if (!isClient) {
       cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
     }
+  }
+
+  get isClient() {
+    return this._isClient;
   }
 
   get datapoints() {

@@ -1,4 +1,4 @@
-<span class='joblink'><a class='message-link' onclick='return  document.modelDOM.submitWSMessage(event,&#39;${message|start${jobname|job}}&#39;,&#39;${modelid||__model}&#39;);' style='${${jobname|job}?display:none;|}' title='${alt||&quot;Start this job&quot;}'>
+<span class='joblink'><a class='message-link' onclick='return  document.modelDOM.submitWSMessage(event,&#39;${message||&#39;start&#39;+(jobname||job)}&#39;,&#39;${modelid||__model}&#39;);' style='${jobname||job?&#39;display:none;&#39;:&#39;&#39;}' title='${alt||&quot;Start this job&quot;}'>
 ${title||"Start job"}
 </a><div class='model-child' fieldasmodelchild='${jobname|job}'></div>
 </span>

@@ -39,7 +39,6 @@ class Datapoint {
       'validate',
       'commit',
       'updateValue',
-      'commit',
       'watch',
       'stopWatching',
       'value',
@@ -54,6 +53,8 @@ class Datapoint {
       'typeName',
       'fieldName',
       'dbRowId',
+      'isClient',
+      'setIsClient',
     ];
   }
 
@@ -72,7 +73,7 @@ class Datapoint {
     datapoint._typeName = datapointInfo.typeName;
     datapoint._dbRowId = datapointInfo.dbRowId;
     datapoint._fieldName = datapointInfo.fieldName;
-    datapoint.isClient = isClient;
+    datapoint._isClient = false;
 
     datapoint.cache = cache;
     datapoint.schema = schema;
@@ -87,6 +88,14 @@ class Datapoint {
     datapoint.invalidate();
   }
 
+  get isClient() {
+    return this._isClient;
+  }
+
+  setIsClient(isClient) {
+    this._isClient = isClient === undefined || isClient;
+  }
+
   get valueIfAny() {
     return this._value;
   }
@@ -97,7 +106,7 @@ class Datapoint {
 
   get getterIfAny() {
     const field = this.fieldIfAny;
-    return field && (!this.isClient || field.isClient) ? field.get : undefined;
+    return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.get : undefined;
   }
 
   get datapointId() {

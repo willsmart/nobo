@@ -17,6 +17,7 @@ class PageState {
     const pageState = this;
 
     let itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint({ datapointId: 'page__1__items' }));
+    itemsDatapoint.setIsClient();
 
     itemsDatapoint.setVirtualField({
       getterFunction: () => {

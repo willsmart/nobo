@@ -2,6 +2,7 @@ const { applyDiff, createDiff } = require('./general/diff');
 const PublicApi = require('./general/public-api');
 const isEqual = require('./general/is-equal');
 const ConvertIds = require('./convert-ids');
+const RequiredDatapoints = require('./required-datapoints');
 
 const ValueHistoryLength = 1;
 
@@ -31,6 +32,7 @@ class WebSocketConnection {
 
     if (!wsp.isServer) {
       for (const datapoint of wsp.cache.datapoints) {
+        if (datapoint.isClient) continue;
         wsp.queueSendDatapoint({
           theirDatapointId: datapoint.datapointId,
           datapointId: datapoint.datapointId,
@@ -91,7 +93,7 @@ class WebSocketConnection {
   // (F)  "Version 0 eh, ok you're unsubscribed" (version 0 is the client's way of unsubscribing to updates for a datapoint)
   handleVersionNumber({ theirDatapointId, version }) {
     const wsc = this,
-      { wsp, index } = wsc;
+      { wsp, index, ws } = wsc;
     let cdatapoint = wsc.datapoints[theirDatapointId];
 
     if (!cdatapoint) {
@@ -99,6 +101,24 @@ class WebSocketConnection {
       if (!wsp.isServer) return;
 
       cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
+
+      if (wsp.isServer && ws.rowProxy) {
+        const { rowId, fieldName } = ConvertIds.decomposeId({ datapointId: theirDatapointId });
+        const match = /^template_?(.*)$/.exec(fieldName);
+        if (match) {
+          const variant = match[1];
+          wsp.requiredDatapoints
+            .forView({ rowId, variant, rowProxy: ws.rowProxy, userId: ws.userId })
+            .then(datapoints => {
+              for (const [theirDatapointId, { datapoint, callbackKey }] of Object.entries(datapoints)) {
+                const cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
+                const datapointId = cdatapoint.datapointId || theirDatapointId;
+                wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+                datapoint.stopWatching({ callbackKey });
+              }
+            });
+        }
+      }
     }
 
     if (!version) {
@@ -162,11 +182,12 @@ class WebSocketConnection {
       }
       if (value !== undefined) {
         const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+        wsp.addDatapointValue({
+          datapointId,
+          value,
+          versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
+        });
         datapoint.updateValue({ newValue: value });
-        const pdatapoint = wsp.datapoints[datapointId];
-        if (pdatapoint && pdatapoint.values.length) {
-          pdatapoint.values[pdatapoint.values.length - 1].versionByConnectionIndex[index] = cdatapoint.theirVersion;
-        }
       }
     }
 
@@ -280,6 +301,7 @@ class WebSocketProtocol {
 
     wsp.isServer = isServer;
     wsp.cache = cache;
+    wsp.requiredDatapoints = new RequiredDatapoints({ cache });
     wsp.queuedDatapoints = {};
     wsp.queueTimer = undefined;
     wsp.queueDelay = 1;
@@ -302,7 +324,7 @@ class WebSocketProtocol {
           for (const datapointId of newlyValidDatapoints) {
             if (wsp.datapoints[datapointId]) continue;
             const datapoint = cache.getExistingDatapoint({ datapointId });
-            if (!datapoint) continue;
+            if (!datapoint || datapoint.isClient) continue;
             for (const wsc of Object.values(wsp.connections)) {
               wsc.getOrCreateDatapoint(datapointId);
             }

@@ -317,7 +317,8 @@ class Template {
     });
 
     const displayedFields = {},
-      children = {};
+      children = {},
+      embedded = [];
 
     elements.forEach(addElement);
 
@@ -331,6 +332,16 @@ class Template {
         children[datapointInfo.fieldName] = children[datapointInfo.fieldName] || {};
         children[datapointInfo.fieldName][element.getAttribute('variant') || 'default'] = true;
       }
+      if (
+        (element.classList.contains('model-child') && element.getAttribute('model')) ||
+        element.hasAttribute('variant')
+      ) {
+        const rowId = element.getAttribute('model'),
+          variant = element.getAttribute('variant');
+        if (!embedded.find(val => val.rowId === rowId && val.variant === variant)) {
+          embedded.push({ rowId, variant });
+        }
+      }
       if (valueDatapointIds) {
         for (const datapointId of valueDatapointIds) {
           const datapointInfo = ConvertIds.decomposeId({ datapointId: datapointId });
@@ -343,6 +354,7 @@ class Template {
     }
 
     template.displayedFields = Object.keys(displayedFields);
+    template.embedded = embedded;
     template.children = Object.keys(children).map(fieldName => ({
       fieldName,
       variants: Object.keys(children[fieldName]),

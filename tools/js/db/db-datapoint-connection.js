@@ -110,6 +110,11 @@ class DbDatapointConnection {
         delete datapoint.newValue;
         return;
       }
+      if (!field) {
+        delete datapoint.updated;
+        delete datapoint.newValue;
+        return;
+      }
 
       const fieldsByRow = fieldsByRowByType[datapoint.typeName] || (fieldsByRowByType[datapoint.typeName] = {});
       const fields = fieldsByRow[datapoint.dbRowId] || (fieldsByRow[datapoint.dbRowId] = []);
