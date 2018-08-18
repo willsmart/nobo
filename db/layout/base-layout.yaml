@@ -1,40 +1,45 @@
-- modelChange(ModelChangeLog): 
+- modelChange(ModelChangeLog):
+    protectedTable: true
     type(string): null
     rowId(integer): null
     field(string): null
     at(datetime): now
 
     ~- notifyRequest(ModelChangeNotifyRequest):
+      protectedTable: true
       at(datetime): now
       name(string): null
 
 - SchemaHistory:
+    protectedTable: true
     modelLayout(text): null
     layoutToSchemaVersion(string): null
     at(datetime): now
 
 - app(App):
+    protectedTable: true
     name(string): null
     cookiePrefix(string):
-        default: 'noboapp'
+      default: 'noboapp'
 
     ~< users(User):
-        phoenixKey(string): null
+      phoenixKey(string): null
 
     # A template is some DOM block that can be customised with a model (i.e. a row in a table), and inserted into a document
     ~< templates(Template):
-        # the following three properties determine whether or not the system should choose this template as the view, given a particulat model
-        # the classFilter is NULL if the template can apply to any model type, otherwise it specified the model type that this template can apply to
-        classFilter(string): null
-        # if set, this template is only viewable by the owner of the model it shows
-        ownerOnly(boolean): false
-        # the variant allows a particular type of view on a model to be requested. For example you could request the 'tablerow' variant for a user model
-        variant(string): null
+      protectedTable: true
+      # the following three properties determine whether or not the system should choose this template as the view, given a particulat model
+      # the classFilter is NULL if the template can apply to any model type, otherwise it specified the model type that this template can apply to
+      classFilter(string): null
+      # if set, this template is only viewable by the owner of the model it shows
+      ownerOnly(boolean): false
+      # the variant allows a particular type of view on a model to be requested. For example you could request the 'tablerow' variant for a user model
+      variant(string): null
 
-        # the dom string that will be inserted into the document (after customization using the model)
-        dom(text): null
-        includesTemplateFilenames(text): null
+      # the dom string that will be inserted into the document (after customization using the model)
+      dom(text): null
+      includesTemplateFilenames(text): null
 
-        # the original file that this template was loaded from
-        filename(string): null
-        fileModifiedAt(string): null
+      # the original file that this template was loaded from
+      filename(string): null
+      fileModifiedAt(string): null

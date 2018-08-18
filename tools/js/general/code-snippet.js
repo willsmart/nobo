@@ -26,7 +26,152 @@ const jsepChildArrayKeys = {
   defaults: true,
 };
 
-const permissable_globals = { Function: true, Math: true, Object: true };
+const permissable_globals = { Function: true, Math: true, Object: true, Math: true };
+
+function getGlobalHash() {
+  const global = window || global;
+  return Object.keys(global).join(' ');
+}
+
+function makeGlobalWrapper() {
+  const globalChangeDetectingObjects = {},
+    globalCopy = {};
+  for (const key of Object.keys(window || global)) {
+    const cdo = (globalChangeDetectingObjects[key] = changeDetectorObject((window || global)[key]));
+    globalCopy[key] = cdo && typeof cdo == 'object' ? cdo.useObject : cdo;
+  }
+  return {
+    globalChangeDetectingObjects,
+    globalCopy,
+    clearChanges: () => {
+      for (const cdo of Object.values(globalChangeDetectingObjects)) {
+        if (cdo && typeof cdo == 'object') {
+          cdo.clearChanges();
+        }
+      }
+    },
+    globalHash: getGlobalHash(),
+    globalWrapper: new Function(
+      'code',
+      'globalCopy',
+      `const ${Object.keys(window || global)
+        .map(key => `${key}=globalCopy.${key}`)
+        .join(',')};
+    return new Function('context','"use strict";return('+code+');');`
+    ),
+  };
+}
+
+function getOrMakeGlobalWrapper(forceMake) {
+  const globalHash = getGlobalHash();
+  if (this.globalHash == globalHash && !forceMake) return this.wrapper;
+  this.globalHash = globalHash;
+  return (this.wrapper = makeGlobalWrapper());
+}
+
+function globalWrappedFunction(code) {
+  const {
+    globalChangeDetectingObjects,
+    globalCopy,
+    clearChanges,
+    globalWrapper,
+    globalHash,
+  } = getOrMakeGlobalWrapper();
+  return {
+    globalChangeDetectingObjects,
+    globalCopy,
+    code,
+    clearChanges,
+    globalHash,
+    wrappedFunction: globalWrapper(code, globalCopy),
+  };
+}
+
+function callWrappedFunction(wrappedFunctionInfo, context) {
+  const { globalChangeDetectingObjects, code, clearChanges, globalHash, wrappedFunction } = wrappedFunctionInfo;
+  if (globalHash != getGlobalHash()) {
+    return callWrappedFunction(globalWrappedFunction(code), context);
+  }
+  const changeDetectingContext = changeDetectorObject(context);
+  clearChanges();
+  return {
+    globalChangeDetectingObjects,
+    wrappedFunctionInfo,
+    context,
+    changeDetectingContext,
+    result: wrappedFunction(changeDetectingContext.useObject),
+  };
+}
+
+function changeDetectorObject(baseObject, setParentModified) {
+  if (!baseObject || typeof baseObject != 'object') return baseObject;
+  const changeObject = {},
+    deletionsObject = {};
+  modified = [false];
+  function setModified() {
+    if (setParentModified) setParentModified();
+    modified[0] = true;
+  }
+  return {
+    changeObject,
+    deletionsObject,
+    modified,
+    clearChanges: () => {
+      for (key of Object.keys(changeObject)) delete changeObject[key];
+      for (key of Object.keys(deletionsObject)) delete deletionsObject[key];
+      modified[0] = false;
+    },
+    useObject: new Proxy(
+      {},
+      {
+        getPrototypeOf: () => Object.getPrototypeOf(baseObject),
+        isExtensible: () => Object.isExtensible(baseObject),
+        getOwnPropertyDescriptor: (_obj, prop) =>
+          deletionsObject[prop]
+            ? undefined
+            : Object.getOwnPropertyDescriptor(changeObject, prop) || Object.getOwnPropertyDescriptor(baseObject, prop),
+        defineProperty: (_obj, key, descriptor) => {
+          setModified();
+          delete deletionsObject[key];
+          return Object.defineProperty(changeObject, key, descriptor);
+        },
+        has: (_obj, key) => !deletionsObject[key] && (key in changeObject || key in baseObject),
+        get: (_obj, key) => {
+          if (deletionsObject[key]) return;
+          if (key in changeObject) {
+            const ret = changeObject[key];
+            return ret && typeof ret == 'object' ? ret.useObject : ret;
+          }
+          const ret = baseObject[key];
+          if (ret && typeof ret == 'object') {
+            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
+          }
+          return ret;
+        },
+        set: (_obj, key, value) => {
+          setModified();
+          delete deletionsObject[key];
+          if (value && typeof value == 'object') {
+            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
+          }
+          return (changeObject[key] = value);
+        },
+        deleteProperty: (_obj, key) => {
+          setModified();
+          delete changeObject[key];
+          deletionsObject[key] = true;
+          return true;
+        },
+        ownKeys: () => {
+          if (!modified[0]) return Reflect.ownKeys(baseObject);
+          const keys = new Set([...Reflect.ownKeys(baseObject), ...Reflect.ownKeys(changeObject)]);
+          for (const key of Object.keys(deletionsObject)) keys.delete(key);
+          return [...keys];
+        },
+      }
+    ),
+  };
+}
 
 class Code {
   static withString(codeString) {
@@ -36,96 +181,14 @@ class Code {
 
   constructor(codeString) {
     const code = this;
-    code.codeString = codeString;
-    code.names = {};
-    code.eval({});
+    code.wrappedFunctionInfo = globalWrappedFunction(codeString);
   }
 
-  proxiedFunction() {
+  static eval(context) {
     const code = this,
-      { proxy, codeString } = code;
-
-    // sad to say but this code has to use with in order to catch variable usage.
-    // with is deprecated so I'll investigate alternatives
-    // This is wrapped in a 'new Function' call to temporarily turn off strict mode
-    const ret = new Function('proxy', `return function(context) {with(proxy) {"use strict";return (${codeString})}}`)(
-      proxy
-    );
-
-    return ret;
-  }
-
-  get proxy() {
-    const code = this;
-    if (code._proxy) return code._proxy;
-    const { names } = code;
-    return (code._proxy = new Proxy(
-      {},
-      {
-        get: (_target, key) => {
-          if (typeof key != 'string') return;
-          if (!(key in names)) {
-            names[key] = true;
-          }
-          if (key in code.outputContext) return code.outputContext[key];
-          return code.context[key];
-        },
-        set: (_target, key, value) => {
-          code.outputContext[key] = value;
-        },
-        has: (_target, key) => {
-          return typeof key == 'string' && (key in code.outputContext || !(key in permissable_globals));
-        },
-      }
-    ));
-  }
-
-  static safeEval(code, context) {
-    return function(code) {
-      return eval(code);
-    }.call(context || {}, code);
-  }
-
-  get func() {
-    const code = this;
-    if (code.err) return;
-    if (!code._func) {
-      try {
-        code._func = code.proxiedFunction();
-        if (typeof code.func != 'function') throw new Error('Code is not an expression');
-      } catch (err) {
-        code.err = `Failed to compile code snippet: ${code.codeString}\nError: ${err}\n`;
-        console.error(code.err);
-        return;
-      }
-    }
-    return code._func;
-  }
-
-  // I figure this is a reasonable way to ensure that nobo supports all features of javascript, while leaning on
-  //  js itself to do the parsing.
-  // Essentially, each time the code encounters a reference error, the name is added and the code rerun
-  // This does incur a one-time recompile and except cost which is bounded to the number of names used by the code.
-  //  In all the scenarios I aim to use this code, the number of referenced names will be small, so that's fine
-  // A core concept of CodeSnippet is that all snippets are sandboxed with no sideeffects drifting out of the sandbox
-  //  so rerunning codesnippets is ok, and will not cause any instability/undefined states
-  eval(context) {
-    const code = this;
-
-    const func = code.func;
-    if (!func) return;
-
-    try {
-      code.context = context;
-      code.outputContext = {};
-      const ret = func(context);
-      return ret;
-    } catch (err) {
-      console.log(
-        `Couldn't eval code snippet: ${code.codeString}\n with args: ${JSON.stringify(context)}\n error: ${err.message}`
-      );
-      return;
-    }
+      { wrappedFunctionInfo, result, changeDetectingContext } = callWrappedFunction(code.wrappedFunctionInfo, context);
+    code.wrappedFunctionInfo = wrappedFunctionInfo;
+    return { changeDetectingContext, result };
   }
 }
 
@@ -227,7 +290,7 @@ class CodeSnippet {
     if (codeSnippet._func) {
       ret = codeSnippet._func(sandbox);
     } else {
-      ret = codeSnippet.code.eval(sandbox);
+      ({ result: ret } = codeSnippet.code.eval(sandbox));
     }
 
     return ret;

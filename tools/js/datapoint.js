@@ -66,26 +66,54 @@ class Datapoint {
     const datapointInfo = ConvertIds.decomposeId({
       datapointId: datapointId,
     });
-    datapoint._datapointId = datapointInfo.datapointId;
-    datapoint._datapointId = datapointInfo.datapointId;
-    datapoint._rowId = datapointInfo.rowId;
-    datapoint._rowId = datapointInfo.rowId;
-    datapoint._typeName = datapointInfo.typeName;
-    datapoint._dbRowId = datapointInfo.dbRowId;
-    datapoint._fieldName = datapointInfo.fieldName;
+    const { rowId, typeName, dbRowId, fieldName, proxyKey } = datapointInfo;
+    Object.assign(datapoint, {
+      _datapointId: datapointId,
+      _rowId: rowId,
+      _typeName: typeName,
+      _dbRowId: dbRowId,
+      _fieldName: fieldName,
+      _proxyKey: proxyKey,
+    });
     datapoint._isClient = false;
 
     datapoint.cache = cache;
     datapoint.schema = schema;
     datapoint.templates = templates;
 
-    if (datapoint._typeName && datapoint._fieldName && schema.allTypes[datapoint._typeName]) {
-      datapoint._fieldIfAny = schema.allTypes[datapoint._typeName].fields[datapoint._fieldName];
+    let type;
+    if (typeName && fieldName && schema.allTypes[typeName]) {
+      type = schema.allTypes[typeName];
+      datapoint._fieldIfAny = type.fields[datapoint._fieldName];
     }
     if (datapoint.getterIfAny) {
       datapoint.setupDependencyFields();
     }
     datapoint.invalidate();
+
+    if (fieldName == 'owner') {
+      datapoint._ownerId = false;
+    } else if (type && type.protected) {
+      datapoint._ownerId = false;
+    } else if (type && type.fields['owner']) {
+      datapoint._ownerId = false;
+      const ownerDatapointId = type.fields['owner'].getDatapointId({ dbRowId, proxyKey });
+      datapoint.ownerDatapoint = cache.getOrCreateDatapoint({ datapointId: ownerDatapointId });
+      datapoint.ownerDatapoint.watch({
+        callbackKey: datapointId,
+        onvalid: ({ valueIfAny: value }) => {
+          let ownerId;
+          if (Array.isArray(value) && value.length == 1) value = value[0];
+          if (value === 'id') ownerId = dbRowId;
+          if (typeof value == 'number') ownerId = value;
+          else if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {
+            const { dbRowId: ownerDbRowId } = ConvertIds.decomposeId({ rowId: value });
+            ownerId = ownerDbRowId;
+          }
+          datapoint.setOwnerId(ownerId);
+        },
+      });
+    }
   }
 
   get isClient() {
@@ -246,9 +274,32 @@ class Datapoint {
     datapoint.deleteIfUnwatched();
   }
 
-  updateValue({ newValue }) {
+  get ownerId() {
+    return this._ownerId;
+  }
+
+  setOwnerId(ownerId) {
     const datapoint = this,
-      { cache } = datapoint;
+      { _unauthorizedUpdateArguments: updateArguments } = datapoint;
+
+    datapoint._ownerId = ownerId;
+    if (updateArguments) {
+      delete datapoint._unauthorizedUpdateArguments;
+      datapoint.updateValue(updateArguments);
+    }
+  }
+
+  updateValue({ newValue, userId }) {
+    const datapoint = this,
+      { cache, ownerId } = datapoint;
+
+    if (ownerId !== undefined) {
+      if (ownerId === false || ownerId !== userId) {
+        datapoint._unauthorizedUpdateArguments = { newValue: clone(newValue), userId };
+        return;
+      }
+    }
+    delete datapoint._unauthorizedUpdateArguments;
 
     datapoint.newValue = clone(newValue);
     datapoint.updated = true;
@@ -549,7 +600,13 @@ class Datapoint {
   forget() {
     log(`forgetting datapoint ${this.datapointId}`);
     const datapoint = this,
-      { cache } = datapoint;
+      { cache, datapointId } = datapoint;
+
+    if (datapoint.ownerDatapoint) {
+      datapoint.ownerDatapoint.stopWatching({
+        callbackKey: datapointId,
+      });
+    }
 
     if (datapoint.dependenciesByDatapointId) {
       for (const dependencyDatapointId of Object.keys(datapoint.dependenciesByDatapointId)) {

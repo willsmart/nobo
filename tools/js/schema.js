@@ -58,6 +58,7 @@ class SchemaDefn {
           return ret;
         },
         name: name,
+        protected: false,
         fields: {},
         getEnclosingType: function() {
           return this;
@@ -176,6 +177,9 @@ class SchemaDefn {
           case 'sort':
             if (!myField) break;
             myField.sort = new CodeSnippet({ code: val });
+            break;
+          case 'protectedTable':
+            if (me && val) me.getEnclosingType().protected = true;
             break;
           case 'default':
           case 'unique':

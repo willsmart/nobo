@@ -27,7 +27,12 @@ class NullDatapointConnection {
 
   validateDatapoints({ datapoints }) {
     datapoints.forEach(datapoint => {
-      datapoint.validate({ value: undefined });
+      if (datapoint.__private.updated) {
+        const { newValue } = datapoint.__private;
+        datapoint.validate({ value: newValue });
+      } else {
+        datapoint.validate({ value: datapoint.valueIfAny });
+      }
     });
   }
 
