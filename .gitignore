@@ -8,3 +8,4 @@ tools/page-server/app/assets/javascripts/nobo.js
 tools/page-server/public/assets
 tools/page-server/log
 index.html
+*.haml.html

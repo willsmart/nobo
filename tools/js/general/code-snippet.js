@@ -28,16 +28,19 @@ const jsepChildArrayKeys = {
 
 const permissable_globals = { Function: true, Math: true, Object: true, Math: true };
 
+function getGlobal() {
+  return this.__global || (this.__global = Function('return this')());
+}
+
 function getGlobalHash() {
-  const global = window || global;
-  return Object.keys(global).join(' ');
+  return Object.keys(getGlobal()).join(' ');
 }
 
 function makeGlobalWrapper() {
   const globalChangeDetectingObjects = {},
     globalCopy = {};
-  for (const key of Object.keys(window || global)) {
-    const cdo = (globalChangeDetectingObjects[key] = changeDetectorObject((window || global)[key]));
+  for (const key of Object.keys(getGlobal())) {
+    const cdo = (globalChangeDetectingObjects[key] = changeDetectorObject(getGlobal()[key]));
     globalCopy[key] = cdo && typeof cdo == 'object' ? cdo.useObject : cdo;
   }
   return {
@@ -54,7 +57,7 @@ function makeGlobalWrapper() {
     globalWrapper: new Function(
       'code',
       'globalCopy',
-      `const ${Object.keys(window || global)
+      `const ${Object.keys(getGlobal())
         .map(key => `${key}=globalCopy.${key}`)
         .join(',')};
     return new Function('context','"use strict";return('+code+');');`
