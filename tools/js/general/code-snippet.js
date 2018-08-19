@@ -7,174 +7,8 @@
 // API is auto-generated at the bottom from the public interface of the CodeSnippet class
 
 const PublicApi = require('./public-api');
-const jsep = require('jsep');
-
-const jsepChildKeys = {
-  left: true,
-  right: true,
-  test: true,
-  consequent: true,
-  alternate: true,
-  object: true,
-  discriminant: true,
-  argument: true,
-  body: true,
-};
-const jsepChildArrayKeys = {
-  expressions: true,
-  arguments: true,
-  defaults: true,
-};
-
-const permissable_globals = { Function: true, Math: true, Object: true, Math: true };
-
-function getGlobal() {
-  return this.__global || (this.__global = Function('return this')());
-}
-
-function getGlobalHash() {
-  return Object.keys(getGlobal()).join(' ');
-}
-
-function makeGlobalWrapper() {
-  const globalChangeDetectingObjects = {},
-    globalCopy = {};
-  for (const key of Object.keys(getGlobal())) {
-    const cdo = (globalChangeDetectingObjects[key] = changeDetectorObject(getGlobal()[key]));
-    globalCopy[key] = cdo && typeof cdo == 'object' ? cdo.useObject : cdo;
-  }
-  return {
-    globalChangeDetectingObjects,
-    globalCopy,
-    clearChanges: () => {
-      for (const cdo of Object.values(globalChangeDetectingObjects)) {
-        if (cdo && typeof cdo == 'object') {
-          cdo.clearChanges();
-        }
-      }
-    },
-    globalHash: getGlobalHash(),
-    globalWrapper: new Function(
-      'code',
-      'globalCopy',
-      `const ${Object.keys(getGlobal())
-        .map(key => `${key}=globalCopy.${key}`)
-        .join(',')};
-    return new Function('context','"use strict";return('+code+');');`
-    ),
-  };
-}
-
-function getOrMakeGlobalWrapper(forceMake) {
-  const globalHash = getGlobalHash();
-  if (this.globalHash == globalHash && !forceMake) return this.wrapper;
-  this.globalHash = globalHash;
-  return (this.wrapper = makeGlobalWrapper());
-}
-
-function globalWrappedFunction(code) {
-  const {
-    globalChangeDetectingObjects,
-    globalCopy,
-    clearChanges,
-    globalWrapper,
-    globalHash,
-  } = getOrMakeGlobalWrapper();
-  return {
-    globalChangeDetectingObjects,
-    globalCopy,
-    code,
-    clearChanges,
-    globalHash,
-    wrappedFunction: globalWrapper(code, globalCopy),
-  };
-}
-
-function callWrappedFunction(wrappedFunctionInfo, context) {
-  const { globalChangeDetectingObjects, code, clearChanges, globalHash, wrappedFunction } = wrappedFunctionInfo;
-  if (globalHash != getGlobalHash()) {
-    return callWrappedFunction(globalWrappedFunction(code), context);
-  }
-  const changeDetectingContext = changeDetectorObject(context);
-  clearChanges();
-  return {
-    globalChangeDetectingObjects,
-    wrappedFunctionInfo,
-    context,
-    changeDetectingContext,
-    result: wrappedFunction(changeDetectingContext.useObject),
-  };
-}
-
-function changeDetectorObject(baseObject, setParentModified) {
-  if (!baseObject || typeof baseObject != 'object') return baseObject;
-  const changeObject = {},
-    deletionsObject = {};
-  modified = [false];
-  function setModified() {
-    if (setParentModified) setParentModified();
-    modified[0] = true;
-  }
-  return {
-    changeObject,
-    deletionsObject,
-    modified,
-    clearChanges: () => {
-      for (key of Object.keys(changeObject)) delete changeObject[key];
-      for (key of Object.keys(deletionsObject)) delete deletionsObject[key];
-      modified[0] = false;
-    },
-    useObject: new Proxy(
-      {},
-      {
-        getPrototypeOf: () => Object.getPrototypeOf(baseObject),
-        isExtensible: () => Object.isExtensible(baseObject),
-        getOwnPropertyDescriptor: (_obj, prop) =>
-          deletionsObject[prop]
-            ? undefined
-            : Object.getOwnPropertyDescriptor(changeObject, prop) || Object.getOwnPropertyDescriptor(baseObject, prop),
-        defineProperty: (_obj, key, descriptor) => {
-          setModified();
-          delete deletionsObject[key];
-          return Object.defineProperty(changeObject, key, descriptor);
-        },
-        has: (_obj, key) => !deletionsObject[key] && (key in changeObject || key in baseObject),
-        get: (_obj, key) => {
-          if (deletionsObject[key]) return;
-          if (key in changeObject) {
-            const ret = changeObject[key];
-            return ret && typeof ret == 'object' ? ret.useObject : ret;
-          }
-          const ret = baseObject[key];
-          if (ret && typeof ret == 'object') {
-            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
-          }
-          return ret;
-        },
-        set: (_obj, key, value) => {
-          setModified();
-          delete deletionsObject[key];
-          if (value && typeof value == 'object') {
-            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
-          }
-          return (changeObject[key] = value);
-        },
-        deleteProperty: (_obj, key) => {
-          setModified();
-          delete changeObject[key];
-          deletionsObject[key] = true;
-          return true;
-        },
-        ownKeys: () => {
-          if (!modified[0]) return Reflect.ownKeys(baseObject);
-          const keys = new Set([...Reflect.ownKeys(baseObject), ...Reflect.ownKeys(changeObject)]);
-          for (const key of Object.keys(deletionsObject)) keys.delete(key);
-          return [...keys];
-        },
-      }
-    ),
-  };
-}
+const changeDetectorObject = require('./change-detector-object');
+const wrapFunctionLocals = require('./wrap-function-locals');
 
 class Code {
   static withString(codeString) {
@@ -184,14 +18,18 @@ class Code {
 
   constructor(codeString) {
     const code = this;
-    code.wrappedFunctionInfo = globalWrappedFunction(codeString);
+    Object.assign(code, wrapFunctionLocals(codeString));
   }
 
-  static eval(context) {
+  eval(context = {}) {
     const code = this,
-      { wrappedFunctionInfo, result, changeDetectingContext } = callWrappedFunction(code.wrappedFunctionInfo, context);
-    code.wrappedFunctionInfo = wrappedFunctionInfo;
-    return { changeDetectingContext, result };
+      { wrappedFunction } = code,
+      changeDetectingContext = changeDetectorObject(context);
+    return {
+      context,
+      changeDetectingContext,
+      result: wrappedFunction ? wrappedFunction(changeDetectingContext.useObject) : undefined,
+    };
   }
 }
 
@@ -217,10 +55,6 @@ class CodeSnippet {
 
   get names() {
     return this._names || this.code.names;
-  }
-
-  get func() {
-    return this._func || this.code.func;
   }
 
   setAsFunction({ func, names }) {

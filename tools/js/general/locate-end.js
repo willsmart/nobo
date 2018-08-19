@@ -11,14 +11,14 @@
 locateEnd('` ${1+"\\"two\\""+three(four[5])}`+six')
 = 
 {
-  range: [1, 32],
+  range: [0, 32],
   type: "``",
   children: [
     {
       range: [2, 31],
       type: "${}",
       children: [
-        { range: [7, 15], type: '""' },
+        { range: [6, 15], type: '""' },
         { range: [21, 30], type: "()", children: [{ range: [26, 29], type: "[]" }] }
       ]
     }
@@ -32,6 +32,7 @@ module.exports = locateEnd;
 locateEnd.locateEndOfString = locateEndOfString;
 
 function locateEndOfString(string, closeChar, openIndex) {
+  const openIndexWas = openIndex;
   if (closeChar !== false && (typeof closeChar != 'string' || closeChar.length != 1)) {
     closeChar = string.charAt(openIndex);
     switch (closeChar) {
@@ -61,7 +62,7 @@ function locateEndOfString(string, closeChar, openIndex) {
       return locateEnd(string, closeChar, openIndex);
   }
   const ret = {
-    range: [openIndex, undefined],
+    range: [openIndexWas, undefined],
     type: closeChar === false ? '...`' : `${closeChar}${closeChar}`,
   };
   if (closeChar !== false && closeChar != '`') {

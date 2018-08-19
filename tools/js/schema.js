@@ -186,7 +186,7 @@ class SchemaDefn {
             if (myField) myField[key] = val;
             break;
           default:
-            const match = /^(?:(--|~-|-~|~<|>~)\s*)?([\w_]+)(?:\(([\w_]+)\))?$/.exec(key);
+            const match = /^(?:(?:([\w_]+)\s*)?(--|~-|-~|~<|>~)\s*)?([\w_]+)(?:\(([\w_]+)\))?$/.exec(key);
             const linkTypes = {
               '--': {},
               '~-': {
@@ -205,9 +205,10 @@ class SchemaDefn {
               },
             };
             if (match) {
-              const linkType = match[1],
-                childFieldName = match[3] ? match[2] : undefined,
-                childTypeName = match[3] ? match[3] : match[2];
+              const asName = match[1],
+                linkType = match[2],
+                childFieldName = match[4] ? match[3] : undefined,
+                childTypeName = match[4] ? match[4] : match[3];
               const linkTypeInfo = linkType ? linkTypes[linkType] : undefined;
               const childField =
                 me && childFieldName
@@ -219,11 +220,17 @@ class SchemaDefn {
                     )
                   : schema.getType(childTypeName);
 
-              const myLocalFieldName = schema._addLayout(val, childField, childFieldName, myFieldName, depth + 1);
+              const myLocalFieldName = schema._addLayout(
+                val,
+                childField,
+                childFieldName,
+                asName || myFieldName,
+                depth + 1
+              );
 
               if (linkType && me && myLocalFieldName) {
                 const myLocalField = schema
-                  .getType(match[3])
+                  .getType(childTypeName)
                   .getField(
                     myLocalFieldName,
                     me.dataType || me,

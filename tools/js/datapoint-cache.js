@@ -27,7 +27,7 @@ class NullDatapointConnection {
 
   validateDatapoints({ datapoints }) {
     datapoints.forEach(datapoint => {
-      if (datapoint.__private.updated) {
+      if (datapoint.__private.hasOwnProperty('newValue')) {
         const { newValue } = datapoint.__private;
         datapoint.validate({ value: newValue });
       } else {
@@ -39,9 +39,8 @@ class NullDatapointConnection {
   commitDatapoints({ datapoints }) {
     datapoints.forEach(datapoint => {
       if (datapoint.__private.updated) {
-        const { newValue } = datapoint.__private;
-        datapoint.commit({ updateIndex: datapoint.__private.updateIndex });
-        datapoint.validate({ value: newValue, evenIfValid: true });
+        datapoint.commit({ updateIndex: datapoint.__private.updateIndex, keepNewValue: true });
+        datapoint.invalidate();
       }
     });
   }

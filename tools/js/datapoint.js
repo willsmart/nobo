@@ -182,12 +182,12 @@ class Datapoint {
     return ret;
   }
 
-  commit({ updateIndex }) {
+  commit({ updateIndex, keepNewValue }) {
     const datapoint = this;
 
     if (datapoint.updateIndex == updateIndex) {
       delete datapoint.updated;
-      delete datapoint.newValue;
+      if (!keepNewValue) delete datapoint.newValue;
     }
   }
 
