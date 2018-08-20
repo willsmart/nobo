@@ -1,6 +1,7 @@
 const PublicApi = require('../general/public-api');
 const locateEnd = require('../general/locate-end');
 const CodeSnippet = require('../general/code-snippet');
+const StateVar = require('../general/state-var');
 
 const { locateEndOfString } = locateEnd;
 
@@ -47,32 +48,30 @@ class TemplatedText {
 
     function markup(part, parent) {
       if (part.type != '${}') {
-        if (part.children) for (const child of part.children) markup(child, parent);
         return;
       }
       const node = { range: part.range };
       parent.children = parent.children || [];
       parent.children.push(node);
-      if (part.children) {
-        for (const child of part.children) {
-          markup(child, node);
-        }
+
+      node.code = new CodeSnippet({ cache, code: templateString.substring(part.range[0] + 2, part.range[1] - 1) });
+      if (!node.code.names) {
+        delete node.code;
+        return;
       }
-      if (!node.children) {
-        node.code = new CodeSnippet({ code: templateString.substring(part.range[0] + 2, part.range[1] - 1) });
-        if (!node.code.names) {
-          delete node.code;
-          return;
-        }
-        if (rowId) {
-          for (const [fieldName, subNames] of Object.entries(node.code.names)) {
+      if (rowId) {
+        for (const [fieldName, subNames] of Object.entries(node.code.names)) {
+          let datapointId;
+          if (fieldName.startsWith('state.')) {
+            datapointId = StateVar.datapointId(fieldName);
+          } else {
             if (typeof subNames == 'object' && Object.keys(subNames).length) continue;
-            node.datapointIdsByName = node.datapointIdsByName || {};
-            const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-            node.datapointIdsByName[fieldName] = datapointId;
-            templatedText._nodesByDatapointId[datapointId] = templatedText._nodesByDatapointId[datapointId] || [];
-            templatedText._nodesByDatapointId[datapointId].push(node);
+            datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
           }
+          node.datapointIdsByName = node.datapointIdsByName || {};
+          node.datapointIdsByName[fieldName] = datapointId;
+          templatedText._nodesByDatapointId[datapointId] = templatedText._nodesByDatapointId[datapointId] || [];
+          templatedText._nodesByDatapointId[datapointId].push(node);
         }
       }
     }
@@ -87,7 +86,7 @@ class TemplatedText {
 
   evaluatePart({ nodes, range }) {
     const templatedText = this,
-      templateString = templatedText.templateString;
+      { cache, templateString, rowId } = templatedText;
     if (!nodes) return { string: this.templateString.substring(range[0], range[1]) };
 
     let string = '',
@@ -101,13 +100,16 @@ class TemplatedText {
       } else if (node.code) {
         repl =
           '' +
-          node.code.evaluate((...names) => {
-            if (names.length > 1) return '...';
-            const datapointId = node.datapointIdsByName[names[0]];
-            if (!datapointId) return '...';
-            const datapoint = this.cache.getOrCreateDatapoint({ datapointId: datapointId });
-            const ret = (datapoint ? datapoint.valueIfAny : undefined) || '...';
-            return Array.isArray(ret) && !ret.length ? undefined : ret;
+          node.code.evaluate({
+            cache,
+            rowId,
+            valueForNameCallback: (...names) => {
+              if (names.length > 1) return undefined;
+              const datapointId = node.datapointIdsByName[names[0]];
+              if (!datapointId) return undefined;
+              const datapoint = this.cache.getOrCreateDatapoint({ datapointId: datapointId });
+              return datapoint ? datapoint.valueIfAny : undefined;
+            },
           });
       }
       if (node.range[0] < wasIndex) continue;

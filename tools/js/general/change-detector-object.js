@@ -6,8 +6,8 @@ module.exports = changeDetectorObject;
 function changeDetectorObject(baseObject, setParentModified) {
   if (!baseObject || typeof baseObject != 'object') return baseObject;
   const changeObject = {},
-    deletionsObject = {};
-  modified = [false];
+    deletionsObject = {},
+    modified = [false];
   function setModified() {
     if (setParentModified) setParentModified();
     modified[0] = true;
@@ -16,6 +16,19 @@ function changeDetectorObject(baseObject, setParentModified) {
     changeObject,
     deletionsObject,
     modified,
+    get modifiedObject() {
+      if (!modified[0]) return baseObject;
+      const newObject = Object.assign({}, baseObject);
+      if (deletionsObject) for (const key of Object.keys(deletionsObject)) delete newObject[key];
+      if (changeObject) {
+        for (const [key, newValue] of Object.entries(changeObject)) {
+          if (newValue && typeof newValue == 'object') {
+            newObject[key] = newValue.modifiedObject;
+          } else newObject[key] = newValue;
+        }
+      }
+      return newObject;
+    },
     clearChanges: () => {
       for (key of Object.keys(changeObject)) delete changeObject[key];
       for (key of Object.keys(deletionsObject)) delete deletionsObject[key];
@@ -54,7 +67,8 @@ function changeDetectorObject(baseObject, setParentModified) {
           if (value && typeof value == 'object') {
             return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
           }
-          return (changeObject[key] = value);
+          changeObject[key] = value;
+          return true;
         },
         deleteProperty: (_obj, key) => {
           setModified();

@@ -232,6 +232,7 @@ class Datapoint {
     const getter = datapoint.getterIfAny;
     if (getter) {
       value = Datapoint.valueFromGetter({
+        cache,
         getter,
         dependencies: datapoint.dependencies,
       });
@@ -629,7 +630,7 @@ class Datapoint {
     cache.forgetDatapoint(datapoint);
   }
 
-  static valueFromGetter({ getter, dependencies }) {
+  static valueFromGetter({ getter, dependencies, cache }) {
     const dependencyValues = {};
 
     if (dependencies) {
@@ -645,7 +646,7 @@ class Datapoint {
       })(dependencies, dependencyValues);
     }
 
-    return getter.evaluate({ valuesByName: dependencyValues });
+    return getter.evaluate({ valuesByName: dependencyValues, cache });
   }
 }
 

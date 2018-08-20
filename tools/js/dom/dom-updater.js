@@ -2,10 +2,7 @@ const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
 
-const {
-  rangeForElement,
-  childRangeAtIndex,
-} = require('./dom-functions');
+const { rangeForElement, childRangeAtIndex } = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -170,7 +167,13 @@ class DomUpdater {
                       rowId,
                       text: templateText,
                     });
-                    element.setAttribute(name, templatedText.evaluate.string);
+                    if (name.startsWith('on')) {
+                      element[name] = () => {
+                        templatedText.evaluate;
+                      };
+                    } else {
+                      element.setAttribute(name, templatedText.evaluate.string);
+                    }
                   }
                 }
               },

@@ -8,6 +8,8 @@
 
 const PublicApi = require('./general/public-api');
 const makeClassWatchable = require('./general/watchable');
+const StateVar = require('./general/state-var');
+const RowChangeTrackers = require('./row-change-trackers');
 
 const Datapoint = require('./datapoint');
 const Templates = require('./templates');
@@ -59,6 +61,8 @@ class DatapointCache {
 
       'datapoints',
       'templates',
+      'stateVar',
+      'rowChangeTrackers',
 
       'isClient',
 
@@ -77,10 +81,20 @@ class DatapointCache {
     cache.newlyInvalidDatapointIds = [];
     cache.newlyUpdatedDatapointIds = [];
     cache.newlyValidDatapoints = [];
+    cache._stateVar = new StateVar({ cache });
+    cache._rowChangeTrackers = new RowChangeTrackers({ cache });
 
     if (!isClient) {
       cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
     }
+  }
+
+  get rowChangeTrackers() {
+    return this._rowChangeTrackers;
+  }
+
+  get stateVar() {
+    return this._stateVar;
   }
 
   get isClient() {

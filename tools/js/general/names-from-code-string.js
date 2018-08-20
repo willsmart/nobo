@@ -4,7 +4,7 @@
 const locateEnd = require('./locate-end');
 const unicodeCategories = require('./unicode-categories');
 
-const permissableGlobals = { Function: true, Math: true, Object: true, console: true };
+const permissableGlobals = { Function: true, Math: true, Object: true, console: true, model: true };
 const jsKeywords = {
   break: true,
   case: true,
@@ -104,7 +104,7 @@ function addNamesFromCode(codeString, part, names) {
 
 function addNamesFromCodeString(codeString, names) {
   const validVariable = `(?:${unicodeCategories.varStart})(?:${unicodeCategories.varInnard})*`,
-    re = new RegExp(`(.*?)(${validVariable})`, 'g'),
+    re = new RegExp(`(.*?)((?:state\.)?${validVariable})`, 'g'),
     allowableGapRe = /(?<!\.\s*)$/;
   let match;
   while ((match = re.exec(codeString))) {

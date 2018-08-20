@@ -22,19 +22,24 @@ function wrapFunctionLocals(codeString) {
   }
 
   const names = namesFromCodeString(codeString),
-    nameKeys = Object.keys(names);
+    nameKeys = Object.keys(names),
+    vars = nameKeys.filter(name => !name.includes('.'));
 
   let wrappedFunction;
   try {
     wrappedFunction = Function(
       '__context',
-      '"use strict";' + wrappedCodeString({ nameKeys, codeString, isExpression: true })
+      'state',
+      'model',
+      '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: true })
     );
   } catch (err) {
     try {
       wrappedFunction = Function(
         '__context',
-        '"use strict";' + wrappedCodeString({ nameKeys, codeString, isExpression: false })
+        'state',
+        'model',
+        '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {
       console.log(`Failed to compile code: ${codeString}`);
@@ -47,13 +52,13 @@ function wrapFunctionLocals(codeString) {
   };
 }
 
-function wrappedCodeString({ nameKeys, codeString, isExpression }) {
-  if (!nameKeys.length) {
+function wrappedCodeString({ vars, codeString, isExpression }) {
+  if (!vars.length) {
     if (isExpression) return `return (${codeString});`;
     else return codeString;
   } else {
-    const unpackContext = `let ${nameKeys.map(name => `${name} = __context.${name}`).join(',\n    ')};\n`,
-      repackContext = nameKeys
+    const unpackContext = `let ${vars.map(name => `${name} = __context.${name}`).join(',\n    ')};\n`,
+      repackContext = vars
         .map(name => `    if (__context.${name} !== ${name}) __context.${name} = ${name};`)
         .join('\n');
 

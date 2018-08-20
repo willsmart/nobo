@@ -263,6 +263,7 @@ class DomGenerator {
     }
 
     if (element.hasAttributes()) {
+      let removeAttributes;
       for (const { name, value } of element.attributes) {
         if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
 
@@ -278,9 +279,18 @@ class DomGenerator {
             usesByDatapointId[datapointId][name] = true;
           }
           element.setAttribute(`nobo-backup--${name}`, value);
-          element.setAttribute(name, templatedText.evaluate.string);
+          if (name.startsWith('on')) {
+            if (!removeAttributes) removeAttributes = [];
+            removeAttributes.push(name);
+            element[name] = () => {
+              templatedText.evaluate;
+            };
+          } else {
+            element.setAttribute(name, templatedText.evaluate.string);
+          }
         }
       }
+      if (removeAttributes) for (const name of removeAttributes) element.removeAttribute(name);
     }
 
     if (Object.keys(usesByDatapointId).length) {
