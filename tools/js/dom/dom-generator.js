@@ -263,7 +263,7 @@ class DomGenerator {
     }
 
     if (element.hasAttributes()) {
-      let removeAttributes;
+      let eventListeners;
       for (const { name, value } of element.attributes) {
         if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
 
@@ -272,17 +272,17 @@ class DomGenerator {
           rowId,
           text: value,
         });
-        const datapointIds = Object.keys(templatedText.nodesByDatapointId);
-        if (datapointIds.length) {
+        const dependencyTree = templatedText.dependencyTree,
+          datapointIds = Object.keys(templatedText.nodesByDatapointId);
+        if (dependencyTree && dependencyTree.children) {
           for (const datapointId of datapointIds) {
             usesByDatapointId[datapointId] = usesByDatapointId[datapointId] || {};
             usesByDatapointId[datapointId][name] = true;
           }
           element.setAttribute(`nobo-backup--${name}`, value);
           if (name.startsWith('on')) {
-            if (!removeAttributes) removeAttributes = [];
-            removeAttributes.push(name);
-            element[name] = () => {
+            if (!eventListeners) eventListeners = {};
+            eventListeners[name] = () => {
               templatedText.evaluate;
             };
           } else {
@@ -290,7 +290,11 @@ class DomGenerator {
           }
         }
       }
-      if (removeAttributes) for (const name of removeAttributes) element.removeAttribute(name);
+      if (eventListeners)
+        for (const [name, func] of Object.entries(eventListeners)) {
+          element.removeAttribute(name);
+          element[name] = func;
+        }
     }
 
     if (Object.keys(usesByDatapointId).length) {

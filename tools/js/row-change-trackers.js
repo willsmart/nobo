@@ -92,7 +92,7 @@ class RowChangeTrackers {
           }
         }
         if (changeObject) {
-          for (const [fieldName, newValue] of Object.keys(changeObject)) {
+          for (const [fieldName, newValue] of Object.entries(changeObject)) {
             rowChangeTrackers.setDatapointValue(rowId, fieldName, newValue);
           }
         }
