@@ -77,6 +77,8 @@ class Datapoint {
     });
     datapoint._isClient = false;
 
+    if (typeName == 'State') datapoint._isClient = true;
+
     datapoint.cache = cache;
     datapoint.schema = schema;
     datapoint.templates = templates;

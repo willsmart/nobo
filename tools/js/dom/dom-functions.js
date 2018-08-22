@@ -1,3 +1,4 @@
+const ChangeCase = require('change-case');
 const ConvertIds = require('../convert-ids');
 
 // API is just all the functions
@@ -14,6 +15,7 @@ module.exports = {
   childrenFieldNameForElement,
   htmlToElement,
   templateDatapointIdForRowAndVariant,
+  variantForTemplateDatapointId,
   nextChild,
   skipAllChildren,
   skipChildren,
@@ -86,6 +88,13 @@ function templateDatapointIdForRowAndVariant(rowId, variant) {
     rowId,
     fieldName: `template_${variant}`,
   }).datapointId;
+}
+
+function variantForTemplateDatapointId(datapointId) {
+  const { fieldName } = ConvertIds.decomposeId({ datapointId });
+  if (fieldName.startsWith('template')) {
+    return ChangeCase.camelCase(fieldName.substring('template'.length));
+  }
 }
 
 function nextChild(placeholderUid, previousChildElement) {
@@ -231,10 +240,7 @@ function templateDatapointIdforVariantOfRow({ variant = undefined, rowOrDatapoin
   variant = variant || '';
   let rowId = rowOrDatapointId;
 
-  if (
-    typeof rowOrDatapointId == 'string' &&
-    ConvertIds.datapointRegex.test(rowOrDatapointId)
-  ) {
+  if (typeof rowOrDatapointId == 'string' && ConvertIds.datapointRegex.test(rowOrDatapointId)) {
     ({ rowId, fieldName: variant } = ConvertIds.decomposeId({
       datapointId: rowOrDatapointId,
     }));

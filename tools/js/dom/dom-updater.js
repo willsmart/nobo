@@ -1,8 +1,14 @@
 const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
+const ConvertIds = require('../convert-ids');
 
-const { rangeForElement, childRangeAtIndex } = require('./dom-functions');
+const {
+  rangeForElement,
+  childRangeAtIndex,
+  templateDatapointIdforVariantOfRow,
+  variantForTemplateDatapointId,
+} = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -42,11 +48,16 @@ class DomUpdater {
           datapoint.watch({
             callbackKey: `updater-${uid}-template`,
             onvalid: () => {
+              const variantBackup = element.getAttribute('nobo-backup---variant'),
+                variantDatapointIdsString = element.getAttribute('nobo-variant-dpids'),
+                variantDatapointIds = variantDatapointIdsString ? variantDatapointIdsString.split(' ') : [];
               domUpdater.queueDomChange({
                 replace: element,
                 withElements: domGenerator.createElementsUsingDatapointIds({
                   templateDatapointId,
                   depth,
+                  variantBackup,
+                  variantDatapointIds,
                 }),
               });
             },
@@ -57,12 +68,17 @@ class DomUpdater {
           datapoint.watch({
             callbackKey: `updater-${uid}-dom`,
             onvalid: () => {
+              const variantBackup = element.getAttribute('nobo-backup---variant'),
+                variantDatapointIdsString = element.getAttribute('nobo-variant-dpids'),
+                variantDatapointIds = variantDatapointIdsString ? variantDatapointIdsString.split(' ') : [];
               domUpdater.queueDomChange({
                 replace: element,
                 withElements: domGenerator.createElementsUsingDatapointIds({
                   templateDatapointId,
                   domDatapointId,
                   depth,
+                  variantBackup,
+                  variantDatapointIds,
                 }),
               });
             },
@@ -171,9 +187,26 @@ class DomUpdater {
                       element[name] = () => {
                         templatedText.evaluate;
                       };
-                    } else {
-                      element.setAttribute(name, templatedText.evaluate.string);
-                    }
+                    } else
+                      switch (name) {
+                        default:
+                          element.setAttribute(name, templatedText.evaluate.string);
+                          break;
+                        case '-variant':
+                          if (!templateDatapointId) break;
+                          const newVariant = templatedText.evaluate.string,
+                            oldVariant = variantForTemplateDatapointId(templateDatapointId);
+                          if (newVariant == oldVariant) break;
+                          domUpdater.queueDomChange({
+                            replace: element,
+                            withElements: domGenerator.createElementsForVariantOfRow({
+                              variant: templateText,
+                              rowOrDatapointId: ConvertIds.decomposeId({ datapointId: templateDatapointId }).rowId,
+                              depth,
+                            }),
+                          });
+                          break;
+                      }
                   }
                 }
               },

@@ -103,13 +103,7 @@ class TemplatedText {
           node.code.evaluate({
             cache,
             rowId,
-            valueForNameCallback: (...names) => {
-              if (names.length > 1) return undefined;
-              const datapointId = node.datapointIdsByName[names[0]];
-              if (!datapointId) return undefined;
-              const datapoint = this.cache.getOrCreateDatapoint({ datapointId: datapointId });
-              return datapoint ? datapoint.valueIfAny : undefined;
-            },
+            valueForNameCallback: 'model',
           });
       }
       if (node.range[0] < wasIndex) continue;

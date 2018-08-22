@@ -21,19 +21,34 @@ class Code {
     Object.assign(code, wrapFunctionLocals(codeString));
   }
 
-  eval(context, state, model) {
+  evalOnContext(context, state) {
     const code = this,
       { wrappedFunction } = code,
       changeDetectingContext = changeDetectorObject(context);
     let result;
     try {
-      result = wrappedFunction ? wrappedFunction(changeDetectingContext.useObject, state, model) : undefined;
+      result = wrappedFunction ? wrappedFunction(changeDetectingContext.useObject, state, {}) : undefined;
     } catch (error) {
       console.log(`Error while evaluating code: ${error.message}`);
     }
     return {
       context,
       changeDetectingContext,
+      result,
+    };
+  }
+
+  evalOnModelCDO(modelCDO, state) {
+    const code = this,
+      { wrappedFunction } = code;
+    let result;
+    try {
+      result = wrappedFunction ? wrappedFunction(modelCDO, state, modelCDO) : undefined;
+    } catch (error) {
+      console.log(`Error while evaluating code: ${error.message}`);
+    }
+    return {
+      modelCDO,
       result,
     };
   }
@@ -101,6 +116,11 @@ class CodeSnippet {
     if (!defaultValue) defaultValue = codeSnippet.defaultValue;
     if (!timeout) timeout = codeSnippet.defaultTimeout;
 
+    const stateVar = cache ? cache.stateVar : undefined,
+      state = stateVar ? stateVar.stateVar : {},
+      rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined,
+      rowObject = rowId && rowChangeTrackers ? rowChangeTrackers.rowObject(rowId) : undefined;
+
     if (typeof valueForNameCallback != 'function') {
       valueForNameCallback = (...names) => {
         let values = valuesByName;
@@ -127,16 +147,13 @@ class CodeSnippet {
 
     let ret = codeSnippet.defaultValue;
     if (codeSnippet._func) {
-      ret = codeSnippet._func(sandbox);
+      ret = codeSnippet._func(sandbox, state);
+    } else if (rowObject) {
+      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state));
     } else {
-      const stateVar = cache ? cache.stateVar : undefined,
-        state = stateVar ? stateVar.stateVar : {},
-        rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined,
-        rowObject = rowId && rowChangeTrackers ? rowChangeTrackers.rowObject(rowId) : undefined;
-
-      ({ result: ret } = codeSnippet.code.eval(sandbox, state, rowObject || {}));
-      if (stateVar) stateVar.commitStateVar();
+      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state));
     }
+    if (stateVar) stateVar.commitStateVar();
 
     return ret;
   }

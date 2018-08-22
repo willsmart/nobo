@@ -53,12 +53,29 @@ class DomGenerator {
   }
 
   createElementsForVariantOfRow({ variant = undefined, rowOrDatapointId, depth = 1 }) {
+    const domGenerator = this;
+    let variantDatapointIds, variantBackup;
+    if (variant && ConvertIds.rowRegex.test(rowOrDatapointId)) {
+      const templatedText = new TemplatedText({
+        cache: domGenerator.cache,
+        rowId: rowOrDatapointId,
+        text: variant,
+      });
+      const dependencyTree = templatedText.dependencyTree;
+      variantDatapointIds = Object.keys(templatedText.nodesByDatapointId);
+      if (dependencyTree && dependencyTree.children) {
+        variantBackup = variant;
+        variant = templatedText.evaluate.string;
+      }
+    }
     return this.createElementsUsingDatapointIds({
       templateDatapointId: templateDatapointIdforVariantOfRow({
         variant,
         rowOrDatapointId,
       }),
       depth,
+      variantDatapointIds,
+      variantBackup,
     });
   }
 
@@ -68,6 +85,8 @@ class DomGenerator {
     rowId = undefined,
     domString = undefined,
     depth = 1,
+    variantBackup,
+    variantDatapointIds,
   }) {
     const domGenerator = this;
 
@@ -91,7 +110,19 @@ class DomGenerator {
     if (domString) element = (domGenerator.htmlToElement || htmlToElement)(domString);
     if (!element) element = (domGenerator.htmlToElement || htmlToElement)('<div></div>');
 
-    element.setAttribute('nobo-depth', depth);
+    let usesByDatapointId;
+    if (variantBackup) {
+      element.setAttribute('nobo-backup---variant', variantBackup);
+      element.setAttribute('nobo-variant-dpids', variantDatapointIds.join(' '));
+      if (variantDatapointIds) {
+        usesByDatapointId = {};
+        for (const datapointId of variantDatapointIds) {
+          usesByDatapointId[datapointId] = usesByDatapointId[datapointId] || {};
+          usesByDatapointId[datapointId]['-variant'] = true;
+        }
+      }
+    }
+
     if (templateDatapointId) element.setAttribute('nobo-template-dpid', templateDatapointId);
     if (domDatapointId) element.setAttribute('nobo-dom-dpid', domDatapointId);
 
@@ -101,11 +132,12 @@ class DomGenerator {
       element,
       rowId,
       depth,
+      usesByDatapointId,
     });
     return [element].concat(additionalSiblings);
   }
 
-  prepDomTreeAndCreateChildren({ element, rowId, depth, lidCounter = undefined }) {
+  prepDomTreeAndCreateChildren({ element, rowId, depth, lidCounter = undefined, usesByDatapointId = {} }) {
     const domGenerator = this;
 
     const childLidCounter = lidCounter || [1];
@@ -138,7 +170,7 @@ class DomGenerator {
 
     if (lids) element.setAttribute('nobo-child-lids', ` ${lids.join(' ')} `);
 
-    domGenerator.prepValueFields({ element, rowId });
+    domGenerator.prepValueFields({ element, rowId, usesByDatapointId });
 
     const { additionalSiblings, lids: sibLids } = domGenerator.prepChildrenPlaceholderAndCreateChildren({
       element,
@@ -235,11 +267,10 @@ class DomGenerator {
     return childElements;
   }
 
-  prepValueFields({ element, rowId }) {
+  prepValueFields({ element, rowId, usesByDatapointId = {} }) {
     const domGenerator = this;
 
     let index = 0;
-    const usesByDatapointId = {};
 
     for (let childNode = element.firstChild; childNode; childNode = childNode.nextSibling) {
       if (childNode.nodeType == 3) {
@@ -248,8 +279,9 @@ class DomGenerator {
           rowId,
           text: childNode.textContent,
         });
-        const datapointIds = Object.keys(templatedText.nodesByDatapointId);
-        if (datapointIds.length) {
+        const dependencyTree = templatedText.dependencyTree,
+          datapointIds = Object.keys(templatedText.nodesByDatapointId);
+        if (dependencyTree && dependencyTree.children) {
           for (const datapointId of datapointIds) {
             usesByDatapointId[datapointId] = usesByDatapointId[datapointId] || {};
             usesByDatapointId[datapointId][`=${index}`] = true;
@@ -265,7 +297,7 @@ class DomGenerator {
     if (element.hasAttributes()) {
       let eventListeners;
       for (const { name, value } of element.attributes) {
-        if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
+        if (name.startsWith('nobo-') || name == 'class' || name == 'id' || name == 'variant') continue;
 
         const templatedText = new TemplatedText({
           cache: domGenerator.cache,
