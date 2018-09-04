@@ -50,19 +50,19 @@ class StateVar {
         const datapointId = StateVar.datapointId(`${path}.${key}`),
           datapoint = cache.getExistingDatapoint({ datapointId });
         if (datapoint) {
-          datapoint.updateValue({ newValue: undefined });
+          datapoint.validate({ value: undefined, evenIfValid: true });
         }
       }
     }
     if (changeObject) {
-      for (const [key, newValue] of Object.entries(changeObject)) {
-        if (newValue && typeof newValue == 'object') {
-          stateVar.commitStateChange(`${path}_${key}`, newValue);
-          newValue = newValue.modifiedObject;
+      for (const [key, value] of Object.entries(changeObject)) {
+        if (value && typeof value == 'object') {
+          stateVar.commitStateChange(`${path}_${key}`, value);
+          value = value.modifiedObject;
         }
         const datapointId = StateVar.datapointId(`${path}.${key}`),
           datapoint = cache.getOrCreateDatapoint({ datapointId });
-        datapoint.updateValue({ newValue });
+        datapoint.validate({ value, evenIfValid: true });
       }
     }
   }

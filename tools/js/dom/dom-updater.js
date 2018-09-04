@@ -2,15 +2,38 @@ const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
 const ConvertIds = require('../convert-ids');
+const DomWaitingChangeQueue = require('./dom-waiting-change-queue');
+const { nameForElement, cloneShowingElementNames } = require('../general/name-for-element');
 
-const {
-  rangeForElement,
-  childRangeAtIndex,
-  templateDatapointIdforVariantOfRow,
-  variantForTemplateDatapointId,
-} = require('./dom-functions');
+const { rangeForElement, childRangeAtIndex, variantForTemplateDatapointId } = require('./dom-functions');
 
-// API is auto-generated at the bottom from the public interface of this class
+// API is auto-generated at the bottom from the public interface of the DomUpdater class
+
+const waitCountAttributeName = 'nobo-wait-count';
+
+function elementWaitCount(element) {
+  return Number(element.getAttribute(waitCountAttributeName) || 0);
+}
+
+function incElementWaitCount(element) {
+  const waitCount = elementWaitCount(element) + 1;
+  element.setAttribute(waitCountAttributeName, waitCount);
+  return waitCount;
+}
+
+function decElementWaitCount(element) {
+  const waitCount = elementWaitCount(element) - 1;
+  if (waitCount) {
+    element.setAttribute(waitCountAttributeName, waitCount);
+  } else {
+    element.removeAttribute(waitCountAttributeName);
+  }
+  return waitCount;
+}
+
+function callbackKeyOnElement(element, type) {
+  return `updater-${type}-${nameForElement(element)}`;
+}
 
 class DomUpdater {
   // public methods
@@ -21,11 +44,12 @@ class DomUpdater {
   constructor({ cache, domGenerator }) {
     const domUpdater = this;
 
-    domUpdater.nextUid = 1;
-
-    domUpdater.domChanges = [];
-    domUpdater.cache = cache;
-    domUpdater.domGenerator = domGenerator;
+    Object.assign(domUpdater, {
+      cloneShowingElementNames,
+      cache,
+      domGenerator: domGenerator,
+      domWaitingChangeQueue: new DomWaitingChangeQueue(),
+    });
 
     domUpdater.dg_callbackKey = domGenerator.watch({
       onprepelement: ({ element }) => {
@@ -40,46 +64,57 @@ class DomUpdater {
           return;
         }
 
-        const uid = domUpdater.nextUid++;
-        element.setAttribute('nobo-cb-uid', uid);
-
         if (templateDatapointId) {
           const datapoint = cache.getOrCreateDatapoint({ datapointId: templateDatapointId });
+          if (!datapoint.initialized) {
+            console.log(
+              `> dp ${datapoint.datapointId} not initialized (wanted for template on element ${nameForElement(
+                element
+              )})`
+            );
+            incElementWaitCount(element);
+          }
           datapoint.watch({
-            callbackKey: `updater-${uid}-template`,
-            onvalid: () => {
+            callbackKey: callbackKeyOnElement(element, 'template'),
+            onchange: () => {
               const variantBackup = element.getAttribute('nobo-backup---variant'),
                 variantDatapointIdsString = element.getAttribute('nobo-variant-dpids'),
                 variantDatapointIds = variantDatapointIdsString ? variantDatapointIdsString.split(' ') : [];
               domUpdater.queueDomChange({
                 replace: element,
-                withElements: domGenerator.createElementsUsingDatapointIds({
+                firstElement: domGenerator.createElementsUsingDatapointIds({
                   templateDatapointId,
                   depth,
                   variantBackup,
                   variantDatapointIds,
-                }),
+                })[0],
               });
             },
           });
         }
         if (domDatapointId) {
           const datapoint = cache.getOrCreateDatapoint({ datapointId: domDatapointId });
+          if (!datapoint.initialized) {
+            console.log(
+              `> dp ${datapoint.datapointId} not initialized (wanted for dom on element ${nameForElement(element)})`
+            );
+            incElementWaitCount(element);
+          }
           datapoint.watch({
-            callbackKey: `updater-${uid}-dom`,
-            onvalid: () => {
+            callbackKey: callbackKeyOnElement(element, 'dom'),
+            onchange: () => {
               const variantBackup = element.getAttribute('nobo-backup---variant'),
                 variantDatapointIdsString = element.getAttribute('nobo-variant-dpids'),
                 variantDatapointIds = variantDatapointIdsString ? variantDatapointIdsString.split(' ') : [];
               domUpdater.queueDomChange({
                 replace: element,
-                withElements: domGenerator.createElementsUsingDatapointIds({
+                firstElement: domGenerator.createElementsUsingDatapointIds({
                   templateDatapointId,
                   domDatapointId,
                   depth,
                   variantBackup,
                   variantDatapointIds,
-                }),
+                })[0],
               });
             },
           });
@@ -89,53 +124,62 @@ class DomUpdater {
             childDepth = element.getAttribute('nobo-child-depth');
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
+          if (!datapoint.initialized) {
+            console.log(
+              `> dp ${datapoint.datapointId} not initialized (wanted for children of element ${nameForElement(
+                element
+              )})`
+            );
+            incElementWaitCount(element);
+          }
           datapoint.watch({
-            callbackKey: `updater-${uid}-children`,
-            onvalid: () => {
+            callbackKey: callbackKeyOnElement(element, 'children'),
+            oninit: () => {
+              console.log(
+                `< dp ${datapoint.datapointId} is now initialized (wanted for children of element ${nameForElement(
+                  element
+                )})`,
+                datapoint.valueIfAny
+              );
+              domUpdater.decWaitCount(element);
+            },
+            onchange: () => {
               const children = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [],
                 diff = diffAny(childrenWere, children),
                 variant = element.getAttribute('variant') || undefined;
 
+              console.log(JSON.stringify(diff));
               if (!diff) return;
               if (!diff.arrayDiff) {
-                let [startElement, endElement] = rangeForElement(element);
-                startElement = startElement.nextElementSibling;
-
-                domUpdater.queueDomChange({
-                  replace: [startElement, endElement],
-                  withElements: domGenerator.createChildElements({
-                    datapointId: childrenDatapointId,
-                    variant,
-                    depth: childDepth,
-                  }),
-                });
+                console.log('Expected array diff');
+                return;
               } else {
                 for (const diffPart of diff.arrayDiff) {
                   if (diffPart.insertAt !== undefined) {
                     domUpdater.queueDomChange({
                       insertAfter: childRangeAtIndex({ placeholderDiv: element, index: diffPart.insertAt - 1 })[1],
-                      withElements: domGenerator.createElementsForVariantOfRow({
+                      firstElement: domGenerator.createElementsForVariantOfRow({
                         variant,
                         rowOrDatapointId: diffPart.value,
                         depth: childDepth,
-                      }),
+                      })[0],
                     });
                     continue;
                   }
                   if (diffPart.deleteAt !== undefined) {
                     domUpdater.queueDomChange({
-                      replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.deleteAt }),
+                      replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.deleteAt })[0],
                     });
                     continue;
                   }
                   if (diffPart.at !== undefined) {
                     domUpdater.queueDomChange({
-                      replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.at }),
-                      withElements: domGenerator.createElementsForVariantOfRow({
+                      replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.at })[0],
+                      firstElement: domGenerator.createElementsForVariantOfRow({
                         variant,
                         rowOrDatapointId: diffPart.value,
                         depth: childDepth,
-                      }),
+                      })[0],
                     });
                     continue;
                   }
@@ -148,9 +192,24 @@ class DomUpdater {
         if (valueDatapointIds) {
           for (const datapointId of valueDatapointIds) {
             const datapoint = cache.getOrCreateDatapoint({ datapointId });
+            if (!datapoint.initialized) {
+              console.log(
+                `> dp ${datapoint.datapointId} not initialized (wanted for value on element ${nameForElement(element)})`
+              );
+              incElementWaitCount(element);
+            }
             datapoint.watch({
-              callbackKey: `updater-${uid}-value`,
-              onvalid: () => {
+              callbackKey: callbackKeyOnElement(element, 'value'),
+              oninit: () => {
+                console.log(
+                  `< dp ${datapoint.datapointId} is now initialized (wanted for value on element ${nameForElement(
+                    element
+                  )})`,
+                  datapoint.valueIfAny
+                );
+                domUpdater.decWaitCount(element);
+              },
+              onchange: () => {
                 const usesString = element.getAttribute(`nobo-use-${datapointId}`),
                   uses = usesString ? usesString.split(' ') : undefined,
                   rowId = element.getAttribute('nobo-row-id');
@@ -171,7 +230,18 @@ class DomUpdater {
                             rowId,
                             text: templateText,
                           });
-                          childNode.textContent = templatedText.evaluate.string;
+
+                          // Delete runs of text nodes, which were probably put there by an edit with contentEditable
+                          for (
+                            let nextSibling = childNode.nextSibling;
+                            nextSibling && nextSibling.nodeType == 3;
+                            childNode = nextSibling, nextSibling = childNode.nextSibling
+                          ) {
+                            childNode.parentNode.removeChild(childNode);
+                          }
+
+                          childNode.textContent = templatedText.evaluate().string;
+                          break;
                         }
                       }
                       continue;
@@ -184,26 +254,26 @@ class DomUpdater {
                       text: templateText,
                     });
                     if (name.startsWith('on')) {
-                      element[name] = () => {
-                        templatedText.evaluate;
+                      element[name] = event => {
+                        templatedText.evaluate({ event });
                       };
                     } else
                       switch (name) {
                         default:
-                          element.setAttribute(name, templatedText.evaluate.string);
+                          element.setAttribute(name, templatedText.evaluate().string);
                           break;
                         case '-variant':
                           if (!templateDatapointId) break;
-                          const newVariant = templatedText.evaluate.string,
+                          const newVariant = templatedText.evaluate().string,
                             oldVariant = variantForTemplateDatapointId(templateDatapointId);
                           if (newVariant == oldVariant) break;
                           domUpdater.queueDomChange({
                             replace: element,
-                            withElements: domGenerator.createElementsForVariantOfRow({
+                            firstElement: domGenerator.createElementsForVariantOfRow({
                               variant: templateText,
                               rowOrDatapointId: ConvertIds.decomposeId({ datapointId: templateDatapointId }).rowId,
                               depth,
-                            }),
+                            })[0],
                           });
                           break;
                       }
@@ -215,70 +285,42 @@ class DomUpdater {
         }
       },
     });
-
-    domUpdater.cache_callbackKey = cache.watch({
-      onvalid: () => {
-        domUpdater.applyDomChanges();
-      },
-    });
   }
 
-  queueDomChange({ replace, insertAfter, withElements }) {
-    const domUpdater = this;
-
-    domUpdater.domChanges.push({ replace, insertAfter, withElements });
-  }
-
-  applyDomChanges() {
-    const domUpdater = this;
-
-    if (domUpdater.domChanges.length) {
-      const changes = domUpdater.domChanges;
-      console.log('Changes: ', changes);
-      domUpdater.domChanges = [];
-      for (const change of changes) {
-        domUpdater.applyDomChange(change);
-      }
+  decWaitCount(element) {
+    const domUpdater = this,
+      waitCount = decElementWaitCount(element);
+    if (!waitCount) {
+      domUpdater.domWaitingChangeQueue.elementIsDoneWaiting(element);
     }
   }
 
-  applyDomChange({ replace, insertAfter, parent, withElements }) {
+  queueDomChange(change) {
     const domUpdater = this;
+    let { replace } = change;
 
     if (replace) {
-      if (!Array.isArray(replace)) {
-        replace = rangeForElement(replace);
-      }
-
-      const [start, end] = replace;
-      parent = start.parentElement;
-
-      for (let element = start; element; element = element.nextElementSibling) {
-        domUpdater.stopWatchers(element);
-        if (element == end) break;
-      }
-
-      insertAfter = start.previousElementSibling;
-
-      for (
-        let element = start, next = element.nextElementSibling;
-        element;
-        element = next, next = element ? element.nextElementSibling : undefined
-      ) {
-        if (element.parentNode) {
-          element.parentNode.removeChild(element);
-        }
-        if (element == end) break;
-      }
+      domUpdater.stopWatchersOnRange(replace);
     }
 
-    if (insertAfter) parent = insertAfter.parentNode;
+    domUpdater.domWaitingChangeQueue.push(change);
+  }
 
-    if (withElements && withElements.length && parent) {
-      const nextSibling = insertAfter ? insertAfter.nextSibling : parent.firstChild;
-      for (const element of withElements) {
-        parent.insertBefore(element, nextSibling);
-      }
+  stopWatchersOnRange(range) {
+    const domUpdater = this;
+
+    if (!range) return;
+
+    if (!Array.isArray(range)) {
+      range = rangeForElement(range);
+    }
+
+    const [start, end] = range;
+    parent = start.parentElement;
+
+    for (let element = start; element; element = element.nextElementSibling) {
+      domUpdater.stopWatchers(element);
+      if (element == end) break;
     }
   }
 
@@ -288,36 +330,35 @@ class DomUpdater {
       domDatapointId = element.getAttribute('nobo-dom-dpid'),
       childrenDatapointId = element.getAttribute('nobo-children-dpid'),
       valueDatapointIdsString = element.getAttribute('nobo-val-dpids'),
-      valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined,
-      uid = element.getAttribute('nobo-cb-uid');
+      valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined;
 
-    if (!uid || !(templateDatapointId || domDatapointId || childrenDatapointId || valueDatapointIds)) {
+    if (!(templateDatapointId || domDatapointId || childrenDatapointId || valueDatapointIds)) {
       return;
     }
 
     if (templateDatapointId) {
       const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: templateDatapointId });
       datapoint.stopWatching({
-        callbackKey: `updater-${uid}-template`,
+        callbackKey: callbackKeyOnElement(element, 'template'),
       });
     }
     if (domDatapointId) {
       const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: domDatapointId });
       datapoint.stopWatching({
-        callbackKey: `updater-${uid}-dom`,
+        callbackKey: callbackKeyOnElement(element, 'dom'),
       });
     }
     if (childrenDatapointId) {
       const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: childrenDatapointId });
       datapoint.stopWatching({
-        callbackKey: `updater-${uid}-children`,
+        callbackKey: callbackKeyOnElement(element, 'children'),
       });
     }
     if (valueDatapointIds) {
       for (const datapointId of valueDatapointIds) {
         const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId });
         datapoint.stopWatching({
-          callbackKey: `updater-${uid}-value`,
+          callbackKey: callbackKeyOnElement(element, 'value'),
         });
       }
     }

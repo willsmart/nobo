@@ -92,26 +92,24 @@ class RowChangeTrackers {
           }
         }
         if (changeObject) {
-          for (const [fieldName, newValue] of Object.entries(changeObject)) {
-            rowChangeTrackers.setDatapointValue(rowId, fieldName, newValue);
+          for (const [fieldName, value] of Object.entries(changeObject)) {
+            rowChangeTrackers.setDatapointValue(rowId, fieldName, value);
           }
         }
       }
     }
   }
 
-  setDatapointValue(rowId, fieldName, newValue) {
+  setDatapointValue(rowId, fieldName, value) {
     if (fieldName == 'id') return;
 
     const rowChangeTrackers = this,
       { cache } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
       datapoint =
-        newValue === undefined
-          ? cache.getExistingDatapoint({ datapointId })
-          : cache.getOrCreateDatapoint({ datapointId });
+        value === undefined ? cache.getExistingDatapoint({ datapointId }) : cache.getOrCreateDatapoint({ datapointId });
 
-    if (datapoint) datapoint.updateValue({ newValue });
+    if (datapoint) datapoint.validate({ value, evenIfValid: true });
   }
 
   getDatapointValue(rowId, fieldName) {
@@ -121,7 +119,7 @@ class RowChangeTrackers {
       { cache } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
     const datapoint = cache.getExistingDatapoint({ datapointId });
-    return datapoint.valueIfAny;
+    return datapoint && datapoint.valueIfAny;
   }
 
   getRowFieldNames(rowId) {

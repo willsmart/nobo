@@ -21,13 +21,17 @@ class Code {
     Object.assign(code, wrapFunctionLocals(codeString));
   }
 
-  evalOnContext(context, state) {
+  evalOnContext(context, state, event) {
     const code = this,
       { wrappedFunction } = code,
       changeDetectingContext = changeDetectorObject(context);
     let result;
     try {
-      result = wrappedFunction ? wrappedFunction(changeDetectingContext.useObject, state, {}) : undefined;
+      result = wrappedFunction
+        ? event
+          ? wrappedFunction.call(event.target, changeDetectingContext.useObject, state, {}, event)
+          : wrappedFunction(changeDetectingContext.useObject, state, {}, event)
+        : undefined;
     } catch (error) {
       console.log(`Error while evaluating code: ${error.message}`);
     }
@@ -38,12 +42,16 @@ class Code {
     };
   }
 
-  evalOnModelCDO(modelCDO, state) {
+  evalOnModelCDO(modelCDO, state, event) {
     const code = this,
       { wrappedFunction } = code;
     let result;
     try {
-      result = wrappedFunction ? wrappedFunction(modelCDO, state, modelCDO) : undefined;
+      result = wrappedFunction
+        ? event
+          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event)
+          : wrappedFunction(modelCDO, state, modelCDO, event)
+        : undefined;
     } catch (error) {
       console.log(`Error while evaluating code: ${error.message}`);
     }
@@ -109,7 +117,7 @@ class CodeSnippet {
     return hasName;
   }
 
-  evaluate({ cache, rowId, valueForNameCallback, valuesByName, defaultValue, timeout }) {
+  evaluate({ cache, rowId, valueForNameCallback, valuesByName, defaultValue, timeout, event }) {
     const codeSnippet = this,
       sandbox = {};
 
@@ -149,9 +157,9 @@ class CodeSnippet {
     if (codeSnippet._func) {
       ret = codeSnippet._func(sandbox, state);
     } else if (rowObject) {
-      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state));
+      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state, event));
     } else {
-      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state));
+      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event));
     }
     if (stateVar) stateVar.commitStateVar();
 

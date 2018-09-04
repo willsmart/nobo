@@ -11,6 +11,7 @@ const ChangeCase = require('change-case');
 const clone = require('./general/clone');
 const PublicApi = require('./general/public-api');
 const mapValues = require('./general/map-values');
+const isEqual = require('./general/is-equal');
 const makeClassWatchable = require('./general/watchable');
 const CodeSnippet = require('./general/code-snippet');
 
@@ -39,12 +40,14 @@ class Datapoint {
       'validate',
       'commit',
       'updateValue',
+      'setAsInitializing',
       'watch',
       'stopWatching',
       'value',
       'valueIfAny',
       'setVirtualField',
       'invalid',
+      'initialized',
       'fieldIfAny',
       'datapointId',
       'datapointId',
@@ -77,7 +80,10 @@ class Datapoint {
     });
     datapoint._isClient = false;
 
-    if (typeName == 'State') datapoint._isClient = true;
+    if (typeName == 'State') {
+      datapoint._isClient = true;
+      datapoint._initialized = true;
+    }
 
     datapoint.cache = cache;
     datapoint.schema = schema;
@@ -90,6 +96,7 @@ class Datapoint {
     }
     if (datapoint.getterIfAny) {
       datapoint.setupDependencyFields();
+      datapoint.setAsInitializing();
     }
     datapoint.invalidate();
 
@@ -103,7 +110,7 @@ class Datapoint {
       datapoint.ownerDatapoint = cache.getOrCreateDatapoint({ datapointId: ownerDatapointId });
       datapoint.ownerDatapoint.watch({
         callbackKey: datapointId,
-        onvalid: ({ valueIfAny: value }) => {
+        onchange: ({ valueIfAny: value }) => {
           let ownerId;
           if (Array.isArray(value) && value.length == 1) value = value[0];
           if (value === 'id') ownerId = dbRowId;
@@ -132,6 +139,10 @@ class Datapoint {
 
   get invalid() {
     return this._invalid || false;
+  }
+
+  get initialized() {
+    return this._initialized || false;
   }
 
   get getterIfAny() {
@@ -184,10 +195,16 @@ class Datapoint {
     return ret;
   }
 
+  setAsInitializing() {
+    const datapoint = this;
+    if (!datapoint._initialized) datapoint._initializing = true;
+  }
+
   commit({ updateIndex, keepNewValue }) {
     const datapoint = this;
 
     if (datapoint.updateIndex == updateIndex) {
+      datapoint.setAsInitializing();
       delete datapoint.updated;
       if (!keepNewValue) delete datapoint.newValue;
     }
@@ -200,7 +217,6 @@ class Datapoint {
     if (datapoint._invalid) return datapoint.publicApi;
 
     datapoint._invalid = true;
-    delete datapoint._value;
     cache.newlyInvalidDatapointIds.push(datapoint.datapointId);
 
     if (datapoint.dependentDatapointsById) {
@@ -242,19 +258,31 @@ class Datapoint {
 
     log(`Datapoint ${datapoint.datapointId} -> ${value}`);
 
-    datapoint._value = clone(value);
-
+    const valueWas = datapoint._value;
+    value = datapoint._value = clone(value);
+    const changed = !isEqual(value, valueWas, { exact: true });
     delete datapoint._invalid;
+
+    const didInit = datapoint._initializing;
+    if (didInit) {
+      datapoint._initialized = true;
+      delete datapoint._initializing;
+    }
+
     cache.newlyValidDatapoints.push(datapoint.datapointId);
 
     if (datapoint.dependentDatapointsById) {
       for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
-        if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-          for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-            dependentDatapoint.updateDependencies({
-              parentRowId: datapoint.valueAsDecomposedRowId,
-              dependencies: dependency.children,
-            });
+        if (changed && dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
+          const rowIdWas = datapoint.valueAsDecomposedRowId(valueWas),
+            rowId = datapoint.valueAsDecomposedRowId(value);
+          if (rowIdWas !== rowId) {
+            for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
+              dependentDatapoint.updateDependencies({
+                parentRowId: rowId,
+                dependencies: dependency.children,
+              });
+            }
           }
         }
         if (!--dependentDatapoint.invalidDependencyDatapointCount) {
@@ -265,6 +293,14 @@ class Datapoint {
 
     datapoint.notifyListeners('onvalid_prioritized', datapoint);
     datapoint.notifyListeners('onvalid', datapoint);
+
+    if (changed) {
+      datapoint.notifyListeners('onchange', datapoint);
+    }
+
+    if (didInit) {
+      datapoint.notifyListeners('oninit', datapoint);
+    }
 
     if (datapoint.watchingOneShotResolvers) {
       const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
@@ -329,8 +365,18 @@ class Datapoint {
 
   get virtualFieldIfAny() {
     const datapoint = this,
-      { templates, cache, schema } = datapoint;
+      { templates, schema } = datapoint;
 
+    if (datapoint.fieldName == 'id') {
+      datapoint._isClient = true;
+      return datapoint.makeVirtualField({
+        isId: false,
+        isMultiple: false,
+        getterFunction: () => {
+          return datapoint.rowId;
+        },
+      });
+    }
     let match = /^dom(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
       const variant = ChangeCase.camelCase(match[1]);
@@ -451,19 +497,18 @@ class Datapoint {
     return field;
   }
 
-  get valueAsRowId() {
+  valueAsRowId(value) {
     const datapoint = this;
 
-    const field = datapoint.fieldIfAny,
-      value = datapoint.valueIfAny;
+    const field = datapoint.fieldIfAny;
     if (!field || !field.isId || field.isMultiple || datapoint._invalid || !Array.isArray(value) || value.length != 1)
       return;
 
     return value[0];
   }
 
-  get valueAsDecomposedRowId() {
-    const rowId = this.valueAsRowId;
+  valueAsDecomposedRowId(value) {
+    const rowId = this.valueAsRowId(value);
     if (!rowId) return;
     try {
       return ConvertIds.decomposeId({
@@ -576,7 +621,7 @@ class Datapoint {
 
     if (dependency.children && dependencyDatapoint) {
       datapoint.updateDependencies({
-        parentRowId: dependencyDatapoint.valueAsDecomposedRowId,
+        parentRowId: dependencyDatapoint.valueAsDecomposedRowId(dependencyDatapoint.valueIfAny),
         dependencies: dependency.children,
       });
     }

@@ -18,7 +18,7 @@ async function execHaml(hamlFilename) {
   const htmlFilename = `${hamlFilename}.html`;
   console.log(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
   const { stdout, stderr, error } = await exec(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
-  if (stdout.length) console.log(stdout);
+  //if (stdout.length) console.log(stdout);
   if (stderr.length) console.log(stderr);
   if (error) return;
   return await readFile_p(htmlFilename, 'utf8');
@@ -321,22 +321,26 @@ function substituteFields(originalElement, element, fields) {
       if (fieldValue === undefined) continue;
       if (range[0] > prevIndex) newValue += value.substring(prevIndex, range[0]);
       if (isCode) {
-        newValue += '`';
+        let addValue = '',
+          couldUnwrap = false;
         let prevIndex = 0,
           match;
         const regex = /((?:\\\\.|(?!`|\$\{).)*)(`|\$\{)/g;
         while ((match = regex.exec(fieldValue))) {
           if (match[2] == '`') {
-            newValue += `${fieldValue.substring(prevIndex, match.index + match[1].length)}\\\``;
+            addValue += `${fieldValue.substring(prevIndex, match.index + match[1].length)}\\\``;
             prevIndex = match.index + match[0].length;
           } else {
             const root = locateEnd(fieldValue, '}', match.index + match[0].length);
-            newValue += fieldValue.substring(prevIndex, root.range[1]);
+            addValue += fieldValue.substring(prevIndex, root.range[1]);
             prevIndex = regex.lastIndex = root.range[1];
+            if (match.index == 0 && prevIndex == fieldValue.length) {
+              couldUnwrap = true;
+            }
           }
         }
-        if (prevIndex < fieldValue.length) newValue += fieldValue.substring(prevIndex);
-        newValue += '`';
+        if (prevIndex < fieldValue.length) addValue += fieldValue.substring(prevIndex);
+        newValue += couldUnwrap ? addValue.substring(2, addValue.length - 1) : '`' + addValue + '`';
       } else {
         newValue += fieldValue;
       }
@@ -370,7 +374,6 @@ function scrapeTemplateInfo(element) {
         if (!templatedText.dependencyTree) continue;
 
         dealWithChildren(childNode.value, index++, 0, templatedText.dependencyTree.children);
-        console.log(templatedText.dependencyTree);
       }
     }
   }
@@ -385,7 +388,6 @@ function scrapeTemplateInfo(element) {
       if (!templatedText.dependencyTree) continue;
 
       dealWithChildren(value, ` ${name}`, 0, templatedText.dependencyTree.children);
-      console.log(name, templatedText.dependencyTree);
     }
   }
 

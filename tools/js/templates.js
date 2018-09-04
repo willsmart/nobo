@@ -41,7 +41,7 @@ class Templates {
         datapointId: this.appTemplatesDatapointId,
       })
       .watch({
-        onvalid: datapoint => {
+        onchange: datapoint => {
           if (Array.isArray(datapoint.valueIfAny)) {
             templates.setTemplateRowIds({
               rowIds: datapoint.valueIfAny,
@@ -292,7 +292,7 @@ class Template {
     });
     datapoint.watch({
       callbackKey,
-      onvalid: datapoint => {
+      onchange: datapoint => {
         template.updateDom(datapoint.valueIfAny);
       },
     });

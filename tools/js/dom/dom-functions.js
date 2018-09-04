@@ -1,5 +1,6 @@
 const ChangeCase = require('change-case');
 const ConvertIds = require('../convert-ids');
+const nameForElement = require('../general/name-for-element');
 
 // API is just all the functions
 module.exports = {
@@ -17,6 +18,7 @@ module.exports = {
   templateDatapointIdForRowAndVariant,
   variantForTemplateDatapointId,
   nextChild,
+  childRanges,
   skipAllChildren,
   skipChildren,
   _nextChild,
@@ -27,7 +29,20 @@ module.exports = {
   elementForUniquePath,
   uniquePathForElement,
   templateDatapointIdforVariantOfRow,
+  forEachInElementRange,
+  mapInElementRange,
+  findInElementRange,
+  describeChange,
+  _describeRange,
+  _describeTree,
+  _describeChange,
+  describeRange,
+  describeTree,
 };
+
+const waitCountAttributeName = 'nobo-wait-count',
+  waitingChangesAttributeName = 'nobo-waiting-changes',
+  rootInChangeIdAttributeName = 'nobo-root-in-change';
 
 function datapointChildrenClass(datapointId) {
   return `children--${datapointId}`;
@@ -97,61 +112,77 @@ function variantForTemplateDatapointId(datapointId) {
   }
 }
 
-function nextChild(placeholderUid, previousChildElement) {
-  return _nextChild(placeholderUid, [previousChildElement]);
+function nextChild(placeholderUid, previousChildElement, nextElementSiblingFn) {
+  return _nextChild(placeholderUid, [previousChildElement], nextElementSiblingFn);
 }
 
-function skipAllChildren(placeholderUid, previousChildElement) {
-  return _skipAllChildren(placeholderUid, [previousChildElement]);
+function skipAllChildren(placeholderUid, previousChildElement, nextElementSiblingFn) {
+  return _skipAllChildren(placeholderUid, [previousChildElement], nextElementSiblingFn);
 }
 
-function skipChildren(placeholderUid, previousChildElement, count) {
-  return _skipChildren(placeholderUid, [previousChildElement], count);
+function skipChildren(placeholderUid, previousChildElement, count, nextElementSiblingFn) {
+  return _skipChildren(placeholderUid, [previousChildElement], count, nextElementSiblingFn);
 }
 
-function _nextChild(placeholderUid, currentChildElementArray) {
+function _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn) {
   const previousChildElement = currentChildElementArray[0],
     previousChildUid = previousChildElement.getAttribute('nobo-uid');
-  let element = previousChildElement.nextElementSibling;
+  let element = nextElementSiblingFn
+    ? nextElementSiblingFn(previousChildElement)
+    : previousChildElement.nextElementSibling;
   currentChildElementArray[1] = previousChildElement;
   currentChildElementArray[0] = element;
   if (!element || element.getAttribute('nobo-placeholder-uid') == placeholderUid) return element;
 
   if (!previousChildUid || element.getAttribute('nobo-placeholder-uid') != previousChildUid) return;
-  element = _skipAllChildren(previousChildUid, currentChildElementArray);
+  element = _skipAllChildren(previousChildUid, currentChildElementArray, nextElementSiblingFn);
 
   return element && element.getAttribute('nobo-placeholder-uid') == placeholderUid ? element : undefined;
 }
 
-function _skipAllChildren(placeholderUid, currentChildElementArray) {
-  while (_nextChild(placeholderUid, currentChildElementArray));
+function _skipAllChildren(placeholderUid, currentChildElementArray, nextElementSiblingFn) {
+  while (_nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn));
   return currentChildElementArray[0];
 }
 
-function _skipChildren(placeholderUid, currentChildElementArray, count) {
+function _skipChildren(placeholderUid, currentChildElementArray, count, nextElementSiblingFn) {
   for (let index = 0; index < count; index++) {
-    if (!_nextChild(placeholderUid, currentChildElementArray)) return;
+    if (!_nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn)) return;
   }
   return currentChildElementArray[0];
 }
 
-function rangeForElement(startElement) {
+function rangeForElement(startElement, nextElementSiblingFn) {
   if (!startElement) return [undefined, undefined];
   const currentChildElementArray = [startElement];
-  _nextChild(startElement.getAttribute('nobo-placeholder-uid'), currentChildElementArray);
+  _nextChild(startElement.getAttribute('nobo-placeholder-uid'), currentChildElementArray, nextElementSiblingFn);
   return [startElement, currentChildElementArray[1]];
 }
 
-function childRangeAtIndex({ placeholderDiv, index }) {
+function childRanges({ placeholderDiv, nextElementSiblingFn }) {
+  const placeholderUid = placeholderDiv.getAttribute('nobo-uid'),
+    ret = [];
+  let element = nextElementSiblingFn ? nextElementSiblingFn(placeholderDiv) : placeholderDiv.nextElementSibling;
+
+  while (element && element.getAttribute('nobo-placeholder-uid') == placeholderUid) {
+    const currentChildElementArray = [element];
+    _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn);
+    ret.push([element, currentChildElementArray[1]]);
+    element = currentChildElementArray[0];
+  }
+  return ret;
+}
+
+function childRangeAtIndex({ placeholderDiv, index, nextElementSiblingFn }) {
   if (index < 0) return [placeholderDiv, placeholderDiv];
   const placeholderUid = placeholderDiv.getAttribute('nobo-uid'),
-    firstElement = placeholderDiv.nextElementSibling;
+    firstElement = nextElementSiblingFn ? nextElementSiblingFn(placeholderDiv) : placeholderDiv.nextElementSibling;
 
   if (!firstElement || firstElement.getAttribute('nobo-placeholder-uid') != placeholderUid) return [];
-  const startElement = skipChildren(placeholderUid, firstElement, index);
+  const startElement = skipChildren(placeholderUid, firstElement, index, nextElementSiblingFn);
   if (!startElement) return [];
   const currentChildElementArray = [startElement];
-  _nextChild(placeholderUid, currentChildElementArray);
+  _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn);
   return [startElement, currentChildElementArray[1]];
 }
 
@@ -249,4 +280,115 @@ function templateDatapointIdforVariantOfRow({ variant = undefined, rowOrDatapoin
   return typeof rowId == 'string' && ConvertIds.rowRegex.test(rowId)
     ? templateDatapointIdForRowAndVariant(rowId, variant)
     : undefined;
+}
+
+function forEachInElementRange(element, fn) {
+  let [_start, end] = rangeForElement(element);
+  while (true) {
+    const next = element.nextElementSibling;
+    fn(element);
+    if (element == end) break;
+    element = next;
+  }
+}
+
+function mapInElementRange(element, fn) {
+  let [_start, end] = rangeForElement(element);
+  const ret = [];
+  while (true) {
+    const next = element.nextElementSibling;
+    ret.push(fn(element));
+    if (element == end) break;
+    element = next;
+  }
+  return ret;
+}
+
+function findInElementRange(element, fn) {
+  let [_start, end] = rangeForElement(element);
+  while (true) {
+    const next = element.nextElementSibling;
+    if (fn(element)) return element;
+    if (element == end) return;
+    element = next;
+  }
+}
+
+function describeRange(prompt, element) {
+  console.log(`${prompt ? `${prompt}:\n` : ''}${_describeRange(element)}`);
+}
+
+function describeTree(prompt, element) {
+  console.log(`${prompt ? `${prompt}:\n` : ''}${_describeTree(element)}`);
+}
+
+function describeChange(prompt, change) {
+  console.log(`${prompt ? `${prompt}:\n` : ''}${_describeChange(change)}`);
+}
+
+function _describeChange(change) {
+  let ret = '';
+  if (change.firstElement) {
+    ret += ` Change${change.id ? ` #${change.id}` : ''} has new elements:\n${_describeRange(
+      change.firstElement,
+      '    + '
+    )}`;
+  } else {
+    ret += ` Change${change.id ? ` #${change.id}` : ''} has no new elements:\n`;
+  }
+  if (change.replace) {
+    ret += ` ... it replaces elements:\n${_describeRange(change.replace, '    x ')}`;
+  } else if (change.insertAfter) {
+    ret += ` ... it inserts new elements after:\n${_describeRange(change.insertAfter, '    > ')}`;
+  } else if (change.parent) {
+    ret += ` ... it} inserts new elements as first under:\n${_describeRange(change.parent, '    v ')}`;
+  }
+  return ret;
+}
+
+function _describeRange(element, indent = '') {
+  let ret = '';
+  let isFirst = true;
+  forEachInElementRange(element, el => {
+    ret += _describeTree(el, indent + (isFirst ? '- ' : '  '));
+    isFirst = false;
+  });
+  return ret;
+}
+
+function _describeTree(element, indent = '') {
+  let ret = '';
+  const templateDatapointId = element.getAttribute('nobo-template-dpid'),
+    variant = templateDatapointId ? variantForTemplateDatapointId(templateDatapointId) : undefined,
+    rowId = templateDatapointId ? ConvertIds.decomposeId({ datapointId: templateDatapointId }).rowId : undefined,
+    name = nameForElement(element),
+    clas = element.className.replace(' ', '+'),
+    waitCount = elementWaitCount(element),
+    rootInChangeId = elementRootInChangeId(element),
+    waitingChangeIds = elementWaitingChangeIds(element),
+    waitInfo = `${waitCount ? `Wx${waitCount}` : ''}${rootInChangeId ? `R${rootInChangeId}` : ''}${
+      waitingChangeIds.length ? `C[${waitingChangeIds.join(',')}]` : ''
+    }`,
+    desc = `${name}${clas ? `.${clas}` : ''}${templateDatapointId ? `:${rowId}${variant ? `[${variant}]` : ''}` : ''}${
+      waitInfo ? `{${waitInfo}}` : ''
+    }`;
+  ret += `${indent}${desc}\n`;
+  indent += '. ';
+  for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
+    ret += _describeRange(child, indent);
+    child = rangeForElement(child)[1];
+  }
+  return ret;
+}
+
+function elementWaitCount(element) {
+  return Number(element.getAttribute(waitCountAttributeName) || 0);
+}
+function elementRootInChangeId(element) {
+  return element.getAttribute(rootInChangeIdAttributeName) || undefined;
+}
+
+function elementWaitingChangeIds(element) {
+  const value = element.getAttribute(waitingChangesAttributeName);
+  return value ? value.split(' ') : [];
 }

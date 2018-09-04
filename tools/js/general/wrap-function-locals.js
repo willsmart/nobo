@@ -31,6 +31,7 @@ function wrapFunctionLocals(codeString) {
       '__context',
       'state',
       'model',
+      'event',
       '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: true })
     );
   } catch (err) {
@@ -39,6 +40,7 @@ function wrapFunctionLocals(codeString) {
         '__context',
         'state',
         'model',
+        'event',
         '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {

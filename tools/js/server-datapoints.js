@@ -78,7 +78,7 @@ class WSClientDatapoints {
 
       datapoint.watch({
         callbackKey: `${clientDatapoints.callbackKey}__${datapointId}`,
-        onvalid: () => {
+        onchange: () => {
           clientDatapoints.queueSendDiff({ datapointId, datapoint, isTemplate, userId });
         },
       });

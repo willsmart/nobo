@@ -29,12 +29,7 @@ class NullDatapointConnection {
 
   validateDatapoints({ datapoints }) {
     datapoints.forEach(datapoint => {
-      if (datapoint.__private.hasOwnProperty('newValue')) {
-        const { newValue } = datapoint.__private;
-        datapoint.validate({ value: newValue });
-      } else {
-        datapoint.validate({ value: datapoint.valueIfAny });
-      }
+      datapoint.validate({ value: datapoint.valueIfAny });
     });
   }
 
@@ -42,7 +37,6 @@ class NullDatapointConnection {
     datapoints.forEach(datapoint => {
       if (datapoint.__private.updated) {
         datapoint.commit({ updateIndex: datapoint.__private.updateIndex, keepNewValue: true });
-        datapoint.invalidate();
       }
     });
   }
@@ -139,9 +133,9 @@ class DatapointCache {
   validateNewlyInvalidDatapoints() {
     const cache = this;
 
-    if (cache._updateTimeout) {
-      clearTimeout(cache._updateTimeout);
-      delete cache._updateTimeout;
+    if (cache._validateTimeout) {
+      clearTimeout(cache._validateTimeout);
+      delete cache._validateTimeout;
     }
 
     const datapoints = cache.newlyInvalidDatapointIds
@@ -178,7 +172,7 @@ class DatapointCache {
     });
   }
 
-  queueUpdateJob({ delay = 1 } = {}) {
+  queueUpdateJob({ delay = 10 } = {}) {
     const cache = this;
 
     if (delay <= 0) {

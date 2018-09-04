@@ -10,25 +10,30 @@ const ValueHistoryLength = 1;
 
 class WebSocketConnection {
   constructor({ ws, wsp }) {
-    const wsc = this;
+    const wsc = this,
+      index = wsp.nextConnectionIndex++;
 
     Object.assign(wsc, {
       wsp,
       ws,
-      index: wsp.nextConnectionIndex++,
+      index,
       datapoints: {},
-      callbackKey: ws.watch({
-        onclose: () => {
-          wsc.close();
-        },
-        onpayload: ({ messageType, payloadObject }) => {
-          if (messageType == 'datapoints') {
-            wsc.handleDatapointPayload(payloadObject);
-          }
-        },
-      }),
+      callbackKey: `wsc-${index}`,
     });
-    wsp.connections[wsc.index] = wsc;
+
+    ws.watch({
+      callbackKey: wsc.callbackKey,
+      onclose: () => {
+        wsc.close();
+      },
+      onpayload: ({ messageType, payloadObject }) => {
+        if (messageType == 'datapoints') {
+          wsc.handleDatapointPayload(payloadObject);
+        }
+      },
+    });
+
+    wsp.connections[index] = wsc;
 
     if (!wsp.isServer) {
       for (const datapoint of wsp.cache.datapoints) {
@@ -36,7 +41,7 @@ class WebSocketConnection {
         wsp.queueSendDatapoint({
           theirDatapointId: datapoint.datapointId,
           datapointId: datapoint.datapointId,
-          index: wsc.index,
+          index,
         });
       }
     }
@@ -187,7 +192,12 @@ class WebSocketConnection {
           value,
           versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
         });
-        datapoint.updateValue({ newValue: value });
+        if (wsp.isServer) {
+          datapoint.updateValue({ newValue: value });
+        } else {
+          datapoint.setAsInitializing();
+          datapoint.validate({ value, evenIfValid: true });
+        }
       }
     }
 
@@ -309,17 +319,20 @@ class WebSocketProtocol {
     wsp.nextConnectionIndex = 1; //owned by WebSocketConnection
     wsp.connections = {}; //owned by WebSocketConnection
 
-    const callbackKey = (wsp.callbackKey = ws.watch({
+    const callbackKey = (wsp.callbackKey = 'wsp');
+    ws.watch({
+      callbackKey,
       onclientConnected: client => {
         new WebSocketConnection({ ws: client, wsp });
       },
       onopen: () => {
         new WebSocketConnection({ ws, wsp });
       },
-    }));
+    });
 
     if (!wsp.isServer) {
-      wsp.callbackKey = cache.watch({
+      cache.watch({
+        callbackKey,
         onvalid: ({ newlyValidDatapoints }) => {
           for (const datapointId of newlyValidDatapoints) {
             if (wsp.datapoints[datapointId]) continue;
@@ -357,7 +370,7 @@ class WebSocketProtocol {
     const datapoint = cache.getOrCreateDatapoint({ datapointId });
     datapoint.watch({
       callbackKey,
-      onvalid: datapoint => {
+      onchange: datapoint => {
         const { valueIfAny: value, datapointId } = datapoint;
         wsp.addDatapointValue({
           datapointId,

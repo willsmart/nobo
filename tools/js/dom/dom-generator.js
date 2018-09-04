@@ -65,7 +65,7 @@ class DomGenerator {
       variantDatapointIds = Object.keys(templatedText.nodesByDatapointId);
       if (dependencyTree && dependencyTree.children) {
         variantBackup = variant;
-        variant = templatedText.evaluate.string;
+        variant = templatedText.evaluate().string;
       }
     }
     return this.createElementsUsingDatapointIds({
@@ -128,13 +128,20 @@ class DomGenerator {
 
     if (!rowId) return [element];
 
-    const { additionalSiblings } = domGenerator.prepDomTreeAndCreateChildren({
+    const { additionalSiblings: elements } = domGenerator.prepDomTreeAndCreateChildren({
       element,
       rowId,
       depth,
       usesByDatapointId,
     });
-    return [element].concat(additionalSiblings);
+
+    elements.unshift(element);
+
+    element.setAttribute('nobo-uuid', domGenerator.nextUid++);
+
+    const parent = htmlToElement('<div></div>'); //TODO factory
+    for (const child of elements) parent.appendChild(child);
+    return elements;
   }
 
   prepDomTreeAndCreateChildren({ element, rowId, depth, lidCounter = undefined, usesByDatapointId = {} }) {
@@ -274,10 +281,20 @@ class DomGenerator {
 
     for (let childNode = element.firstChild; childNode; childNode = childNode.nextSibling) {
       if (childNode.nodeType == 3) {
+        let textContent = childNode.textContent;
+        for (
+          const nextSibling = childNode.nextSibling;
+          nextSibling && nextSibling.nodeType == 3;
+          childNode = nextSibling, nextSibling = childNode.nextSibling
+        ) {
+          textContent += nextSibling.textContent;
+          childNode.parentNode.removeChild(childNode);
+        }
+
         const templatedText = new TemplatedText({
           cache: domGenerator.cache,
           rowId,
-          text: childNode.textContent,
+          text: textContent,
         });
         const dependencyTree = templatedText.dependencyTree,
           datapointIds = Object.keys(templatedText.nodesByDatapointId);
@@ -287,7 +304,7 @@ class DomGenerator {
             usesByDatapointId[datapointId][`=${index}`] = true;
           }
           element.setAttribute(`nobo-backup-text-${index}`, childNode.textContent);
-          childNode.textContent = templatedText.evaluate.string;
+          childNode.textContent = templatedText.evaluate().string;
         }
 
         index++;
@@ -314,11 +331,11 @@ class DomGenerator {
           element.setAttribute(`nobo-backup--${name}`, value);
           if (name.startsWith('on')) {
             if (!eventListeners) eventListeners = {};
-            eventListeners[name] = () => {
-              templatedText.evaluate;
+            eventListeners[name] = event => {
+              templatedText.evaluate({ event });
             };
           } else {
-            element.setAttribute(name, templatedText.evaluate.string);
+            element.setAttribute(name, templatedText.evaluate().string);
           }
         }
       }

@@ -83,6 +83,37 @@ function diffArray(was, is) {
   // TODO better diff algorithm
   let index;
   was = was || [];
+
+  for (index = is.length - 1; index >= was.length; index--) {
+    const isChild = is[index];
+
+    if (!diff)
+      diff = {
+        arrayDiff: [],
+      };
+    diff.arrayDiff.push(
+      Object.assign({
+        insertAt: was.length,
+        value: isChild,
+      })
+    );
+  }
+
+  for (index = was.length - 1; index >= is.length; index--) {
+    const wasChild = was[index],
+      diffChild = diffAny(wasChild);
+
+    if (diffChild) {
+      if (!diff)
+        diff = {
+          arrayDiff: [],
+        };
+      diff.arrayDiff.unshift({
+        deleteAt: index,
+      });
+    }
+  }
+
   for (index = 0; index < was.length && index < is.length; index++) {
     const wasChild = was[index],
       isChild = is[index],
@@ -99,34 +130,6 @@ function diffArray(was, is) {
         })
       );
     }
-  }
-  for (index = was.length - 1; index >= is.length; index--) {
-    const wasChild = was[index],
-      diffChild = diffAny(wasChild);
-
-    if (diffChild) {
-      if (!diff)
-        diff = {
-          arrayDiff: [],
-        };
-      diff.arrayDiff.unshift({
-        deleteAt: index,
-      });
-    }
-  }
-  for (index = is.length - 1; index >= was.length; index--) {
-    const isChild = is[index];
-
-    if (!diff)
-      diff = {
-        arrayDiff: [],
-      };
-    diff.arrayDiff.unshift(
-      Object.assign({
-        insertAt: was.length,
-        value: isChild,
-      })
-    );
   }
 
   return diff;

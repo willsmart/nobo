@@ -77,14 +77,14 @@ class TemplatedText {
     }
   }
 
-  get evaluate() {
+  evaluate({ event } = {}) {
     const templatedText = this,
       root = templatedText.dependencyTree;
     if (!root || !root.children) return { string: this.templateString };
-    return this.evaluatePart({ nodes: root.children, range: [0, undefined] });
+    return this.evaluatePart({ nodes: root.children, range: [0, undefined], event });
   }
 
-  evaluatePart({ nodes, range }) {
+  evaluatePart({ nodes, range, event }) {
     const templatedText = this,
       { cache, templateString, rowId } = templatedText;
     if (!nodes) return { string: this.templateString.substring(range[0], range[1]) };
@@ -104,6 +104,7 @@ class TemplatedText {
             cache,
             rowId,
             valueForNameCallback: 'model',
+            event,
           });
       }
       if (node.range[0] < wasIndex) continue;

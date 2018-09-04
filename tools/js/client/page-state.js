@@ -30,7 +30,7 @@ class PageState {
 
     itemsDatapoint.watch({
       callbackKey,
-      onvalid: datapoint => {
+      onchange: datapoint => {
         const items = datapoint.valueIfAny;
         if (Array.isArray(items)) {
           pageState.visit(items.length && typeof items[0] == 'string' ? items[0] : undefined);
@@ -114,7 +114,7 @@ class PageState {
       if (pageState.titleDatapoint) pageState.titleDatapoint.stopWatching({ callbackKey });
       (pageState.titleDatapoint = titleDatapoint).watch({
         callbackKey,
-        onvalid: () => {
+        onchange: () => {
           pageState.updateState(PageState.currentWindowState.pageDatapointId);
         },
       });
