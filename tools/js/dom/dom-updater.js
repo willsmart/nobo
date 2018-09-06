@@ -4,6 +4,7 @@ const diffAny = require('../general/diff');
 const ConvertIds = require('../convert-ids');
 const DomWaitingChangeQueue = require('./dom-waiting-change-queue');
 const { nameForElement, cloneShowingElementNames } = require('../general/name-for-element');
+const log = require('../log');
 
 const { rangeForElement, childRangeAtIndex, variantForTemplateDatapointId } = require('./dom-functions');
 
@@ -67,7 +68,9 @@ class DomUpdater {
         if (templateDatapointId) {
           const datapoint = cache.getOrCreateDatapoint({ datapointId: templateDatapointId });
           if (!datapoint.initialized) {
-            console.log(
+            log(
+              'dom',
+              'dom',
               `> dp ${datapoint.datapointId} not initialized (wanted for template on element ${nameForElement(
                 element
               )})`
@@ -95,7 +98,8 @@ class DomUpdater {
         if (domDatapointId) {
           const datapoint = cache.getOrCreateDatapoint({ datapointId: domDatapointId });
           if (!datapoint.initialized) {
-            console.log(
+            log(
+              'dom',
               `> dp ${datapoint.datapointId} not initialized (wanted for dom on element ${nameForElement(element)})`
             );
             incElementWaitCount(element);
@@ -125,7 +129,8 @@ class DomUpdater {
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
           if (!datapoint.initialized) {
-            console.log(
+            log(
+              'dom',
               `> dp ${datapoint.datapointId} not initialized (wanted for children of element ${nameForElement(
                 element
               )})`
@@ -135,7 +140,8 @@ class DomUpdater {
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'children'),
             oninit: () => {
-              console.log(
+              log(
+                'dom',
                 `< dp ${datapoint.datapointId} is now initialized (wanted for children of element ${nameForElement(
                   element
                 )})`,
@@ -148,10 +154,9 @@ class DomUpdater {
                 diff = diffAny(childrenWere, children),
                 variant = element.getAttribute('variant') || undefined;
 
-              console.log(JSON.stringify(diff));
               if (!diff) return;
               if (!diff.arrayDiff) {
-                console.log('Expected array diff');
+                log('err', 'Expected array diff');
                 return;
               } else {
                 for (const diffPart of diff.arrayDiff) {
@@ -193,7 +198,8 @@ class DomUpdater {
           for (const datapointId of valueDatapointIds) {
             const datapoint = cache.getOrCreateDatapoint({ datapointId });
             if (!datapoint.initialized) {
-              console.log(
+              log(
+                'dom',
                 `> dp ${datapoint.datapointId} not initialized (wanted for value on element ${nameForElement(element)})`
               );
               incElementWaitCount(element);
@@ -201,7 +207,8 @@ class DomUpdater {
             datapoint.watch({
               callbackKey: callbackKeyOnElement(element, 'value'),
               oninit: () => {
-                console.log(
+                log(
+                  'dom',
                   `< dp ${datapoint.datapointId} is now initialized (wanted for value on element ${nameForElement(
                     element
                   )})`,

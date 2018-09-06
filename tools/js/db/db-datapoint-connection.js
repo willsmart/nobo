@@ -4,6 +4,7 @@
 // This is an intermediary between the datapoint-cache and the postgresql-connection
 
 const PublicApi = require('../general/public-api');
+const log = require('../log');
 
 // other implied dependencies
 

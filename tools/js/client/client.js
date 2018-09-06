@@ -9,7 +9,8 @@ const PageState = require('./page-state'),
   ClientActions = require('./client-actions'),
   DatapointCache = require('../datapoint-cache'),
   Schema = require('../schema'),
-  appClient = require('./app-client');
+  appClient = require('./app-client'),
+  log = require('../log');
 
 const schema = new Schema();
 schema.loadSource([
@@ -133,7 +134,7 @@ const appDbRowId = 1,
 
 SharedState.global.watch({
   onchangedstate: function(diff, changes) {
-    console.log(`>> State change: ${JSON.stringify(diff)}`);
+    log('state', `>> State change: ${JSON.stringify(diff)}`);
   },
 });
 

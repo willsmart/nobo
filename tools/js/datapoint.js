@@ -16,6 +16,7 @@ const makeClassWatchable = require('./general/watchable');
 const CodeSnippet = require('./general/code-snippet');
 
 const ConvertIds = require('./convert-ids');
+const log = require('./log');
 
 // other implied dependencies
 
@@ -27,10 +28,6 @@ const ConvertIds = require('./convert-ids');
 
 //const Schema = require('./schema'); // via constructor arg: schema
 //    uses allTypes and fieldForDatapoint
-
-function log() {
-  //console.log.apply(console, arguments);
-}
 
 // API is auto-generated at the bottom from the public interface of this class
 class Datapoint {
@@ -64,7 +61,7 @@ class Datapoint {
   constructor({ cache, schema, templates, datapointId, isClient }) {
     const datapoint = this;
 
-    log(`creating datapoint ${datapointId}`);
+    log('dp',`creating datapoint ${datapointId}`);
 
     const datapointInfo = ConvertIds.decomposeId({
       datapointId: datapointId,
@@ -256,7 +253,7 @@ class Datapoint {
       });
     }
 
-    log(`Datapoint ${datapoint.datapointId} -> ${value}`);
+    log('dp',`Datapoint ${datapoint.datapointId} -> ${value}`);
 
     const valueWas = datapoint._value;
     value = datapoint._value = clone(value);
@@ -515,7 +512,7 @@ class Datapoint {
         rowId,
       });
     } catch (err) {
-      console.log(err);
+      log('err',err);
     }
   }
 
@@ -646,7 +643,7 @@ class Datapoint {
   }
 
   forget() {
-    log(`forgetting datapoint ${this.datapointId}`);
+    log('dp',`forgetting datapoint ${this.datapointId}`);
     const datapoint = this,
       { cache, datapointId } = datapoint;
 

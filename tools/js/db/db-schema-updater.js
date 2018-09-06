@@ -9,6 +9,7 @@ const fs = require('fs');
 const { promisify } = require('util');
 const YAML = require('yamljs');
 const DbSeeder = require('./db-seeder');
+const log = require('../log');
 
 const readFile_p = promisify(fs.readFile);
 const writeFile_p = promisify(fs.writeFile);

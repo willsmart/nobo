@@ -3,6 +3,7 @@ const PublicApi = require('./general/public-api');
 const isEqual = require('./general/is-equal');
 const ConvertIds = require('./convert-ids');
 const RequiredDatapoints = require('./required-datapoints');
+const log = require('./log');
 
 const ValueHistoryLength = 1;
 
@@ -72,7 +73,7 @@ class WebSocketConnection {
       } else if (typeof msgData == 'object') {
         let { version, value, diff, baseVersion } = msgData;
         if (!version || !(value !== undefined || (diff !== undefined && baseVersion))) {
-          console.log(`Bad msg data for datapoint ${theirDatapointId} ${JSON.stringify(msgData)}`);
+          log('err', `Bad msg data for datapoint ${theirDatapointId} ${JSON.stringify(msgData)}`);
           continue;
         }
         wsc.handleVersionValue({ theirDatapointId, version, value, diff, baseVersion });
@@ -177,7 +178,8 @@ class WebSocketConnection {
         if (base !== undefined) {
           value = applyDiff({ diff, base });
           if (value === undefined) {
-            console.log(
+            log(
+              'err',
               `Couldn't apply diff for datapoint ${theirDatapointId}\n   Base: ${JSON.stringify(
                 base
               )}\n   Diff: ${JSON.stringify(diff)}`

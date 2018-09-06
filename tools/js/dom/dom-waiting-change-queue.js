@@ -1,6 +1,6 @@
 const DomChangeQueue = require('./dom-change-queue');
 const PublicApi = require('../general/public-api');
-const { forEachInElementRange, findInElementRange, describeChange } = require('./dom-functions');
+const { forEachInElementRange, findInElementRange, logChange } = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of the DomChangeQueue class
 
@@ -109,7 +109,7 @@ class DomWaitingChangeQueue {
     const consumedChangeIds = domWaitingChangeQueue.existingWaitingChildChangeIds(change);
     for (const changeId of Object.keys(consumedChangeIds)) {
       const consumedChange = domWaitingChangeQueue.changesById[changeId];
-      describeChange(`Change was consumed by pushed change`, consumedChange);
+      logChange('dom.changes', `Change was consumed by pushed change`, consumedChange);
 
       forEachInElementRange(consumedChange.firstElement, setElementRootInChangeId);
       const index = domWaitingChangeQueue.queue.indexOf(consumedChange);
@@ -119,7 +119,7 @@ class DomWaitingChangeQueue {
 
     const parentChange = domWaitingChangeQueue.existingWaitingParentChange(change);
     if (parentChange) {
-      describeChange('Pushed change has a parent change and will be applied immediately', change);
+      logChange('dom.changes', 'Pushed change has a parent change and will be applied immediately', change);
       if (parentChange.firstElement == change.replace) {
         forEachInElementRange(parentChange.firstElement, setElementRootInChangeId);
         parentChange.firstElement = change.firstElement;
@@ -128,20 +128,20 @@ class DomWaitingChangeQueue {
       }
       domWaitingChangeQueue.refreshChangeWaitInfo(parentChange);
       if (!parentChange.waitCount) {
-        describeChange(`Parent change is now ready to go`, parentChange);
+        logChange('dom.changes', `Parent change is now ready to go`, parentChange);
         forEachInElementRange(parentChange.firstElement, setElementRootInChangeId);
         const index = domWaitingChangeQueue.queue.indexOf(parentChange);
         delete domWaitingChangeQueue.changesById[parentChange.id];
         domWaitingChangeQueue.queue.splice(index, 1);
         domWaitingChangeQueue.domChangeQueue.push(parentChange);
       } else {
-        describeChange(`Parent change`, parentChange);
+        logChange('dom.changes', `Parent change`, parentChange);
       }
       return;
     }
 
     if (!(change.firstElement && rangeIsWaiting(change.firstElement))) {
-      describeChange(`Pushed change isn't waiting on any datapoints, and will be queued immediately`, change);
+      logChange('dom.changes', `Pushed change isn't waiting on any datapoints, and will be queued immediately`, change);
       domWaitingChangeQueue.domChangeQueue.push(change);
       return;
     }
@@ -151,7 +151,7 @@ class DomWaitingChangeQueue {
     domWaitingChangeQueue.queue.push(change);
     domWaitingChangeQueue.changesById[change.id] = change;
     domWaitingChangeQueue.addChangeWaitInfo(change);
-    describeChange('Change was pushed', change);
+    logChange('dom.changes', 'Change was pushed', change);
   }
 
   refreshChangeWaitInfo(change) {
@@ -178,7 +178,7 @@ class DomWaitingChangeQueue {
         const index = domWaitingChangeQueue.queue.indexOf(change);
         delete domWaitingChangeQueue.changesById[change.id];
         domWaitingChangeQueue.queue.splice(index, 1);
-        describeChange('Change is ready to go', change);
+        logChange('dom.changes', 'Change is ready to go', change);
         domWaitingChangeQueue.domChangeQueue.push(change);
       }
     }

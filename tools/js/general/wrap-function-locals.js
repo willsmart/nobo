@@ -7,6 +7,7 @@
 // API is auto-generated at the bottom from the public interface of the CodeSnippet class
 
 const namesFromCodeString = require('./names-from-code-string');
+const log = require('../log');
 
 const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.))*$/;
 function hasUnicodeEscape(string) {
@@ -17,7 +18,7 @@ module.exports = wrapFunctionLocals;
 
 function wrapFunctionLocals(codeString) {
   if (hasUnicodeEscape(codeString)) {
-    console.log('Disallowing code that includes a unicode escape');
+    log('err.code', 'Disallowing code that includes a unicode escape');
     return {};
   }
 
@@ -44,7 +45,7 @@ function wrapFunctionLocals(codeString) {
         '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {
-      console.log(`Failed to compile code: ${codeString}`);
+      log('err.code', `Failed to compile code: ${codeString}`);
     }
   }
 

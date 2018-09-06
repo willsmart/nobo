@@ -9,6 +9,7 @@
 const PublicApi = require('./public-api');
 const changeDetectorObject = require('./change-detector-object');
 const wrapFunctionLocals = require('./wrap-function-locals');
+const log = require('../log');
 
 class Code {
   static withString(codeString) {
@@ -33,7 +34,7 @@ class Code {
           : wrappedFunction(changeDetectingContext.useObject, state, {}, event)
         : undefined;
     } catch (error) {
-      console.log(`Error while evaluating code: ${error.message}`);
+      log('err.code', `Error while evaluating code: ${error.message}`);
     }
     return {
       context,
@@ -53,7 +54,7 @@ class Code {
           : wrappedFunction(modelCDO, state, modelCDO, event)
         : undefined;
     } catch (error) {
-      console.log(`Error while evaluating code: ${error.message}`);
+      log('err.code', `Error while evaluating code: ${error.message}`);
     }
     return {
       modelCDO,

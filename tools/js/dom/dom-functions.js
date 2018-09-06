@@ -1,6 +1,7 @@
 const ChangeCase = require('change-case');
 const ConvertIds = require('../convert-ids');
 const nameForElement = require('../general/name-for-element');
+const log = require('../log');
 
 // API is just all the functions
 module.exports = {
@@ -32,12 +33,12 @@ module.exports = {
   forEachInElementRange,
   mapInElementRange,
   findInElementRange,
-  describeChange,
+  logChange,
   _describeRange,
   _describeTree,
   _describeChange,
-  describeRange,
-  describeTree,
+  logRange,
+  logTree,
 };
 
 const waitCountAttributeName = 'nobo-wait-count',
@@ -314,16 +315,16 @@ function findInElementRange(element, fn) {
   }
 }
 
-function describeRange(prompt, element) {
-  console.log(`${prompt ? `${prompt}:\n` : ''}${_describeRange(element)}`);
+function logRange(module, prompt, element) {
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeRange(element)}`);
 }
 
-function describeTree(prompt, element) {
-  console.log(`${prompt ? `${prompt}:\n` : ''}${_describeTree(element)}`);
+function logTree(module, prompt, element) {
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeTree(element)}`);
 }
 
-function describeChange(prompt, change) {
-  console.log(`${prompt ? `${prompt}:\n` : ''}${_describeChange(change)}`);
+function logChange(module, prompt, change) {
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeChange(change)}`);
 }
 
 function _describeChange(change) {

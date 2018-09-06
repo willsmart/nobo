@@ -7,6 +7,7 @@ const PublicApi = require('./general/public-api');
 const makeClassWatchable = require('./general/watchable');
 const WebSocketProtocol = require('./web-socket-protocol');
 const RowProxy = require('./row-proxy');
+const log = require('./log');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -117,7 +118,7 @@ class WebSocketServer {
       (ws.pongHistory = [0, 0, 0, 1]), (ws.pongCount = 1);
 
       const { session } = processSession(req);
-      console.log(`Session: ${JSON.stringify(session)}`);
+      log('ws', `Session: ${JSON.stringify(session)}`);
 
       var client = new WebSocketClient({
         server,
@@ -142,7 +143,7 @@ class WebSocketServer {
         client.closed();
       });
 
-      ws.on('error', () => console.log('errored'));
+      ws.on('error', () => log('err', 'errored'));
     });
 
     const interval = setInterval(function ping() {
@@ -158,7 +159,7 @@ class WebSocketServer {
       });
     }, 10000);
 
-    console.log(`Web socket server listening on port ${port}`);
+    log('ws', `Web socket server listening on port ${port}`);
   }
 }
 
@@ -179,7 +180,7 @@ class WebSocketClient {
   serverReceivedMessage(message) {
     const client = this;
 
-    console.log('Received message from client #' + client.index + ':   ' + message);
+    log('ws', 'Received message from client #' + client.index + ':   ' + message);
 
     const matches = /^(?:(\d+)|(\w+)):/.exec(message),
       messageIndex = matches ? +matches[1] : -1,
@@ -224,7 +225,7 @@ class WebSocketClient {
     const client = this;
     const server = client.server;
 
-    console.log('Client #' + client.index + ' closed');
+    log('ws', 'Client #' + client.index + ' closed');
 
     client.notifyListeners('onclose');
   }
@@ -235,7 +236,7 @@ class WebSocketClient {
     const message = `${
       messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
     }${JSON.stringify(payloadObject)}`;
-    console.log('Sending message to client #' + client.index + ':   ' + message);
+    log('ws', 'Sending message to client #' + client.index + ':   ' + message);
 
     client.ws.send(message);
   }

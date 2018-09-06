@@ -3,6 +3,7 @@ const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
 const SharedState = require('../general/shared-state');
 const PageState = require('./page-state');
+const log = require('../log');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -62,7 +63,7 @@ class WebSocketClient {
         }
 
         performance.mark('receive');
-        console.log('Got message from server:   ' + message.data);
+        log('ws', 'Got message from server:   ' + message.data);
 
         client.notifyListeners(
           'onpayload',
@@ -73,7 +74,7 @@ class WebSocketClient {
       };
 
       ws.onerror = err => {
-        console.log(`Error: ${err.message}`);
+        log('err', `Error: ${err.message}`);
       };
 
       if (ws.ping) {
@@ -92,7 +93,7 @@ class WebSocketClient {
     }
     open();
 
-    console.log(`Web socket client listening to server on port ${port}`);
+    log('ws', `Web socket client listening to server on port ${port}`);
   }
 
   get isOpen() {
@@ -149,7 +150,7 @@ class WebSocketClient {
       messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
     }${JSON.stringify(payloadObject)}`;
     performance.mark('send');
-    console.log('Sending message to server:   ' + message);
+    log('ws', 'Sending message to server:   ' + message);
 
     client.ws.send(message);
   }

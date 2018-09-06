@@ -8,6 +8,7 @@ const Connection = require('../db/postgresql-connection');
 const SchemaToSQL = require('../db/postgresql-schema.js');
 const fs = require('fs');
 const YAML = require('yamljs');
+const log = require('../log');
 
 const seedsFileRegex = /\.(?:yaml|yml|YAML|YML|json)$/;
 

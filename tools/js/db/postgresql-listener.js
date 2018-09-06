@@ -6,6 +6,7 @@
 const ConvertIds = require('../convert-ids');
 const PostgresqlConnection = require('../db/postgresql-connection');
 const PublicApi = require('../general/public-api');
+const log = require('../log');
 
 // API is auto-generated at the bottom from the public interface of this class
 
