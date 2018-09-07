@@ -3,6 +3,7 @@ const { URL } = require('url');
 const MyCrypto = require('./general/mycrypto');
 const Cookie = require('cookie');
 const ConvertIds = require('./convert-ids');
+const PageServer = require('./page-server');
 const PublicApi = require('./general/public-api');
 const makeClassWatchable = require('./general/watchable');
 const WebSocketProtocol = require('./web-socket-protocol');
@@ -17,7 +18,7 @@ class WebSocketServer {
     return ['start', 'cache', 'watch', 'stopWatching'];
   }
 
-  constructor({ cache, schema }) {
+  constructor({ cache, schema, hasPageServer, pagePath, cachePage = false }) {
     const server = this;
 
     server._cache = cache;
@@ -28,6 +29,10 @@ class WebSocketServer {
       ws: server,
       isServer: true,
     });
+
+    if (hasPageServer) {
+      server.pageServer = new PageServer({ path: pagePath, doCache: cachePage });
+    }
   }
 
   get cache() {
@@ -68,7 +73,8 @@ class WebSocketServer {
   }
 
   async start({ port = 3000 } = {}) {
-    const server = this;
+    const server = this,
+      { pageServer } = server;
 
     server.appCookiePrefix = await this.cache.getOrCreateDatapoint(
       ConvertIds.recomposeId({
@@ -78,9 +84,20 @@ class WebSocketServer {
       })
     ).value;
 
-    server.wss = new WebSocket.Server({
-      port: port,
-    });
+    if (pageServer) {
+      server.wss = new WebSocket.Server({
+        noServer: Boolean(pageServer),
+      });
+
+      pageServer.start({
+        wss: server.wss,
+        port: port,
+      });
+    } else {
+      server.wss = new WebSocket.Server({
+        port: port,
+      });
+    }
 
     var nextWsIndex = 1;
 

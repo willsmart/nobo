@@ -28,7 +28,7 @@ class WebSocketClient {
           ? `wss://sock.${window.location.host}`
           : `ws://${window.location.hostname}:${port}`;
       const ws = (client.ws = new WebSocket(
-        `${host}${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
+        `${host}/sock${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
       ));
       delete client.phoenix;
       ws.onopen = function open() {

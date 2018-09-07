@@ -54,6 +54,9 @@ const { htmlToElement } = require('../dom/node-dom-functions');
   const wsserver = new WebSocketServer({
     cache,
     schema,
+    hasPageServer: args['--servepage'],
+    pagePath: '.',
+    cachePage: args['--cachepage'],
   });
   await wsserver.start();
 })();
