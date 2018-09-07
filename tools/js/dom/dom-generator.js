@@ -139,7 +139,7 @@ class DomGenerator {
 
     element.setAttribute('nobo-uuid', domGenerator.nextUid++);
 
-    const parent = htmlToElement('<div></div>'); //TODO factory
+    const parent = (domGenerator.htmlToElement || htmlToElement)('<div></div>'); //TODO factory
     for (const child of elements) parent.appendChild(child);
     return elements;
   }

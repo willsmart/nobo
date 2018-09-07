@@ -22,8 +22,7 @@
 //   const diffAny = require(pathToDiff)
 
 const log = require('../log'),
-  isEqual = require('./is-equal'),
-  Rand = require('random-seed');
+  isEqual = require('./is-equal');
 
 module.exports = diffAny;
 
@@ -144,7 +143,6 @@ function diffArray_o(was, is) {
 // Thank you Nickolas Butler http://www.codeproject.com/Articles/42279/Investigating-Myers-diff-algorithm-Part-of
 // Based on Myers alg. See http://www.xmailserver.org/diff2.pdf
 
-window.arrayDiffEdits = arrayDiffEdits;
 function arrayDiffEdits(from, to, elementsEqual) {
   if (!elementsEqual) elementsEqual = (a, b) => a == b;
   const fromLength = from.length,
@@ -396,35 +394,39 @@ function applyDiff(from, edits) {
   return to;
 }
 
-function randInt(rand, max, power) {
-  return Math.floor(Math.pow(rand.random(), power) * max);
-}
+if (typeof window !== 'undefined') {
+  const Rand = require('random-seed');
 
-function randArray(rand) {
-  return Array.from(Array(randInt(rand, 10, 2))).map(() => randInt(rand, 10, 2));
-}
-
-window.mockDiff = function(count = 1, seed = 1234) {
-  const rand = Rand.create(seed);
-  disableNoboLog('diff');
-  for (let i = 0; i < count; i++) {
-    const from = randArray(rand),
-      to = randArray(rand),
-      edits = arrayDiffEdits(from, to);
-    to2 = applyDiff(from, edits);
-
-    if (!isEqual(to, to2)) {
-      log(
-        'err',
-        `Diff ${i} failed\n  from : ${JSON.stringify(from)}\n  to   : ${JSON.stringify(to)}\n  to2  : ${JSON.stringify(
-          to2
-        )}\n  edits: ${JSON.stringify(edits)}`
-      );
-      enableNoboLog('diff');
-      debugger;
-      arrayDiffEdits(from, to);
-      applyDiff(from, edits);
-      break;
-    }
+  function randInt(rand, max, power) {
+    return Math.floor(Math.pow(rand.random(), power) * max);
   }
-};
+
+  function randArray(rand) {
+    return Array.from(Array(randInt(rand, 10, 2))).map(() => randInt(rand, 10, 2));
+  }
+
+  window.mockDiff = function(count = 1, seed = 1234) {
+    const rand = Rand.create(seed);
+    disableNoboLog('diff');
+    for (let i = 0; i < count; i++) {
+      const from = randArray(rand),
+        to = randArray(rand),
+        edits = arrayDiffEdits(from, to);
+      to2 = applyDiff(from, edits);
+
+      if (!isEqual(to, to2)) {
+        log(
+          'err',
+          `Diff ${i} failed\n  from : ${JSON.stringify(from)}\n  to   : ${JSON.stringify(
+            to
+          )}\n  to2  : ${JSON.stringify(to2)}\n  edits: ${JSON.stringify(edits)}`
+        );
+        enableNoboLog('diff');
+        debugger;
+        arrayDiffEdits(from, to);
+        applyDiff(from, edits);
+        break;
+      }
+    }
+  };
+}
