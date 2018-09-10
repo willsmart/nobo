@@ -3,12 +3,12 @@
 
 const ChangeCase = require('change-case');
 const PublicApi = require('../general/public-api');
-const SchemaDefn = require('../schema');
+const SchemaDefn = require('../general/schema');
 const Connection = require('../db/postgresql-connection');
 const SchemaToSQL = require('../db/postgresql-schema.js');
 const fs = require('fs');
 const YAML = require('yamljs');
-const log = require('../log');
+const log = require('../general/log');
 
 const seedsFileRegex = /\.(?:yaml|yml|YAML|YML|json)$/;
 

@@ -11,8 +11,8 @@ const SchemaToPostgresql = require('../db/postgresql-schema');
 const PostgresqlListener = require('../db/postgresql-listener');
 const SchemaLayoutConnection = require('../db/schema-layout-connection');
 const PublicApi = require('../general/public-api');
-const ConvertIds = require('../convert-ids');
-const log = require('../log');
+const ConvertIds = require('../datapoints/convert-ids');
+const log = require('../general/log');
 
 // API is auto-generated at the bottom from the public interface of this class
 

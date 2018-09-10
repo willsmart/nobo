@@ -2,14 +2,14 @@
 // © Will Smart 2018. Licence: MIT
 
 const PublicApi = require('../general/public-api');
-const SchemaDefn = require('../schema');
+const SchemaDefn = require('../general/schema');
 const Connection = require('../db/postgresql-connection');
 const SchemaToSQL = require('../db/postgresql-schema.js');
 const fs = require('fs');
 const { promisify } = require('util');
 const YAML = require('yamljs');
 const DbSeeder = require('./db-seeder');
-const log = require('../log');
+const log = require('../general/log');
 
 const readFile_p = promisify(fs.readFile);
 const writeFile_p = promisify(fs.writeFile);

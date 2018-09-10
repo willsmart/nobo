@@ -1,6 +1,6 @@
 const http = require('http');
 const PublicApi = require('../general/public-api');
-const log = require('../log');
+const log = require('../general/log');
 const Page = require('./page');
 const url = require('url');
 

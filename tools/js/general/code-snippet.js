@@ -9,7 +9,7 @@
 const PublicApi = require('./public-api');
 const changeDetectorObject = require('./change-detector-object');
 const wrapFunctionLocals = require('./wrap-function-locals');
-const log = require('../log');
+const log = require('../general/log');
 
 class Code {
   static withString(codeString) {

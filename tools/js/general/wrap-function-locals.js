@@ -7,7 +7,7 @@
 // API is auto-generated at the bottom from the public interface of the CodeSnippet class
 
 const namesFromCodeString = require('./names-from-code-string');
-const log = require('../log');
+const log = require('../general/log');
 
 const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.))*$/;
 function hasUnicodeEscape(string) {

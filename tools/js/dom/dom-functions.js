@@ -1,7 +1,7 @@
 const ChangeCase = require('change-case');
 const ConvertIds = require('../datapoints/convert-ids');
 const nameForElement = require('../general/name-for-element');
-const log = require('../log');
+const log = require('../general/log');
 
 // API is just all the functions
 module.exports = {
@@ -42,6 +42,7 @@ module.exports = {
 };
 
 const waitCountAttributeName = 'nobo-wait-count',
+  waitNamesAttributeName = 'nobo-wait-names',
   waitingChangesAttributeName = 'nobo-waiting-changes',
   rootInChangeIdAttributeName = 'nobo-root-in-change';
 
@@ -365,11 +366,12 @@ function _describeTree(element, indent = '') {
     name = nameForElement(element),
     clas = element.className.replace(' ', '+'),
     waitCount = elementWaitCount(element),
+    waitNames = elementWaitNames(element),
     rootInChangeId = elementRootInChangeId(element),
     waitingChangeIds = elementWaitingChangeIds(element),
-    waitInfo = `${waitCount ? `Wx${waitCount}` : ''}${rootInChangeId ? `R${rootInChangeId}` : ''}${
-      waitingChangeIds.length ? `C[${waitingChangeIds.join(',')}]` : ''
-    }`,
+    waitInfo = `${waitCount ? `Wx${waitCount}` : ''}${waitNames.length ? `[${waitNames.join(',')}]` : ''}${
+      rootInChangeId ? `R${rootInChangeId}` : ''
+    }${waitingChangeIds.length ? `C[${waitingChangeIds.join(',')}]` : ''}`,
     desc = `${name}${clas ? `.${clas}` : ''}${templateDatapointId ? `:${rowId}${variant ? `[${variant}]` : ''}` : ''}${
       waitInfo ? `{${waitInfo}}` : ''
     }`;
@@ -385,6 +387,12 @@ function _describeTree(element, indent = '') {
 function elementWaitCount(element) {
   return Number(element.getAttribute(waitCountAttributeName) || 0);
 }
+
+function elementWaitNames(element) {
+  const names = element.getAttribute(waitNamesAttributeName);
+  return names ? names.split(' ') : [];
+}
+
 function elementRootInChangeId(element) {
   return element.getAttribute(rootInChangeIdAttributeName) || undefined;
 }

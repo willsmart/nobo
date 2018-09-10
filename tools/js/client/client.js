@@ -9,7 +9,7 @@ const PageState = require('./page-state'),
   DatapointCache = require('../datapoints/datapoint-cache'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
-  log = require('../log');
+  log = require('../general/log');
 
 const schema = new Schema();
 schema.loadSource([
@@ -126,7 +126,7 @@ domGenerator.prepPage();
 
 pageState.visit();
 
-document.nobo = {
+window.nobo = {
   PageState,
   WebSocketClient,
   WebSocketProtocol,

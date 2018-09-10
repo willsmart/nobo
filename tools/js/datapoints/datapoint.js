@@ -16,7 +16,7 @@ const makeClassWatchable = require('../general/watchable');
 const CodeSnippet = require('../general/code-snippet');
 
 const ConvertIds = require('./convert-ids');
-const log = require('../log');
+const log = require('../general/log');
 
 // other implied dependencies
 
@@ -55,6 +55,7 @@ class Datapoint {
       'dbRowId',
       'isClient',
       'setIsClient',
+      'forget',
     ];
   }
 
@@ -630,9 +631,11 @@ class Datapoint {
   }
 
   deleteIfUnwatched() {
-    const datapoint = this;
+    const datapoint = this,
+      { inDeletionList } = datapoint;
 
     if (
+      inDeletionList ||
       (datapoint.listeners && datapoint.listeners.length) ||
       datapoint.watchingOneShotResolvers ||
       (datapoint.dependentDatapointsById && Object.keys(datapoint.dependentDatapointsById).length)
@@ -640,7 +643,20 @@ class Datapoint {
       return;
     }
 
-    datapoint.forget();
+    const { cache, datapointId } = datapoint,
+      { deletionList } = cache;
+    datapoint.inDeletionList = deletionList;
+    deletionList[datapointId] = this;
+  }
+
+  undelete() {
+    const datapoint = this,
+      { datapointId, inDeletionList } = datapoint;
+
+    if (!inDeletionList) return;
+
+    delete inDeletionList[datapointId];
+    delete datapoint.inDeletionList;
   }
 
   forget() {

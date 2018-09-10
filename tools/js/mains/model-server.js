@@ -4,10 +4,10 @@
 const fs = require('fs');
 const processArgs = require('../general/process-args');
 
-const WebSocketServer = require('../web-socket-server');
+const WebSocketServer = require('../api/web-socket-server');
 const Connection = require('../db/postgresql-connection');
 const DbDatapointConnection = require('../db/db-datapoint-connection');
-const DatapointCache = require('../datapoint-cache');
+const DatapointCache = require('../datapoints/datapoint-cache');
 const { htmlToElement } = require('../dom/node-dom-functions');
 
 (async function() {

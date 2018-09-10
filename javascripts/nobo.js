@@ -3,7 +3,7 @@ const WebSocket = require('isomorphic-ws');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
 const PageState = require('../client/page-state');
-const log = require('../log');
+const log = require('../general/log');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -177,13 +177,13 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../client/page-state":6,"../general/public-api":28,"../general/watchable":33,"../log":35,"isomorphic-ws":43}],2:[function(require,module,exports){
+},{"../client/page-state":6,"../general/log":25,"../general/public-api":29,"../general/watchable":34,"isomorphic-ws":43}],2:[function(require,module,exports){
 const { applyDiff, createDiff } = require('../general/diff');
 const PublicApi = require('../general/public-api');
 const isEqual = require('../general/is-equal');
 const ConvertIds = require('../datapoints/convert-ids');
 const RequiredDatapoints = require('../datapoints/required-datapoints');
-const log = require('../log');
+const log = require('../general/log');
 
 const ValueHistoryLength = 1;
 
@@ -284,7 +284,17 @@ class WebSocketConnection {
 
     if (!cdatapoint) {
       if (version == 0) return;
-      if (!wsp.isServer) return;
+      if (!wsp.isServer) {
+        if (version == 1) {
+          const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
+          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+          if (!datapoint.initialized) {
+            datapoint.setAsInitializing();
+            datapoint.validate({ evenIfValid: true });
+          }
+        }
+        return;
+      }
 
       cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
 
@@ -658,8 +668,21 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../datapoints/required-datapoints":10,"../general/diff":22,"../general/is-equal":23,"../general/public-api":28,"../log":35}],3:[function(require,module,exports){
-module.exports = undefined;
+},{"../datapoints/convert-ids":7,"../datapoints/required-datapoints":10,"../general/diff":22,"../general/is-equal":23,"../general/log":25,"../general/public-api":29}],3:[function(require,module,exports){
+/*const codeDom = require('../thingcoder/code-dom'),
+  codeParser = require('../thingcoder/code-parser'),
+  render = require('../thingcoder/render'),
+  codeTokenizer = require('../thingcoder/code-tokenizer'),
+  parsedTexts = require('../thingcoder/parsed-texts');
+
+module.exports = {
+  codeDom,
+  codeParser,
+  render,
+  codeTokenizer,
+  parsedTexts,
+};
+*/
 
 },{}],4:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
@@ -732,7 +755,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../dom/dom-functions":14,"../general/public-api":28,"./page-state":6}],5:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../dom/dom-functions":14,"../general/public-api":29,"./page-state":6}],5:[function(require,module,exports){
 const PageState = require('./page-state'),
   WebSocketClient = require('../api/web-socket-client'),
   WebSocketProtocol = require('../api/web-socket-protocol'),
@@ -744,7 +767,7 @@ const PageState = require('./page-state'),
   DatapointCache = require('../datapoints/datapoint-cache'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
-  log = require('../log');
+  log = require('../general/log');
 
 const schema = new Schema();
 schema.loadSource([
@@ -861,7 +884,7 @@ domGenerator.prepPage();
 
 pageState.visit();
 
-document.nobo = {
+window.nobo = {
   PageState,
   WebSocketClient,
   WebSocketProtocol,
@@ -882,7 +905,7 @@ document.nobo = {
   wsprotocol,
 };
 
-},{"../api/web-socket-client":1,"../api/web-socket-protocol":2,"../datapoints/datapoint-cache":8,"../dom/dom-functions":14,"../dom/dom-generator":15,"../dom/dom-updater":16,"../general/schema":29,"../log":35,"./app-client":3,"./client-actions":4,"./page-state":6}],6:[function(require,module,exports){
+},{"../api/web-socket-client":1,"../api/web-socket-protocol":2,"../datapoints/datapoint-cache":8,"../dom/dom-functions":14,"../dom/dom-generator":15,"../dom/dom-updater":16,"../general/log":25,"../general/schema":30,"./app-client":3,"./client-actions":4,"./page-state":6}],6:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 
@@ -1061,7 +1084,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/public-api":28}],7:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/public-api":29}],7:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -1326,6 +1349,8 @@ const RowChangeTrackers = require('./row-change-trackers');
 const Datapoint = require('./datapoint');
 const Templates = require('./templates');
 
+const forgetDatapointAge = 20;
+
 // other implied dependencies
 
 //const Schema = require('./schema'); // via constructor arg: schema
@@ -1374,6 +1399,9 @@ class DatapointCache {
 
       'watch',
       'stopWatching',
+
+      'uninitedDatapoints',
+      'deletionList',
     ];
   }
 
@@ -1559,6 +1587,51 @@ class DatapointCache {
       datapointId,
     }));
   }
+
+  get uninitedDatapoints() {
+    const ret = {};
+    for (const [datapointId, datapoint] of Object.entries(this.datapointsById)) {
+      if (!datapoint.initialized) {
+        ret[datapointId] = datapoint;
+      }
+    }
+    return ret;
+  }
+
+  get deletionList() {
+    const cache = this;
+    let { deletionLists } = cache;
+    if (!deletionLists) {
+      deletionLists = cache.deletionLists = [{}];
+      setInterval(() => cache._cycleDeletionList(), 1000);
+    }
+    let deletionList = deletionLists[0];
+    if (!deletionList) deletionList = deletionLists[0] = {};
+    return deletionList;
+  }
+
+  _cycleDeletionList() {
+    const cache = this,
+      { deletionLists } = cache;
+
+    if (!(deletionLists && deletionLists.length)) return;
+
+    if (deletionLists.length == forgetDatapointAge) {
+      const deletionList = deletionLists.pop();
+      if (deletionList) {
+        for (const datapoint of Object.values(deletionList)) {
+          datapoint.forget();
+        }
+      }
+    }
+
+    if (!deletionLists.find(list => list)) {
+      cache.deletionLists = undefined;
+    } else {
+      deletionLists.unshift(undefined);
+      setInterval(() => cache._cycleDeletionList(), 1000);
+    }
+  }
 }
 
 makeClassWatchable(DatapointCache);
@@ -1569,7 +1642,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/public-api":28,"../general/state-var":30,"../general/watchable":33,"./datapoint":9,"./row-change-trackers":11,"./templates":12}],9:[function(require,module,exports){
+},{"../general/public-api":29,"../general/state-var":31,"../general/watchable":34,"./datapoint":9,"./row-change-trackers":11,"./templates":12}],9:[function(require,module,exports){
 // datapoint
 // © Will Smart 2018. Licence: MIT
 
@@ -1588,7 +1661,7 @@ const makeClassWatchable = require('../general/watchable');
 const CodeSnippet = require('../general/code-snippet');
 
 const ConvertIds = require('./convert-ids');
-const log = require('../log');
+const log = require('../general/log');
 
 // other implied dependencies
 
@@ -1627,6 +1700,7 @@ class Datapoint {
       'dbRowId',
       'isClient',
       'setIsClient',
+      'forget',
     ];
   }
 
@@ -2202,9 +2276,11 @@ class Datapoint {
   }
 
   deleteIfUnwatched() {
-    const datapoint = this;
+    const datapoint = this,
+      { inDeletionList } = datapoint;
 
     if (
+      inDeletionList ||
       (datapoint.listeners && datapoint.listeners.length) ||
       datapoint.watchingOneShotResolvers ||
       (datapoint.dependentDatapointsById && Object.keys(datapoint.dependentDatapointsById).length)
@@ -2212,7 +2288,20 @@ class Datapoint {
       return;
     }
 
-    datapoint.forget();
+    const { cache, datapointId } = datapoint,
+      { deletionList } = cache;
+    datapoint.inDeletionList = deletionList;
+    deletionList[datapointId] = this;
+  }
+
+  undelete() {
+    const datapoint = this,
+      { datapointId, inDeletionList } = datapoint;
+
+    if (!inDeletionList) return;
+
+    delete inDeletionList[datapointId];
+    delete datapoint.inDeletionList;
   }
 
   forget() {
@@ -2275,7 +2364,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
 
-},{"../general/clone":20,"../general/code-snippet":21,"../general/is-equal":23,"../general/map-values":25,"../general/public-api":28,"../general/watchable":33,"../log":35,"./convert-ids":7,"change-case":37}],10:[function(require,module,exports){
+},{"../general/clone":20,"../general/code-snippet":21,"../general/is-equal":23,"../general/log":25,"../general/map-values":26,"../general/public-api":29,"../general/watchable":34,"./convert-ids":7,"change-case":37}],10:[function(require,module,exports){
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
@@ -2448,7 +2537,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/map-values":25,"../general/public-api":28,"./convert-ids":7}],11:[function(require,module,exports){
+},{"../general/map-values":26,"../general/public-api":29,"./convert-ids":7}],11:[function(require,module,exports){
 // row-change-trackers
 // © Will Smart 2018. Licence: MIT
 
@@ -2588,7 +2677,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/change-detector-object":19,"../general/public-api":28,"./convert-ids":7}],12:[function(require,module,exports){
+},{"../general/change-detector-object":19,"../general/public-api":29,"./convert-ids":7}],12:[function(require,module,exports){
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
@@ -3025,7 +3114,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../dom/dom-generator":15,"../general/map-values":25,"../general/public-api":28,"./convert-ids":7}],13:[function(require,module,exports){
+},{"../dom/dom-generator":15,"../general/map-values":26,"../general/public-api":29,"./convert-ids":7}],13:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const { cloneShowingElementNames } = require('../general/name-for-element');
 const { rangeForElement, forEachInElementRange } = require('./dom-functions');
@@ -3107,11 +3196,11 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/name-for-element":26,"../general/public-api":28,"./dom-functions":14}],14:[function(require,module,exports){
+},{"../general/name-for-element":27,"../general/public-api":29,"./dom-functions":14}],14:[function(require,module,exports){
 const ChangeCase = require('change-case');
 const ConvertIds = require('../datapoints/convert-ids');
 const nameForElement = require('../general/name-for-element');
-const log = require('../log');
+const log = require('../general/log');
 
 // API is just all the functions
 module.exports = {
@@ -3152,6 +3241,7 @@ module.exports = {
 };
 
 const waitCountAttributeName = 'nobo-wait-count',
+  waitNamesAttributeName = 'nobo-wait-names',
   waitingChangesAttributeName = 'nobo-waiting-changes',
   rootInChangeIdAttributeName = 'nobo-root-in-change';
 
@@ -3475,11 +3565,12 @@ function _describeTree(element, indent = '') {
     name = nameForElement(element),
     clas = element.className.replace(' ', '+'),
     waitCount = elementWaitCount(element),
+    waitNames = elementWaitNames(element),
     rootInChangeId = elementRootInChangeId(element),
     waitingChangeIds = elementWaitingChangeIds(element),
-    waitInfo = `${waitCount ? `Wx${waitCount}` : ''}${rootInChangeId ? `R${rootInChangeId}` : ''}${
-      waitingChangeIds.length ? `C[${waitingChangeIds.join(',')}]` : ''
-    }`,
+    waitInfo = `${waitCount ? `Wx${waitCount}` : ''}${waitNames.length ? `[${waitNames.join(',')}]` : ''}${
+      rootInChangeId ? `R${rootInChangeId}` : ''
+    }${waitingChangeIds.length ? `C[${waitingChangeIds.join(',')}]` : ''}`,
     desc = `${name}${clas ? `.${clas}` : ''}${templateDatapointId ? `:${rowId}${variant ? `[${variant}]` : ''}` : ''}${
       waitInfo ? `{${waitInfo}}` : ''
     }`;
@@ -3495,6 +3586,12 @@ function _describeTree(element, indent = '') {
 function elementWaitCount(element) {
   return Number(element.getAttribute(waitCountAttributeName) || 0);
 }
+
+function elementWaitNames(element) {
+  const names = element.getAttribute(waitNamesAttributeName);
+  return names ? names.split(' ') : [];
+}
+
 function elementRootInChangeId(element) {
   return element.getAttribute(rootInChangeIdAttributeName) || undefined;
 }
@@ -3504,7 +3601,7 @@ function elementWaitingChangeIds(element) {
   return value ? value.split(' ') : [];
 }
 
-},{"../datapoints/convert-ids":7,"../general/name-for-element":26,"../log":35,"change-case":37}],15:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/log":25,"../general/name-for-element":27,"change-case":37}],15:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 const TemplatedText = require('./templated-text');
@@ -3881,37 +3978,57 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/public-api":28,"../general/watchable":33,"./dom-functions":14,"./templated-text":18}],16:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/public-api":29,"../general/watchable":34,"./dom-functions":14,"./templated-text":18}],16:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
 const ConvertIds = require('../datapoints/convert-ids');
 const DomWaitingChangeQueue = require('./dom-waiting-change-queue');
 const { nameForElement, cloneShowingElementNames } = require('../general/name-for-element');
-const log = require('../log');
+const log = require('../general/log');
 
 const { rangeForElement, childRangeAtIndex, variantForTemplateDatapointId } = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of the DomUpdater class
 
 const waitCountAttributeName = 'nobo-wait-count';
+const waitNamesAttributeName = 'nobo-wait-names';
 
 function elementWaitCount(element) {
   return Number(element.getAttribute(waitCountAttributeName) || 0);
 }
 
-function incElementWaitCount(element) {
+function elementWaitNames(element) {
+  const names = element.getAttribute(waitNamesAttributeName);
+  return names ? names.split(' ') : [];
+}
+
+function incElementWaitCount(element, name) {
   const waitCount = elementWaitCount(element) + 1;
   element.setAttribute(waitCountAttributeName, waitCount);
+  const waitNames = elementWaitNames(element);
+  if (waitNames.indexOf(name) != -1)
+    log('err.dom', `Didn't expect element ${nameForElement(element)} to already be waiting on name ${name}`);
+  waitNames.push(name);
+  element.setAttribute(waitNamesAttributeName, waitNames.join(' '));
   return waitCount;
 }
 
-function decElementWaitCount(element) {
+function decElementWaitCount(element, name) {
   const waitCount = elementWaitCount(element) - 1;
   if (waitCount) {
     element.setAttribute(waitCountAttributeName, waitCount);
   } else {
     element.removeAttribute(waitCountAttributeName);
+  }
+  const waitNames = elementWaitNames(element);
+  const index = waitNames.indexOf(name);
+  if (index == -1) log('err.dom', `Expected element ${nameForElement(element)} to be waiting on name ${name}`);
+  else waitNames.splice(index, 1);
+  if (waitNames.length) {
+    element.setAttribute(waitNamesAttributeName, waitNames.join(' '));
+  } else {
+    element.removeAttribute(waitNamesAttributeName);
   }
   return waitCount;
 }
@@ -3959,7 +4076,7 @@ class DomUpdater {
                 element
               )})`
             );
-            incElementWaitCount(element);
+            incElementWaitCount(element, datapoint.datapointId);
           }
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'template'),
@@ -3986,7 +4103,7 @@ class DomUpdater {
               'dom',
               `> dp ${datapoint.datapointId} not initialized (wanted for dom on element ${nameForElement(element)})`
             );
-            incElementWaitCount(element);
+            incElementWaitCount(element, datapoint.datapointId);
           }
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'dom'),
@@ -4019,7 +4136,7 @@ class DomUpdater {
                 element
               )})`
             );
-            incElementWaitCount(element);
+            incElementWaitCount(element, datapoint.datapointId);
           }
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'children'),
@@ -4031,7 +4148,7 @@ class DomUpdater {
                 )})`,
                 datapoint.valueIfAny
               );
-              domUpdater.decWaitCount(element);
+              domUpdater.decWaitCount(element, datapoint.datapointId);
             },
             onchange: () => {
               const children = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [],
@@ -4086,7 +4203,7 @@ class DomUpdater {
                 'dom',
                 `> dp ${datapoint.datapointId} not initialized (wanted for value on element ${nameForElement(element)})`
               );
-              incElementWaitCount(element);
+              incElementWaitCount(element, datapoint.datapointId);
             }
             datapoint.watch({
               callbackKey: callbackKeyOnElement(element, 'value'),
@@ -4098,7 +4215,7 @@ class DomUpdater {
                   )})`,
                   datapoint.valueIfAny
                 );
-                domUpdater.decWaitCount(element);
+                domUpdater.decWaitCount(element, datapoint.datapointId);
               },
               onchange: () => {
                 const usesString = element.getAttribute(`nobo-use-${datapointId}`),
@@ -4178,9 +4295,9 @@ class DomUpdater {
     });
   }
 
-  decWaitCount(element) {
+  decWaitCount(element, name) {
     const domUpdater = this,
-      waitCount = decElementWaitCount(element);
+      waitCount = decElementWaitCount(element, name);
     if (!waitCount) {
       domUpdater.domWaitingChangeQueue.elementIsDoneWaiting(element);
     }
@@ -4262,7 +4379,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/diff":22,"../general/name-for-element":26,"../general/public-api":28,"../log":35,"./dom-functions":14,"./dom-waiting-change-queue":17,"./templated-text":18}],17:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/diff":22,"../general/log":25,"../general/name-for-element":27,"../general/public-api":29,"./dom-functions":14,"./dom-waiting-change-queue":17,"./templated-text":18}],17:[function(require,module,exports){
 const DomChangeQueue = require('./dom-change-queue');
 const PublicApi = require('../general/public-api');
 const { forEachInElementRange, findInElementRange, logChange } = require('./dom-functions');
@@ -4515,7 +4632,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/public-api":28,"./dom-change-queue":13,"./dom-functions":14}],18:[function(require,module,exports){
+},{"../general/public-api":29,"./dom-change-queue":13,"./dom-functions":14}],18:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const locateEnd = require('../general/locate-end');
 const CodeSnippet = require('../general/code-snippet');
@@ -4645,7 +4762,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/code-snippet":21,"../general/locate-end":24,"../general/public-api":28,"../general/state-var":30}],19:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/code-snippet":21,"../general/locate-end":24,"../general/public-api":29,"../general/state-var":31}],19:[function(require,module,exports){
 // change-detector-object
 // © Will Smart 2018. Licence: MIT
 
@@ -4786,7 +4903,7 @@ function cloneObject(obj) {
 const PublicApi = require('./public-api');
 const changeDetectorObject = require('./change-detector-object');
 const wrapFunctionLocals = require('./wrap-function-locals');
-const log = require('../log');
+const log = require('../general/log');
 
 class Code {
   static withString(codeString) {
@@ -4951,7 +5068,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../log":35,"./change-detector-object":19,"./public-api":28,"./wrap-function-locals":34}],22:[function(require,module,exports){
+},{"../general/log":25,"./change-detector-object":19,"./public-api":29,"./wrap-function-locals":35}],22:[function(require,module,exports){
 // diff
 // © Will Smart 2018. Licence: MIT
 
@@ -4974,7 +5091,7 @@ module.exports = PublicApi({
 // API is the function. Use via
 //   const diffAny = require(pathToDiff)
 
-const log = require('../log'),
+const log = require('./log'),
   isEqual = require('./is-equal');
 
 module.exports = diffAny;
@@ -5384,7 +5501,7 @@ if (typeof window !== 'undefined') {
   };
 }
 
-},{"../log":35,"./is-equal":23,"random-seed":54}],23:[function(require,module,exports){
+},{"./is-equal":23,"./log":25,"random-seed":54}],23:[function(require,module,exports){
 // compare
 // © Will Smart 2018. Licence: MIT
 
@@ -5841,6 +5958,47 @@ function locateEnd(string, closeChar, openIndex = 0) {
 }
 
 },{}],25:[function(require,module,exports){
+module.exports = log;
+
+const enabledLogs = { err: true, dom: true };
+
+function logIsEnabled(module) {
+  let parent = enabledLogs;
+  for (const part of module.split('.')) {
+    let val = parent[part];
+    if (!val) {
+      val = parent.other;
+      if (!val) return false;
+    }
+    if (val === true) return true;
+    if (typeof val !== 'object') return false;
+    parent = val;
+  }
+  return true;
+}
+
+function log(module, ...args) {
+  if (!logIsEnabled(module)) return false;
+  if (args.length == 1 && typeof args[0] == 'function') args = [args[0]()];
+  if (module === 'err' || module.startsWith('err.')) console.error.apply(console, args);
+  else console.log.apply(console, args);
+  return true;
+}
+
+log.enableLog = function(module) {
+  enabledLogs[module] = true;
+};
+
+log.disableLog = function(module) {
+  delete enabledLogs[module];
+};
+
+if (typeof window !== 'undefined') {
+  window.enableNoboLog = log.enableLog;
+  window.disableNoboLog = log.disableLog;
+}
+
+},{}],26:[function(require,module,exports){
 // map_values
 // © Will Smart 2018. Licence: MIT
 
@@ -5861,7 +6019,7 @@ function mapValues(object, fn) {
   return ret;
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 // clone
 // © Will Smart 2018. Licence: MIT
 
@@ -5913,7 +6071,7 @@ function _cloneShowingElementNames(value) {
   return { clone: value };
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // names-from-code
 // © Will Smart 2018. Licence: MIT
 
@@ -6031,7 +6189,7 @@ function addNamesFromCodeString(codeString, names) {
   }
 }
 
-},{"./locate-end":24,"./unicode-categories":32}],28:[function(require,module,exports){
+},{"./locate-end":24,"./unicode-categories":33}],29:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -6148,7 +6306,7 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
   return PublicClass;
 }
 
-},{}],29:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 const strippedValues = require('./stripped-values');
 const ConvertIds = require('../datapoints/convert-ids');
 const PublicApi = require('./public-api');
@@ -6404,7 +6562,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"./code-snippet":21,"./public-api":28,"./stripped-values":31}],30:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"./code-snippet":21,"./public-api":29,"./stripped-values":32}],31:[function(require,module,exports){
 // state-var
 // © Will Smart 2018. Licence: MIT
 
@@ -6481,7 +6639,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"./change-detector-object":19,"./public-api":28}],31:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"./change-detector-object":19,"./public-api":29}],32:[function(require,module,exports){
 const mapValues = require('../general/map-values');
 
 // API
@@ -6494,7 +6652,7 @@ function strippedValues(object) {
   );
 }
 
-},{"../general/map-values":25}],32:[function(require,module,exports){
+},{"../general/map-values":26}],33:[function(require,module,exports){
 // unicode-regex-categories
 // © Will Smart 2018. Licence: MIT
 // with thanks to http://inimino.org/~inimino/blog/javascript_cset also under MIT licence
@@ -6533,7 +6691,7 @@ module.exports = {
   varInnard,
 };
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 // watchable
 // © Will Smart 2018. Licence: MIT
 
@@ -6609,7 +6767,7 @@ function makeClassWatchable(watchableClass) {
   });
 }
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 // wrap-function-locals
 // © Will Smart 2018. Licence: MIT
 
@@ -6619,7 +6777,7 @@ function makeClassWatchable(watchableClass) {
 // API is auto-generated at the bottom from the public interface of the CodeSnippet class
 
 const namesFromCodeString = require('./names-from-code-string');
-const log = require('../log');
+const log = require('../general/log');
 
 const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.))*$/;
 function hasUnicodeEscape(string) {
@@ -6682,48 +6840,7 @@ function wrappedCodeString({ vars, codeString, isExpression }) {
   }
 }
 
-},{"../log":35,"./names-from-code-string":27}],35:[function(require,module,exports){
-module.exports = log;
-
-const enabledLogs = { err: { other: true } };
-
-function logIsEnabled(module) {
-  let parent = enabledLogs;
-  for (const part of module.split('.')) {
-    let val = parent[part];
-    if (!val) {
-      val = parent.other;
-      if (!val) return false;
-    }
-    if (val === true) return true;
-    if (typeof val !== 'object') return false;
-    parent = val;
-  }
-  return true;
-}
-
-function log(module, ...args) {
-  if (!logIsEnabled(module)) return false;
-  if (args.length == 1 && typeof args[0] == 'function') args = [args[0]()];
-  if (module === 'err' || module.startsWith('err.')) console.error.apply(console, args);
-  else console.log.apply(console, args);
-  return true;
-}
-
-log.enableLog = function(module) {
-  enabledLogs[module] = true;
-};
-
-log.disableLog = function(module) {
-  delete enabledLogs[module];
-};
-
-if (typeof window !== 'undefined') {
-  window.enableNoboLog = log.enableLog;
-  window.disableNoboLog = log.disableLog;
-}
-
-},{}],36:[function(require,module,exports){
+},{"../general/log":25,"./names-from-code-string":28}],36:[function(require,module,exports){
 var upperCase = require('upper-case')
 var noCase = require('no-case')
 

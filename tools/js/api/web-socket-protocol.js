@@ -3,7 +3,7 @@ const PublicApi = require('../general/public-api');
 const isEqual = require('../general/is-equal');
 const ConvertIds = require('../datapoints/convert-ids');
 const RequiredDatapoints = require('../datapoints/required-datapoints');
-const log = require('../log');
+const log = require('../general/log');
 
 const ValueHistoryLength = 1;
 
@@ -104,7 +104,17 @@ class WebSocketConnection {
 
     if (!cdatapoint) {
       if (version == 0) return;
-      if (!wsp.isServer) return;
+      if (!wsp.isServer) {
+        if (version == 1) {
+          const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
+          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+          if (!datapoint.initialized) {
+            datapoint.setAsInitializing();
+            datapoint.validate({ evenIfValid: true });
+          }
+        }
+        return;
+      }
 
       cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
 

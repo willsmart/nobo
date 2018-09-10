@@ -14,6 +14,8 @@ const RowChangeTrackers = require('./row-change-trackers');
 const Datapoint = require('./datapoint');
 const Templates = require('./templates');
 
+const forgetDatapointAge = 20;
+
 // other implied dependencies
 
 //const Schema = require('./schema'); // via constructor arg: schema
@@ -62,6 +64,9 @@ class DatapointCache {
 
       'watch',
       'stopWatching',
+
+      'uninitedDatapoints',
+      'deletionList',
     ];
   }
 
@@ -246,6 +251,51 @@ class DatapointCache {
       templates: cache.templates,
       datapointId,
     }));
+  }
+
+  get uninitedDatapoints() {
+    const ret = {};
+    for (const [datapointId, datapoint] of Object.entries(this.datapointsById)) {
+      if (!datapoint.initialized) {
+        ret[datapointId] = datapoint;
+      }
+    }
+    return ret;
+  }
+
+  get deletionList() {
+    const cache = this;
+    let { deletionLists } = cache;
+    if (!deletionLists) {
+      deletionLists = cache.deletionLists = [{}];
+      setInterval(() => cache._cycleDeletionList(), 1000);
+    }
+    let deletionList = deletionLists[0];
+    if (!deletionList) deletionList = deletionLists[0] = {};
+    return deletionList;
+  }
+
+  _cycleDeletionList() {
+    const cache = this,
+      { deletionLists } = cache;
+
+    if (!(deletionLists && deletionLists.length)) return;
+
+    if (deletionLists.length == forgetDatapointAge) {
+      const deletionList = deletionLists.pop();
+      if (deletionList) {
+        for (const datapoint of Object.values(deletionList)) {
+          datapoint.forget();
+        }
+      }
+    }
+
+    if (!deletionLists.find(list => list)) {
+      cache.deletionLists = undefined;
+    } else {
+      deletionLists.unshift(undefined);
+      setInterval(() => cache._cycleDeletionList(), 1000);
+    }
   }
 }
 

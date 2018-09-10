@@ -1,5 +1,5 @@
 const fs = require('fs');
-const log = require('../log');
+const log = require('../general/log');
 const PublicApi = require('../general/public-api');
 const util = require('util');
 const { promisify } = util;

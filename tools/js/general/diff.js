@@ -20,7 +20,7 @@
 // API is the function. Use via
 //   const diffAny = require(pathToDiff)
 
-const log = require('../log'),
+const log = require('./log'),
   isEqual = require('./is-equal');
 
 module.exports = diffAny;

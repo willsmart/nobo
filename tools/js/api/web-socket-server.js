@@ -2,13 +2,13 @@ const WebSocket = require('ws');
 const { URL } = require('url');
 const MyCrypto = require('../general/mycrypto');
 const Cookie = require('cookie');
-const ConvertIds = require('./convert-ids');
+const ConvertIds = require('../datapoints/convert-ids');
 const PageServer = require('../server/page-server');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
 const WebSocketProtocol = require('./web-socket-protocol');
 const RowProxy = require('../datapoints/row-proxy');
-const log = require('../log');
+const log = require('../general/log');
 
 // API is auto-generated at the bottom from the public interface of this class
 

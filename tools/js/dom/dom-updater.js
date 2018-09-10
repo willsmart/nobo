@@ -4,30 +4,50 @@ const diffAny = require('../general/diff');
 const ConvertIds = require('../datapoints/convert-ids');
 const DomWaitingChangeQueue = require('./dom-waiting-change-queue');
 const { nameForElement, cloneShowingElementNames } = require('../general/name-for-element');
-const log = require('../log');
+const log = require('../general/log');
 
 const { rangeForElement, childRangeAtIndex, variantForTemplateDatapointId } = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of the DomUpdater class
 
 const waitCountAttributeName = 'nobo-wait-count';
+const waitNamesAttributeName = 'nobo-wait-names';
 
 function elementWaitCount(element) {
   return Number(element.getAttribute(waitCountAttributeName) || 0);
 }
 
-function incElementWaitCount(element) {
+function elementWaitNames(element) {
+  const names = element.getAttribute(waitNamesAttributeName);
+  return names ? names.split(' ') : [];
+}
+
+function incElementWaitCount(element, name) {
   const waitCount = elementWaitCount(element) + 1;
   element.setAttribute(waitCountAttributeName, waitCount);
+  const waitNames = elementWaitNames(element);
+  if (waitNames.indexOf(name) != -1)
+    log('err.dom', `Didn't expect element ${nameForElement(element)} to already be waiting on name ${name}`);
+  waitNames.push(name);
+  element.setAttribute(waitNamesAttributeName, waitNames.join(' '));
   return waitCount;
 }
 
-function decElementWaitCount(element) {
+function decElementWaitCount(element, name) {
   const waitCount = elementWaitCount(element) - 1;
   if (waitCount) {
     element.setAttribute(waitCountAttributeName, waitCount);
   } else {
     element.removeAttribute(waitCountAttributeName);
+  }
+  const waitNames = elementWaitNames(element);
+  const index = waitNames.indexOf(name);
+  if (index == -1) log('err.dom', `Expected element ${nameForElement(element)} to be waiting on name ${name}`);
+  else waitNames.splice(index, 1);
+  if (waitNames.length) {
+    element.setAttribute(waitNamesAttributeName, waitNames.join(' '));
+  } else {
+    element.removeAttribute(waitNamesAttributeName);
   }
   return waitCount;
 }
@@ -75,7 +95,7 @@ class DomUpdater {
                 element
               )})`
             );
-            incElementWaitCount(element);
+            incElementWaitCount(element, datapoint.datapointId);
           }
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'template'),
@@ -102,7 +122,7 @@ class DomUpdater {
               'dom',
               `> dp ${datapoint.datapointId} not initialized (wanted for dom on element ${nameForElement(element)})`
             );
-            incElementWaitCount(element);
+            incElementWaitCount(element, datapoint.datapointId);
           }
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'dom'),
@@ -135,7 +155,7 @@ class DomUpdater {
                 element
               )})`
             );
-            incElementWaitCount(element);
+            incElementWaitCount(element, datapoint.datapointId);
           }
           datapoint.watch({
             callbackKey: callbackKeyOnElement(element, 'children'),
@@ -147,7 +167,7 @@ class DomUpdater {
                 )})`,
                 datapoint.valueIfAny
               );
-              domUpdater.decWaitCount(element);
+              domUpdater.decWaitCount(element, datapoint.datapointId);
             },
             onchange: () => {
               const children = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [],
@@ -202,7 +222,7 @@ class DomUpdater {
                 'dom',
                 `> dp ${datapoint.datapointId} not initialized (wanted for value on element ${nameForElement(element)})`
               );
-              incElementWaitCount(element);
+              incElementWaitCount(element, datapoint.datapointId);
             }
             datapoint.watch({
               callbackKey: callbackKeyOnElement(element, 'value'),
@@ -214,7 +234,7 @@ class DomUpdater {
                   )})`,
                   datapoint.valueIfAny
                 );
-                domUpdater.decWaitCount(element);
+                domUpdater.decWaitCount(element, datapoint.datapointId);
               },
               onchange: () => {
                 const usesString = element.getAttribute(`nobo-use-${datapointId}`),
@@ -294,9 +314,9 @@ class DomUpdater {
     });
   }
 
-  decWaitCount(element) {
+  decWaitCount(element, name) {
     const domUpdater = this,
-      waitCount = decElementWaitCount(element);
+      waitCount = decElementWaitCount(element, name);
     if (!waitCount) {
       domUpdater.domWaitingChangeQueue.elementIsDoneWaiting(element);
     }
