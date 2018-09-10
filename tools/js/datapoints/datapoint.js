@@ -61,7 +61,7 @@ class Datapoint {
   constructor({ cache, schema, templates, datapointId, isClient }) {
     const datapoint = this;
 
-    log('dp',`creating datapoint ${datapointId}`);
+    log('dp', `creating datapoint ${datapointId}`);
 
     const datapointInfo = ConvertIds.decomposeId({
       datapointId: datapointId,
@@ -253,11 +253,12 @@ class Datapoint {
       });
     }
 
-    log('dp',`Datapoint ${datapoint.datapointId} -> ${value}`);
+    log('dp', `Datapoint ${datapoint.datapointId} -> ${value}`);
 
-    const valueWas = datapoint._value;
+    const valueWas = datapoint._value,
+      hadValue = datapoint.hasOwnProperty('_value');
     value = datapoint._value = clone(value);
-    const changed = !isEqual(value, valueWas, { exact: true });
+    const changed = !hadValue || !isEqual(value, valueWas, { exact: true });
     delete datapoint._invalid;
 
     const didInit = datapoint._initializing;
@@ -512,7 +513,7 @@ class Datapoint {
         rowId,
       });
     } catch (err) {
-      log('err',err);
+      log('err', err);
     }
   }
 
@@ -643,7 +644,7 @@ class Datapoint {
   }
 
   forget() {
-    log('dp',`forgetting datapoint ${this.datapointId}`);
+    log('dp', `forgetting datapoint ${this.datapointId}`);
     const datapoint = this,
       { cache, datapointId } = datapoint;
 

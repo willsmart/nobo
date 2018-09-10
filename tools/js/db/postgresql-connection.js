@@ -207,8 +207,13 @@ class PostgresqlConnection {
     const sqlTypeTable = ChangeCase.snakeCase(type.name);
 
     const fieldInfos = [];
+    let isDelete = false;
 
     fields.forEach(field => {
+      if (field.name == '*' && field.value == null) {
+        isDelete = true;
+        return;
+      }
       const fieldInfo = PostgresqlConnection.processFieldInfoForSave(
         type,
         dbRowId,
@@ -218,6 +223,13 @@ class PostgresqlConnection {
       );
       if (fieldInfo) fieldInfos.push(fieldInfo);
     });
+
+    if (isDelete) {
+      return connection.deleteRowInDB({
+        tableName: sqlTypeTable,
+        dbRowId,
+      });
+    }
 
     if (!fieldInfos.length) return;
     return connection.updateRowInDB({
@@ -240,6 +252,17 @@ class PostgresqlConnection {
     });
 
     const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(', ')} WHERE "${tableName}"."id" = ${dbRowId}`;
+
+    return connection.query(sql, fieldValues);
+  }
+
+  /// Deletes one row of a given table
+  deleteRowInDB({ tableName, dbRowId }) {
+    const connection = this;
+
+    if (!dbRowId) return;
+
+    const sql = `DELETE FROM "${tableName}" WHERE "${tableName}"."id" = ${dbRowId}`;
 
     return connection.query(sql, fieldValues);
   }

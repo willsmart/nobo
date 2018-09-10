@@ -43,8 +43,10 @@ class PageServer {
     server.on('request', function upgrade(request, response) {
       if (!isPageRequest(request)) return;
 
-      response.write(page.page);
-      response.end();
+      page.page().then(body => {
+        response.write(body);
+        response.end();
+      });
     });
 
     server.listen(port);

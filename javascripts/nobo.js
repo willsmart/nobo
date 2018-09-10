@@ -1,18 +1,5 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-/*const codeDom = require('../thingcoder/code-dom'),
-  codeParser = require('../thingcoder/code-parser'),
-  render = require('../thingcoder/render'),
-  codeTokenizer = require('../thingcoder/code-tokenizer'),
-  parsedTexts = require('../thingcoder/parsed-texts');
-
-module.exports = {
-  codeDom,
-  codeParser,
-  render,
-  codeTokenizer,
-  parsedTexts,
-};
-*/
+module.exports = undefined;
 
 },{}],2:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
@@ -650,7 +637,7 @@ module.exports = PublicApi({
 
 const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   dbRowIdRegex = /([1-9][0-9]*)/,
-  fieldNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*|)/,
+  fieldNameRegex = /(\*|[a-z0-9]+(?:_[a-z0-9]+)*|)/,
   // at some levels the system uses 'proxy' and 'proxyable' row ids
   // eg, when retrieving a model like 'user__me' the 'me' is a proxy row id
   proxyKeyRegex = /([a-z][a-z0-9]*(?:_[a-z0-9]+)*)/,
@@ -783,7 +770,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
     ret.rowId = `${ret.typeName}__${ret.dbRowId}`;
 
     if (fieldName !== undefined) {
-      ret.fieldName = ChangeCase.snakeCase(fieldName);
+      ret.fieldName = fieldName == '*' ? '*' : ChangeCase.snakeCase(fieldName);
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
@@ -794,7 +781,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
     ret.rowId = `${ret.typeName}__${ret.proxyKey}`;
 
     if (fieldName !== undefined) {
-      ret.fieldName = ChangeCase.snakeCase(fieldName);
+      ret.fieldName = fieldName == '*' ? '*' : ChangeCase.snakeCase(fieldName);
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
@@ -805,7 +792,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
   }
 
   ret.typeName = ChangeCase.pascalCase(ret.typeName);
-  if (ret.fieldName !== undefined) ret.fieldName = ChangeCase.camelCase(ret.fieldName);
+  if (ret.fieldName !== undefined && ret.fieldName != '*') ret.fieldName = ChangeCase.camelCase(ret.fieldName);
 
   return ret;
 }
@@ -848,7 +835,7 @@ function stringToDatapoint(datapointId, permissive) {
       datapointId,
       rowId: match[1],
       typeName: ChangeCase.pascalCase(match[2]),
-      fieldName: ChangeCase.camelCase(match[5]),
+      fieldName: match[5] == '*' ? '*' : ChangeCase.camelCase(match[5]),
     },
     match[3]
       ? {
@@ -1186,7 +1173,7 @@ class Datapoint {
   constructor({ cache, schema, templates, datapointId, isClient }) {
     const datapoint = this;
 
-    log('dp',`creating datapoint ${datapointId}`);
+    log('dp', `creating datapoint ${datapointId}`);
 
     const datapointInfo = ConvertIds.decomposeId({
       datapointId: datapointId,
@@ -1378,11 +1365,12 @@ class Datapoint {
       });
     }
 
-    log('dp',`Datapoint ${datapoint.datapointId} -> ${value}`);
+    log('dp', `Datapoint ${datapoint.datapointId} -> ${value}`);
 
-    const valueWas = datapoint._value;
+    const valueWas = datapoint._value,
+      hadValue = datapoint.hasOwnProperty('_value');
     value = datapoint._value = clone(value);
-    const changed = !isEqual(value, valueWas, { exact: true });
+    const changed = !hadValue || !isEqual(value, valueWas, { exact: true });
     delete datapoint._invalid;
 
     const didInit = datapoint._initializing;
@@ -1637,7 +1625,7 @@ class Datapoint {
         rowId,
       });
     } catch (err) {
-      log('err',err);
+      log('err', err);
     }
   }
 
@@ -1768,7 +1756,7 @@ class Datapoint {
   }
 
   forget() {
-    log('dp',`forgetting datapoint ${this.datapointId}`);
+    log('dp', `forgetting datapoint ${this.datapointId}`);
     const datapoint = this,
       { cache, datapointId } = datapoint;
 
@@ -6516,7 +6504,7 @@ class RequiredDatapoints {
         for (const fieldName of template.displayedFields) {
           const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
           const datapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId, rowProxy });
-          if (!datapoint) continue;
+          if (!datapoint || datapoint.isClient) continue;
 
           if (datapoint.then) promises.push(datapoint.then(handleDatapoint));
           else handleDatapoint(datapoint);
@@ -6704,8 +6692,7 @@ class RowChangeTrackers {
     const rowChangeTrackers = this,
       { cache } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
-      datapoint =
-        value === undefined ? cache.getExistingDatapoint({ datapointId }) : cache.getOrCreateDatapoint({ datapointId });
+      datapoint = cache.getOrCreateDatapoint({ datapointId });
 
     if (datapoint) datapoint.validate({ value, evenIfValid: true });
   }

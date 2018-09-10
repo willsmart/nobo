@@ -33,7 +33,7 @@
 
 const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   dbRowIdRegex = /([1-9][0-9]*)/,
-  fieldNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*|)/,
+  fieldNameRegex = /(\*|[a-z0-9]+(?:_[a-z0-9]+)*|)/,
   // at some levels the system uses 'proxy' and 'proxyable' row ids
   // eg, when retrieving a model like 'user__me' the 'me' is a proxy row id
   proxyKeyRegex = /([a-z][a-z0-9]*(?:_[a-z0-9]+)*)/,
@@ -166,7 +166,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
     ret.rowId = `${ret.typeName}__${ret.dbRowId}`;
 
     if (fieldName !== undefined) {
-      ret.fieldName = ChangeCase.snakeCase(fieldName);
+      ret.fieldName = fieldName == '*' ? '*' : ChangeCase.snakeCase(fieldName);
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
@@ -177,7 +177,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
     ret.rowId = `${ret.typeName}__${ret.proxyKey}`;
 
     if (fieldName !== undefined) {
-      ret.fieldName = ChangeCase.snakeCase(fieldName);
+      ret.fieldName = fieldName == '*' ? '*' : ChangeCase.snakeCase(fieldName);
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
@@ -188,7 +188,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
   }
 
   ret.typeName = ChangeCase.pascalCase(ret.typeName);
-  if (ret.fieldName !== undefined) ret.fieldName = ChangeCase.camelCase(ret.fieldName);
+  if (ret.fieldName !== undefined && ret.fieldName != '*') ret.fieldName = ChangeCase.camelCase(ret.fieldName);
 
   return ret;
 }
@@ -231,7 +231,7 @@ function stringToDatapoint(datapointId, permissive) {
       datapointId,
       rowId: match[1],
       typeName: ChangeCase.pascalCase(match[2]),
-      fieldName: ChangeCase.camelCase(match[5]),
+      fieldName: match[5] == '*' ? '*' : ChangeCase.camelCase(match[5]),
     },
     match[3]
       ? {

@@ -5,30 +5,23 @@
 // API is the function. Use via
 //   const nameForElement = require(pathToFile)
 // or
-//   const {nameForElement, elementForName, cloneShowingElementNames} = require(pathToFile)
+//   const {nameForElement, cloneShowingElementNames} = require(pathToFile)
 
 module.exports = nameForElement;
 Object.assign(nameForElement, {
   nameForElement,
-  elementForName,
   cloneShowingElementNames,
 });
 
 let nextElementIndex = 1;
-const elementsByName = {};
 
 function nameForElement(element) {
   let name = element.getAttribute('nobo-name');
   if (!name) {
     name = `#${nextElementIndex++}`;
     element.setAttribute('nobo-name', name);
-    elementsByName[name] = element;
   }
   return name;
-}
-
-function elementForName(name) {
-  return elementsByName[name];
 }
 
 function cloneShowingElementNames(value) {

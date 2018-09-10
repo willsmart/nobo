@@ -91,7 +91,7 @@ class RequiredDatapoints {
         for (const fieldName of template.displayedFields) {
           const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
           const datapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId, rowProxy });
-          if (!datapoint) continue;
+          if (!datapoint || datapoint.isClient) continue;
 
           if (datapoint.then) promises.push(datapoint.then(handleDatapoint));
           else handleDatapoint(datapoint);

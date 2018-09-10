@@ -106,8 +106,7 @@ class RowChangeTrackers {
     const rowChangeTrackers = this,
       { cache } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
-      datapoint =
-        value === undefined ? cache.getExistingDatapoint({ datapointId }) : cache.getOrCreateDatapoint({ datapointId });
+      datapoint = cache.getOrCreateDatapoint({ datapointId });
 
     if (datapoint) datapoint.validate({ value, evenIfValid: true });
   }
