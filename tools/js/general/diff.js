@@ -1,8 +1,7 @@
 // diff
 // © Will Smart 2018. Licence: MIT
 
-// This is a stupidly simple diff generator
-// It is used by the SharedState module.
+// This is a simple diff generator
 // output is a fairly custom format
 //  for example
 // diffAny({a:1,b:[2,1]},{b:[1],c:2})

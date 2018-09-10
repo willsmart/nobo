@@ -1,7 +1,7 @@
 const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
-const ConvertIds = require('../convert-ids');
+const ConvertIds = require('../datapoints/convert-ids');
 const DomWaitingChangeQueue = require('./dom-waiting-change-queue');
 const { nameForElement, cloneShowingElementNames } = require('../general/name-for-element');
 const log = require('../log');

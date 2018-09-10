@@ -1,4 +1,4 @@
-// code-snippet
+// wrap-function-locals
 // © Will Smart 2018. Licence: MIT
 
 // A wrapper for vm allowing both server and client to run amophous code

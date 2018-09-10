@@ -1,4 +1,4 @@
 #!/bin/bash
 args=$@
 cd `realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/..`
-browserify tools/js/client/client.js -o javascripts/nobo.js
+node "tools/js/mains/page-dump.js" $args

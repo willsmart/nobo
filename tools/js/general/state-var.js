@@ -2,7 +2,7 @@
 // © Will Smart 2018. Licence: MIT
 
 const PublicApi = require('./public-api');
-const ConvertIds = require('../convert-ids');
+const ConvertIds = require('../datapoints/convert-ids');
 const changeDetectorObject = require('./change-detector-object');
 
 class StateVar {

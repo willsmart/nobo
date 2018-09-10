@@ -1,9 +1,9 @@
 // row-change-trackers
 // © Will Smart 2018. Licence: MIT
 
-const PublicApi = require('./general/public-api');
+const PublicApi = require('../general/public-api');
 const ConvertIds = require('./convert-ids');
-const changeDetectorObject = require('./general/change-detector-object');
+const changeDetectorObject = require('../general/change-detector-object');
 
 class RowChangeTrackers {
   // public methods

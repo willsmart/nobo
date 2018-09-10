@@ -1,5 +1,5 @@
 const PublicApi = require('../general/public-api');
-const ConvertIds = require('../convert-ids');
+const ConvertIds = require('../datapoints/convert-ids');
 
 let globalPageState;
 

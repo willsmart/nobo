@@ -5,7 +5,7 @@ const StateVar = require('../general/state-var');
 
 const { locateEndOfString } = locateEnd;
 
-const ConvertIds = require('../convert-ids');
+const ConvertIds = require('../datapoints/convert-ids');
 
 // API is auto-generated at the bottom from the public interface of this class
 

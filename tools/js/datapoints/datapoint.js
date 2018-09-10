@@ -8,15 +8,15 @@
 
 const ChangeCase = require('change-case');
 
-const clone = require('./general/clone');
-const PublicApi = require('./general/public-api');
-const mapValues = require('./general/map-values');
-const isEqual = require('./general/is-equal');
-const makeClassWatchable = require('./general/watchable');
-const CodeSnippet = require('./general/code-snippet');
+const clone = require('../general/clone');
+const PublicApi = require('../general/public-api');
+const mapValues = require('../general/map-values');
+const isEqual = require('../general/is-equal');
+const makeClassWatchable = require('../general/watchable');
+const CodeSnippet = require('../general/code-snippet');
 
 const ConvertIds = require('./convert-ids');
-const log = require('./log');
+const log = require('../log');
 
 // other implied dependencies
 

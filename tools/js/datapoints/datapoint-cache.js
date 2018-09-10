@@ -6,9 +6,9 @@
 //   This should be called in response to a signal from the db
 // They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
 
-const PublicApi = require('./general/public-api');
-const makeClassWatchable = require('./general/watchable');
-const StateVar = require('./general/state-var');
+const PublicApi = require('../general/public-api');
+const makeClassWatchable = require('../general/watchable');
+const StateVar = require('../general/state-var');
 const RowChangeTrackers = require('./row-change-trackers');
 
 const Datapoint = require('./datapoint');

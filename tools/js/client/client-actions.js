@@ -1,6 +1,5 @@
 const PublicApi = require('../general/public-api');
-const ConvertIds = require('../convert-ids');
-const SharedState = require('../general/shared-state');
+const ConvertIds = require('../datapoints/convert-ids');
 const PageState = require('./page-state');
 const { uniquePathForElement } = require('../dom/dom-functions');
 
@@ -57,7 +56,7 @@ class ClientActions {
     if ((value = element.getAttribute('clickvariant')) && ConvertIds.fieldNameRegex.test(value)) {
       element.addEventListener('click', () => {
         const path = uniquePathForElement(element);
-        SharedState.global.withTemporaryState(state => (state.atPath('overriddenElementDatapoints')[path] = value));
+        //TODO SharedState.global.withTemporaryState(state => (state.atPath('overriddenElementDatapoints')[path] = value));
       });
     }
   }

@@ -2,7 +2,7 @@ const { applyDiff, createDiff } = require('../general/diff');
 const PublicApi = require('../general/public-api');
 const isEqual = require('../general/is-equal');
 const ConvertIds = require('../datapoints/convert-ids');
-const RequiredDatapoints = require('../datapoints/required-datapoints');
+const RequiredDatapoints = require('../required-datapoints');
 const log = require('../log');
 
 const ValueHistoryLength = 1;

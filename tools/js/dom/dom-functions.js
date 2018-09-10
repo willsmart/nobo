@@ -1,5 +1,5 @@
 const ChangeCase = require('change-case');
-const ConvertIds = require('../convert-ids');
+const ConvertIds = require('../datapoints/convert-ids');
 const nameForElement = require('../general/name-for-element');
 const log = require('../log');
 

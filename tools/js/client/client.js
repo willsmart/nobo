@@ -1,14 +1,13 @@
 const PageState = require('./page-state'),
-  WebSocketClient = require('./web-socket-client'),
-  WebSocketProtocol = require('../web-socket-protocol'),
-  SharedState = require('../general/shared-state'),
+  WebSocketClient = require('../api/web-socket-client'),
+  WebSocketProtocol = require('../api/web-socket-protocol'),
   DomGenerator = require('../dom/dom-generator'),
   DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
   { htmlToElement } = require('../dom/dom-functions'),
   ClientActions = require('./client-actions'),
-  DatapointCache = require('../datapoint-cache'),
-  Schema = require('../schema'),
+  DatapointCache = require('../datapoints/datapoint-cache'),
+  Schema = require('../general/schema'),
   appClient = require('./app-client'),
   log = require('../log');
 
@@ -103,7 +102,6 @@ schema.loadSource([
 
 const appDbRowId = 1,
   wsclient = new WebSocketClient(),
-  sharedState = SharedState.global,
   cache = new DatapointCache({
     schema,
     htmlToElement,
@@ -111,14 +109,6 @@ const appDbRowId = 1,
     isClient: true,
   }),
   wsprotocol = new WebSocketProtocol({ cache, ws: wsclient, isServer: false }),
-  getDatapoint = (datapointId, defaultValue) => {
-    let datapoint = cache.getExistingDatapoint({ datapointId });
-    if (!datapoint) {
-      datapoint = cache.getOrCreateDatapoint({ datapointId });
-      datapoint.watch({});
-    }
-    return datapoint.valueIfAny || defaultValue;
-  },
   domGenerator = new DomGenerator({
     htmlToElement,
     cache,
@@ -132,12 +122,6 @@ const appDbRowId = 1,
   }),
   clientActions = new ClientActions({ domGenerator: domGenerator });
 
-SharedState.global.watch({
-  onchangedstate: function(diff, changes) {
-    log('state', `>> State change: ${JSON.stringify(diff)}`);
-  },
-});
-
 domGenerator.prepPage();
 
 pageState.visit();
@@ -146,7 +130,6 @@ document.nobo = {
   PageState,
   WebSocketClient,
   WebSocketProtocol,
-  SharedState,
   DomGenerator,
   DomUpdater,
   DomFunctions,
@@ -155,9 +138,7 @@ document.nobo = {
   appDbRowId,
   schema,
   wsclient,
-  sharedState,
   cache,
-  getDatapoint,
   domGenerator,
   domUpdater,
   pageState,

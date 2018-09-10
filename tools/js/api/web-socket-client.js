@@ -1,8 +1,7 @@
 const WebSocket = require('isomorphic-ws');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
-const SharedState = require('../general/shared-state');
-const PageState = require('./page-state');
+const PageState = require('../client/page-state');
 const log = require('../log');
 
 // API is auto-generated at the bottom from the public interface of this class
@@ -158,9 +157,9 @@ class WebSocketClient {
   signOut() {
     const client = this;
 
-    SharedState.global.withTemporaryState(tempState => {
-      tempState.atPath().datapointsById = {};
-    });
+//TODO    SharedState.global.withTemporaryState(tempState => {
+//      tempState.atPath().datapointsById = {};
+//    });
     client.phoenix = 'out';
     client.intentionalClose = true;
     client.ws.close();

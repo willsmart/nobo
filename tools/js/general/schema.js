@@ -1,7 +1,7 @@
-const strippedValues = require('./general/stripped-values');
-const ConvertIds = require('./convert-ids');
-const PublicApi = require('./general/public-api');
-const CodeSnippet = require('./general/code-snippet');
+const strippedValues = require('./stripped-values');
+const ConvertIds = require('../datapoints/convert-ids');
+const PublicApi = require('./public-api');
+const CodeSnippet = require('./code-snippet');
 
 // API is auto-generated at the bottom from the public interface of this class
 class SchemaDefn {

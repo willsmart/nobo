@@ -1,6 +1,6 @@
 const ConvertIds = require('./convert-ids');
-const PublicApi = require('./general/public-api');
-const mapValues = require('./general/map-values');
+const PublicApi = require('../general/public-api');
+const mapValues = require('../general/map-values');
 
 // API is auto-generated at the bottom from the public interface of this class
 

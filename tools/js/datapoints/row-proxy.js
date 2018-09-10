@@ -1,4 +1,4 @@
-const PublicApi = require('./general/public-api');
+const PublicApi = require('../general/public-api');
 const ConvertIds = require('./convert-ids');
 
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
