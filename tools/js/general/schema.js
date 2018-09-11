@@ -59,6 +59,7 @@ class SchemaDefn {
         },
         name: name,
         protected: false,
+        ownerField: undefined,
         fields: {},
         getEnclosingType: function() {
           return this;
@@ -180,6 +181,9 @@ class SchemaDefn {
             break;
           case 'protectedTable':
             if (me && val) me.getEnclosingType().protected = true;
+            break;
+          case 'ownerField':
+            if (me && val && typeof val == 'string') me.getEnclosingType().ownerField = val;
             break;
           case 'default':
           case 'unique':
