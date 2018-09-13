@@ -3,7 +3,7 @@ require 'fileutils'
 
 $stdout.sync = true
 
-$env = 'prod'
+$orig_env = 'prod'
 $base_join_dir = 'joined'
 $secrets_dir = "secrets"
 $ignore_in_app = /^log\/$|^tmp\/$|^\.|.pid(?:.lock)?$|\bsecrets.dat$|node_modules|page-server\/public\//
@@ -11,14 +11,18 @@ $can_pushback = true
 
 args = ARGV.dup
 loop_time = nil
+do_loop = nil
 set_arg = nil
 until (arg=args.shift).nil?
   _set_arg = nil
-  if arg=='--loop'
+  if arg=='--loop' && (do_loop.nil? || do_loop)
     _set_arg = arg
     loop_time=4
+    do_loop = true
+  elsif arg=='--no-loop'
+    do_loop = false
   elsif arg=='--joinpath' or arg=='--joinuser' or arg=='--joingroup'
-    _set_arg = arg
+  _set_arg = arg
   elsif set_arg=='--joinpath'
     $base_join_dir = arg
   elsif set_arg=='--joinuser'
@@ -33,19 +37,38 @@ until (arg=args.shift).nil?
     set_arg = nil
     case arg
     when '--development'
-      $env = 'dev'
+      $orig_env = 'dev'
     when '--production'
-      $env = 'prod'
+      $orig_env = 'prod'
     when '--deploy'
-      $env = 'deploy'
+      $orig_env = 'deploy'
     end
   end
   set_arg = _set_arg
 end
 
-$base_dirs = ['nobo','app',$env,'secrets']
-$pushback_order = ['app','nobo',$env,'secrets']
-$force_recent_dirs = [$env]
+def set_env(env)
+  $env = env
+  $base_dirs = ['nobo','app',$env,'secrets']
+  $pushback_order = ['app','nobo',$env,'secrets']
+  $force_recent_dirs = [$env]
+end
+
+set_env($orig_env)
+
+
+def refresh_env
+  envFilename = "join_env.txt"
+  env = if File.exist? envFilename
+    File.read(envFilename).strip
+  else
+    $orig_env
+  end
+  env = $orig_env unless ['prod', 'dev', 'deploy'].include? env
+  return if $env == env
+  puts "Changing to env '#{env}' after change to env pointer file '#{envFilename}'"
+  set_env(env)
+end
 
 def self.safe_JSON_parse(json)
   return if json.nil?
@@ -342,7 +365,7 @@ def sync
 end
 
 
-if loop_time.nil?
+if !do_loop || loop_time.nil?
   puts "Joining the directory trees under #{$base_dirs.to_json} into #{$base_join_dir} ..."
   if sync==0
     puts "No changes, directories were already synced"
@@ -354,6 +377,7 @@ else
   quit = false
   paused = false
   until quit
+    refresh_env
     if !paused and sync>0
       puts "... #{Time.now.to_s}\n"
     end

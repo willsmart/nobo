@@ -17,7 +17,7 @@ const exec = util.promisify(require('child_process').exec);
 async function execHaml(hamlFilename) {
   const processedHamlDir = 'templates/processedHaml/',
     htmlFilename = `${hamlFilename.replace(/^templates\//, processedHamlDir)}.html`;
-  await exec(`mkdir "$(dirname '${htmlFilename}')"`);
+  await exec(`mkdir -p "$(dirname '${htmlFilename}')"`);
   console.log(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
   const { stdout, stderr, error } = await exec(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
   //if (stdout.length) console.log(stdout);
