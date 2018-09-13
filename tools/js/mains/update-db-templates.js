@@ -15,7 +15,9 @@ const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 
 async function execHaml(hamlFilename) {
-  const htmlFilename = `${hamlFilename}.html`;
+  const processedHamlDir = 'templates/processedHaml/',
+    htmlFilename = `${hamlFilename.replace(/^templates\//, processedHamlDir)}.html`;
+  await exec(`mkdir "$(dirname '${htmlFilename}')"`);
   console.log(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
   const { stdout, stderr, error } = await exec(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
   //if (stdout.length) console.log(stdout);
@@ -101,14 +103,14 @@ async function dealWithTemplateFile({
 }) {
   const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)(?:(\.haml)?\.html|\.haml)$/,
     match = templateFileRegex.exec(filename);
-  const matchedFilename = match[1],
-    ownerOnly = !!match[2],
-    classFilter = match[3],
-    variant = match[4];
   if (!match) {
     console.log(`Skipping '${filename}' (unknown name format)`);
     return;
   }
+  const matchedFilename = match[1],
+    ownerOnly = !!match[2],
+    classFilter = match[3],
+    variant = match[4];
   if (match[5]) return; // .haml.html files are ignored
 
   if (templatesByFilename[matchedFilename]) {
