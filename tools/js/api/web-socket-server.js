@@ -142,7 +142,7 @@ class WebSocketServer {
         session,
         ws,
         index: nextWsIndex++,
-        userId: 1, //session.user ? session.user.id : undefined,
+        userId: session.user ? session.user.id : undefined,
       });
 
       server.notifyListeners('onclientConnected', client);

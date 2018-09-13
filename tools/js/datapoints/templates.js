@@ -152,6 +152,10 @@ class Templates {
       };
       node.subtree = [node];
       for (const parent of parents) parent.subtree.push(node);
+
+      const useParent = parents.find(parent => parent.template);
+      node.template = useParent ? useParent.template : undefined;
+
       node.datapoint = templates.cache.getOrCreateDatapoint({
         datapointId: templates.appTemplateDatapointId({
           variant,
@@ -196,6 +200,7 @@ class Templates {
       if (!canCreate) return;
 
       const parents = node.parents.slice();
+      parents.unshift(node);
       for (const parent of node.parents) {
         parents.unshift(
           withClassFilter({
@@ -204,7 +209,6 @@ class Templates {
           })
         );
       }
-      parents.unshift(node);
 
       if (!node.classFilters) node.classFilters = {};
       return (node.classFilters[classFilter] = newTreeNode({
@@ -220,7 +224,17 @@ class Templates {
       if (node.variants && node.variants[variant]) return node.variants[variant];
       if (!canCreate) return;
 
-      const parents = node.parents.slice();
+      const parents = [];
+      if (variant != 'missingvariant') {
+        for (const parent of node.parents) {
+          parents.unshift(
+            withVariant({
+              node: parent,
+              variant: 'missingvariant',
+            })
+          );
+        }
+      }
       for (const parent of node.parents) {
         parents.unshift(
           withVariant({
@@ -229,11 +243,10 @@ class Templates {
           })
         );
       }
-      parents.unshift(node);
 
       if (!node.variants) node.variants = {};
       return (node.variants[variant] = newTreeNode({
-        classFilter: classFilter,
+        classFilter: node.classFilter,
         variant,
         ownerOnly: node.ownerOnly,
         parents,
