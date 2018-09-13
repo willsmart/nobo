@@ -361,8 +361,8 @@ function diffArray(from, to) {
         fromIndex += value;
         break;
       case 'f':
-        const diff = diffAny(from[fromIndex], value);
-        diff.push(Object.assign(diff, { at: fromIndex++ }));
+        const diffChild = diffAny(from[fromIndex], value);
+        diff.push(Object.assign(diffChild, { at: fromIndex++ }));
         break;
     }
   }

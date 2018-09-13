@@ -1743,13 +1743,15 @@ class Datapoint {
     }
     datapoint.invalidate();
 
-    if (fieldName == 'owner') {
+    const ownerFieldName = datapoint.ownerFieldName;
+
+    if (fieldName == ownerFieldName) {
       datapoint._ownerId = false;
     } else if (type && type.protected) {
       datapoint._ownerId = false;
-    } else if (type && type.fields['owner']) {
+    } else if (type && type.fields[ownerFieldName]) {
       datapoint._ownerId = false;
-      const ownerDatapointId = type.fields['owner'].getDatapointId({ dbRowId, proxyKey });
+      const ownerDatapointId = type.fields[ownerFieldName].getDatapointId({ dbRowId, proxyKey });
       datapoint.ownerDatapoint = cache.getOrCreateDatapoint({ datapointId: ownerDatapointId });
       datapoint.ownerDatapoint.watch({
         callbackKey: datapointId,
@@ -1766,6 +1768,11 @@ class Datapoint {
         },
       });
     }
+  }
+
+  get ownerFieldName() {
+    const type = this.schema.allTypes[this._typeName];
+    return type && type.ownerField ? type.ownerField : 'owner';
   }
 
   get isClient() {
@@ -2047,7 +2054,7 @@ class Datapoint {
       const variant = ChangeCase.camelCase(match[1]);
 
       const type = schema.allTypes[datapoint.typeName],
-        ownerField = type ? type.fields['owner'] : undefined;
+        ownerField = type ? type.fields[datapoint.ownerFieldName] : undefined;
       if (!ownerField) {
         return datapoint.makeVirtualField({
           isId: true,
@@ -5432,8 +5439,8 @@ function diffArray(from, to) {
         fromIndex += value;
         break;
       case 'f':
-        const diff = diffAny(from[fromIndex], value);
-        diff.push(Object.assign(diff, { at: fromIndex++ }));
+        const diffChild = diffAny(from[fromIndex], value);
+        diff.push(Object.assign(diffChild, { at: fromIndex++ }));
         break;
     }
   }
@@ -6368,6 +6375,7 @@ class SchemaDefn {
         },
         name: name,
         protected: false,
+        ownerField: undefined,
         fields: {},
         getEnclosingType: function() {
           return this;
@@ -6489,6 +6497,9 @@ class SchemaDefn {
             break;
           case 'protectedTable':
             if (me && val) me.getEnclosingType().protected = true;
+            break;
+          case 'ownerField':
+            if (me && val && typeof val == 'string') me.getEnclosingType().ownerField = val;
             break;
           case 'default':
           case 'unique':
