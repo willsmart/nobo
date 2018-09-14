@@ -1,6 +1,7 @@
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
+const log = require('../general/log');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -43,9 +44,20 @@ class RequiredDatapoints {
     return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
   }
 
-  _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId }) {
+  _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId, stack: astack = [] }) {
     const requiredDatapoints = this,
       { templates } = requiredDatapoints;
+
+    const stack = astack.slice();
+    stack.push({ rowId, variant });
+    if (astack.find(({ rowId: rowId2, variant: variant2 }) => rowId === rowId2 && variant === variant2)) {
+      log('err', 'Recursive required datapoints. Stack: ', stack);
+      return;
+    }
+    if (stack.length > 50) {
+      log('err', 'Required datapoints recursed too many times. Stack: ', stack);
+      return;
+    }
 
     const templateDatapointId = ConvertIds.recomposeId({ rowId, fieldName: `template_${variant || ''}` }).datapointId,
       templateDatapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId: templateDatapointId, rowProxy });
@@ -113,6 +125,7 @@ class RequiredDatapoints {
             promises,
             rowProxy,
             userId,
+            stack,
           });
         }
         for (const { fieldName, variants } of template.children) {
@@ -153,6 +166,7 @@ class RequiredDatapoints {
                     promises,
                     rowProxy,
                     userId,
+                    stack,
                   });
                 }
               }

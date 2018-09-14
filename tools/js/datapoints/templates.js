@@ -346,8 +346,8 @@ class Template {
         children[datapointInfo.fieldName][element.getAttribute('variant') || 'default'] = true;
       }
       if (
-        (element.classList.contains('model-child') && element.getAttribute('model')) ||
-        element.hasAttribute('variant')
+        element.classList.contains('model-child') &&
+        (element.getAttribute('model') || element.hasAttribute('variant'))
       ) {
         const rowId = element.getAttribute('model'),
           variant = element.getAttribute('variant');
