@@ -139,7 +139,7 @@ class WebSocketClient {
     );
   }
 
-  sendPayload({ messageIndex = -1, messageType, payloadObject }) {
+  sendPayload({ messageIndex = -1, messageType, payloadObject = {} }) {
     const client = this;
 
     if (!client.isOpen) return;
@@ -157,9 +157,9 @@ class WebSocketClient {
   signOut() {
     const client = this;
 
-//TODO    SharedState.global.withTemporaryState(tempState => {
-//      tempState.atPath().datapointsById = {};
-//    });
+    //TODO    SharedState.global.withTemporaryState(tempState => {
+    //      tempState.atPath().datapointsById = {};
+    //    });
     client.phoenix = 'out';
     client.intentionalClose = true;
     client.ws.close();

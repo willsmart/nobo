@@ -1,6 +1,6 @@
 module.exports = log;
 
-const enabledLogs = { err: true, dom: true };
+const enabledLogs = { err: true, dom: true, ws: true };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;
