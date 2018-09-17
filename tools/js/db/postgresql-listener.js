@@ -53,7 +53,7 @@ class PostgresqlListener {
     });
   }
 
-  async startDBChangeNotificationPrompter({ delay = 500 }) {
+  async startDBChangeNotificationPrompter({ delay = 100 }) {
     const pgListener = this,
       connection = pgListener.connection;
 

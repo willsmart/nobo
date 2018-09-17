@@ -354,7 +354,7 @@ class WebSocketProtocol {
               wsc.getOrCreateDatapoint(datapointId);
             }
             const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-            if (datapoint.valueIfAny == null) {
+            if (!datapoint.initialized) {
               wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
             } else {
               wsp.addDatapointValue({
@@ -390,7 +390,8 @@ class WebSocketProtocol {
         });
       },
     });
-    if (datapoint.valueIfAny != null) wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
+    if (datapoint.initialized && datapoint.valueIfAny != null)
+      wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
 
     return pdatapoint;
   }
@@ -404,6 +405,9 @@ class WebSocketProtocol {
     const { values } = pdatapoint;
 
     if (values.length && isEqual(value, values[values.length - 1].value)) {
+      if (versionByConnectionIndex) {
+        Object.assign(values[values.length - 1].versionByConnectionIndex, versionByConnectionIndex);
+      }
       return;
     }
 

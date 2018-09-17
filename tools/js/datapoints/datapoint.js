@@ -87,6 +87,8 @@ class Datapoint {
     datapoint.schema = schema;
     datapoint.templates = templates;
 
+    if (fieldName == '*') datapoint._value = true;
+
     let type;
     if (typeName && fieldName && schema.allTypes[typeName]) {
       type = schema.allTypes[typeName];
@@ -246,7 +248,7 @@ class Datapoint {
     return datapoint.publicApi;
   }
 
-  validate({ value, evenIfValid } = {}) {
+  validate({ value, evenIfValid, queueValidationJob = true } = {}) {
     const datapoint = this,
       { cache } = datapoint;
 
@@ -263,13 +265,12 @@ class Datapoint {
 
     log('dp', `Datapoint ${datapoint.datapointId} -> ${value}`);
 
-    const valueWas = datapoint._value,
-      hadValue = datapoint.hasOwnProperty('_value');
+    const valueWas = datapoint._value;
     value = datapoint._value = clone(value);
-    const changed = !hadValue || !isEqual(value, valueWas, { exact: true });
+    const changed = !isEqual(value, valueWas, { exact: true });
     delete datapoint._invalid;
 
-    const didInit = datapoint._initializing;
+    const didInit = datapoint._initializing || (!datapoint._initialized && changed);
     if (didInit) {
       datapoint._initialized = true;
       delete datapoint._initializing;
@@ -317,6 +318,8 @@ class Datapoint {
     }
 
     datapoint.deleteIfUnwatched();
+
+    if (queueValidationJob) cache.queueValidationJob();
   }
 
   get ownerId() {

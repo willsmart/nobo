@@ -20,6 +20,7 @@ const writeFile_p = promisify(fs.writeFile);
       renew: drop and remake the database schema, 
       drop: drop all user supplied tables (reduces the db down to the base tables), 
       quiet
+      verbose: print the SQL used to modify the DB;
   args: ${JSON.stringify(args)}
   `);
 
@@ -31,6 +32,9 @@ const writeFile_p = promisify(fs.writeFile);
     // note implicit optional flag arguments: dryRun, retrigger, renew, renewAll, drop
     let { sql } = await updater.performUpdate(args);
 
+    if (args.verbose) {
+      console.log(sql);
+    }
     if (args.sqlfile) {
       await writeFile_p(args.sqlfile, sql);
       console.log(`Saved sql to '${args.sqlfile}'`);

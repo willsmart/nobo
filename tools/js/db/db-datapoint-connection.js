@@ -102,21 +102,24 @@ class DbDatapointConnection {
       if (!datapoint.updated) return;
 
       let field;
-      try {
-        field = schema.fieldForDatapoint(datapoint);
-      } catch (err) {
-        console.log(err);
+      if (datapoint.fieldName == '*') {
+        field = { name: '*' };
+      } else {
+        try {
+          field = schema.fieldForDatapoint(datapoint);
+        } catch (err) {
+          console.log(err);
 
-        delete datapoint.updated;
-        delete datapoint.newValue;
-        return;
+          delete datapoint.updated;
+          delete datapoint.newValue;
+          return;
+        }
+        if (!field) {
+          delete datapoint.updated;
+          delete datapoint.newValue;
+          return;
+        }
       }
-      if (!field) {
-        delete datapoint.updated;
-        delete datapoint.newValue;
-        return;
-      }
-
       const fieldsByRow = fieldsByRowByType[datapoint.typeName] || (fieldsByRowByType[datapoint.typeName] = {});
       const fields = fieldsByRow[datapoint.dbRowId] || (fieldsByRow[datapoint.dbRowId] = []);
       fields.push({

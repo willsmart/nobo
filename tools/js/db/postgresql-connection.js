@@ -264,7 +264,7 @@ class PostgresqlConnection {
 
     const sql = `DELETE FROM "${tableName}" WHERE "${tableName}"."id" = ${dbRowId}`;
 
-    return connection.query(sql, fieldValues);
+    return connection.query(sql);
   }
 
   /// Takes the name and variant of a field, returns all the info required to SELECT it

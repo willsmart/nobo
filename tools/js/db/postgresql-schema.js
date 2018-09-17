@@ -22,7 +22,7 @@ module.exports = {
   sqlArgTemplateForValue: sqlArgTemplateForValue,
 };
 
-const prompterDelay = 0.5;
+const prompterDelay = 0.1;
 
 function sqlTypeForDatatype(dataType) {
   switch (dataType) {
@@ -229,10 +229,20 @@ class TempSchema {
           } else if (includeChangeNotifiers) {
             Object.keys(table.changeNotifier).forEach(name => {
               const trigger = table.changeNotifier[name];
-              if (typeof trigger == 'object' && trigger.sql) tableSQL += trigger.sql;
+              if (typeof trigger == 'object' && trigger.sql) {
+                tableSQL += trigger.sql;
+              }
             });
           }
           if (table.createTable) tableSQL += table.createTable;
+          if (!table.dropTable && includeChangeNotifiers) {
+            Object.keys(table.changeNotifier).forEach(name => {
+              const trigger = table.changeNotifier[name];
+              if (typeof trigger == 'object' && trigger.triggerSql) {
+                tableSQL += trigger.triggerSql;
+              }
+            });
+          }
           if (table.dropFields) {
             Object.keys(table.dropFields).forEach(k => {
               const fieldSql = table.dropFields[k];
@@ -270,10 +280,17 @@ ${tableSQL}`;
     return this.sql;
   }
 
-  static wrapAsTrigger(name, declarationsOrBody, body) {
-    const declarations = body === undefined ? '' : declarationsOrBody;
-    body = body === undefined ? declarationsOrBody : body;
+  static wrapAsNullTrigger(name) {
+    return {
+      functionName: name,
+      triggerName: name + '_trigger',
+      sql: `
+DROP FUNCTION IF EXISTS "${name}" CASCADE;
+`,
+    };
+  }
 
+  static wrapAsTrigger(name, type, tableName, declarations, body) {
     return {
       functionName: name,
       triggerName: name + '_trigger',
@@ -285,7 +302,10 @@ CREATE OR REPLACE FUNCTION "` +
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
 ` +
-        declarations +
+        (declarations
+          ? `
+    DECLARE ${declarations}`
+          : '') +
         `
         BEGIN
 ` +
@@ -298,15 +318,47 @@ ALTER FUNCTION "` +
         name +
         `"() OWNER TO "postgres";
 `,
+      triggerSql: `
+        DROP TRIGGER IF EXISTS "${name}_trigger" ON "${tableName}" CASCADE;
+        CREATE TRIGGER "${name}_trigger" ${type} ON "${tableName}" FOR EACH ROW EXECUTE PROCEDURE "public"."${name}"();
+`,
       dropSql:
         `
-DROP FUNCTION "` +
+DROP FUNCTION IF EXISTS "` +
         name +
-        `"();
+        `" CASCADE;
 `,
     };
   }
 
+  static wrapAsNotifyingTrigger(name, type, tableName, declarations, body, returnValue = 'NULL') {
+    return TempSchema.wrapAsTrigger(
+      name,
+      type,
+      tableName,
+      `
+      since_last_change double precision;
+      now_time timestamp;
+      changed boolean := FALSE;
+      ${declarations}
+`,
+      `
+      SELECT EXTRACT(EPOCH FROM (now_time - "at")) INTO since_last_change FROM "model_change_log" WHERE id = (SELECT last_value FROM model_change_log_id_seq);
+
+      ${body}
+
+      IF changed AND since_last_change < ${prompterDelay} THEN
+        -- Rapid changes, so use the prompter script to enforce a delay
+        NOTIFY prompterscript;
+      ELSE
+        -- slow changes, so we needn't invoke the prompter script. This update will trigger the notify function attached to model_change_notify_request
+        UPDATE "model_change_notify_request" SET model_change_id = 0;
+      END IF;
+
+      RETURN ${returnValue};        
+`
+    );
+  }
   getSqlObjectForType(type) {
     const sql = this.getSqlObject();
 
@@ -321,56 +373,14 @@ DROP FUNCTION "` +
     const changeIdSequenceName = ChangeCase.snakeCase(ModelChangeLog) + '_id_seq';
 
     if (type.name == ModelChangeLog) {
-      const functionName = sqlName + '_notify_changes';
-
-      changeNotifier.insert = TempSchema.wrapAsTrigger(
-        functionName + '__insert',
-        `
-      DECLARE
-        now timestamp without time zone;
-`,
-        `
-        SELECT now() INTO now;
-        NEW.at = now;
-        RETURN NEW;
-`
-      );
-
-      changeNotifier.afterInsert = TempSchema.wrapAsTrigger(
-        functionName + '__after_insert',
-        `
-      DECLARE
-        since_last_change double precision;
-`,
-        `
-        IF NEW.id > 1 THEN
-
-          SELECT EXTRACT(EPOCH FROM (NEW.at - "at")) INTO since_last_change FROM  "` +
-          sqlName +
-          `" WHERE id = NEW.id - 1;
-
-          IF since_last_change < ` +
-          prompterDelay +
-          ` THEN
-            -- Rapid changes, so use the prompter script to enforce a delay
-            NOTIFY prompterscript;
-          ELSE
-            -- slow changes, so we needn't invoke the prompter script. This update will trigger the notify function attached to model_change_notify_request
-            UPDATE "model_change_notify_request" SET model_change_id = 0;
-          END IF;
-
-        END IF;
-
-        RETURN NULL;        
-`
-      );
     } else if (type.name == ModelChangeNotifyRequest) {
       const functionName = sqlName + '_check_changes';
 
       changeNotifier.update = TempSchema.wrapAsTrigger(
         functionName + '__update',
+        'BEFORE UPDATE',
+        sqlName,
         `
-      DECLARE
         now timestamp without time zone;
         payload text;
         latest_model_change_id integer;
@@ -409,8 +419,9 @@ DROP FUNCTION "` +
 
       changeNotifier.insert = TempSchema.wrapAsTrigger(
         functionName + '__insert',
+        'BEFORE INSERT',
+        sqlName,
         `
-      DECLARE
         now timestamp without time zone;
 `,
         `
@@ -444,34 +455,47 @@ DROP FUNCTION "` +
         }
       });
 
-      changeNotifier.delete = TempSchema.wrapAsTrigger(
-        functionName + '__delete',
+      changeNotifier.delete = TempSchema.wrapAsNullTrigger(functionName + '__delete');
+
+      changeNotifier.insert = TempSchema.wrapAsNullTrigger(functionName + '__insert');
+
+      changeNotifier.update = TempSchema.wrapAsNullTrigger(functionName + '__update');
+
+      changeNotifier.afterDelete = TempSchema.wrapAsNotifyingTrigger(
+        functionName + '__after_delete',
+        'AFTER DELETE',
+        sqlName,
+        '',
         bodySql.delete +
           `
 
       -- Row deletion
-          INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, OLD.id, '-') ON CONFLICT DO NOTHING;
-          RETURN OLD;
+          INSERT INTO model_change_log (type, row_id, field, at) VALUES (TG_TABLE_NAME, OLD.id, '-', now_time) ON CONFLICT DO NOTHING;
+          changed := TRUE;
 `
       );
 
-      changeNotifier.insert = TempSchema.wrapAsTrigger(
-        functionName + '__insert',
+      changeNotifier.afterInsert = TempSchema.wrapAsNotifyingTrigger(
+        functionName + '__after_insert',
+        'AFTER INSERT',
+        sqlName,
+        '',
         bodySql.insert +
           `
 
       -- Row insertion
-          INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '+') ON CONFLICT DO NOTHING;
-          RETURN NEW;
+          INSERT INTO model_change_log (type, row_id, field, at) VALUES (TG_TABLE_NAME, NEW.id, '+', now_time) ON CONFLICT DO NOTHING;
+          changed := TRUE;
 `
       );
 
-      changeNotifier.update = TempSchema.wrapAsTrigger(
-        functionName + '__update',
+      changeNotifier.afterUpdate = TempSchema.wrapAsNotifyingTrigger(
+        functionName + '__after_update',
+        'AFTER UPDATE',
+        sqlName,
+        '',
         bodySql.update +
           `
-
-          RETURN NEW;
 `
       );
     }
@@ -541,44 +565,6 @@ ALTER TABLE ONLY "` +
       sql.sqlName +
       `_pkey" PRIMARY KEY (id);
 
-    ` +
-      (!sql.changeNotifier.delete
-        ? ''
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.delete.triggerName +
-          '" BEFORE DELETE ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.delete.functionName +
-          '"();\n') +
-      (!sql.changeNotifier.insert
-        ? ''
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.insert.triggerName +
-          '" BEFORE INSERT ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.insert.functionName +
-          '"();\n') +
-      (!sql.changeNotifier.afterInsert
-        ? ''
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.afterInsert.triggerName +
-          '" AFTER INSERT ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.afterInsert.functionName +
-          '"();\n') +
-      (!sql.changeNotifier.update
-        ? ''
-        : 'CREATE TRIGGER "' +
-          sql.changeNotifier.update.triggerName +
-          '" BEFORE UPDATE ON "' +
-          sql.sqlName +
-          '" FOR EACH ROW EXECUTE PROCEDURE "public"."' +
-          sql.changeNotifier.update.functionName +
-          '"();\n') +
-      `
 ALTER SEQUENCE "` +
       idSequenceName +
       `" OWNED BY "` +
@@ -714,13 +700,14 @@ ALTER SEQUENCE "` +
             IF OLD."` +
             sqlField.sqlName +
             `" IS NOT NULL THEN
-                INSERT INTO model_change_log (type, row_id, field) VALUES ('` +
+                INSERT INTO model_change_log (type, row_id, field, at) VALUES ('` +
             sqlLinkedField.sqlEnclosingTable +
             `', OLD."` +
             sqlField.sqlName +
             `", '` +
             sqlLinkedField.sqlName +
-            `') ON CONFLICT DO NOTHING;
+            `', now_time) ON CONFLICT DO NOTHING;
+              changed := TRUE;
             END IF;
 `,
           insert:
@@ -731,13 +718,14 @@ ALTER SEQUENCE "` +
             IF NEW."` +
             sqlField.sqlName +
             `" IS NOT NULL THEN
-                INSERT INTO model_change_log (type, row_id, field) VALUES ('` +
+                INSERT INTO model_change_log (type, row_id, field, at) VALUES ('` +
             sqlLinkedField.sqlEnclosingTable +
             `', NEW."` +
             sqlField.sqlName +
             `", '` +
             sqlLinkedField.sqlName +
-            `') ON CONFLICT DO NOTHING;
+            `', now_time) ON CONFLICT DO NOTHING;
+              changed := TRUE;
             END IF;
 `,
           update:
@@ -761,28 +749,31 @@ ALTER SEQUENCE "` +
                 IF NEW."` +
             sqlField.sqlName +
             `" IS NOT NULL THEN
-                  INSERT INTO model_change_log (type, row_id, field) VALUES ('` +
+                  INSERT INTO model_change_log (type, row_id, field, at) VALUES ('` +
             sqlLinkedField.sqlEnclosingTable +
             `', NEW."` +
             sqlField.sqlName +
             `", '` +
             sqlLinkedField.sqlName +
-            `') ON CONFLICT DO NOTHING;
+            `', now_time) ON CONFLICT DO NOTHING;
+                  changed := TRUE;
                 END IF;
                 IF OLD."` +
             sqlField.sqlName +
             `" IS NOT NULL THEN
-                  INSERT INTO model_change_log (type, row_id, field) VALUES ('` +
+                  INSERT INTO model_change_log (type, row_id, field, at) VALUES ('` +
             sqlLinkedField.sqlEnclosingTable +
             `', OLD."` +
             sqlField.sqlName +
             `", '` +
             sqlLinkedField.sqlName +
-            `') ON CONFLICT DO NOTHING;
+            `', now_time) ON CONFLICT DO NOTHING;
+                  changed := TRUE;
                 END IF;
-                INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '` +
+                INSERT INTO model_change_log (type, row_id, field, at) VALUES (TG_TABLE_NAME, NEW.id, '` +
             sqlField.sqlName +
-            `') ON CONFLICT DO NOTHING;
+            `', now_time) ON CONFLICT DO NOTHING;
+              changed := TRUE;
             END IF;
 `,
         };
@@ -798,9 +789,10 @@ ALTER SEQUENCE "` +
           IF (OLD."` +
         sqlField.sqlName +
         `" IS NOT NULL) THEN
-              INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, OLD.id, '` +
+              INSERT INTO model_change_log (type, row_id, field, at) VALUES (TG_TABLE_NAME, OLD.id, '` +
         sqlField.sqlName +
-        `') ON CONFLICT DO NOTHING;
+        `', now_time) ON CONFLICT DO NOTHING;
+              changed := TRUE;
           END IF;
       `,
       insert:
@@ -811,9 +803,10 @@ ALTER SEQUENCE "` +
     IF (NEW."` +
         sqlField.sqlName +
         `" IS NOT NULL) THEN
-        INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '` +
+        INSERT INTO model_change_log (type, row_id, field, at) VALUES (TG_TABLE_NAME, NEW.id, '` +
         sqlField.sqlName +
-        `') ON CONFLICT DO NOTHING;
+        `', now_time) ON CONFLICT DO NOTHING;
+        changed := TRUE;
     END IF;
 `,
       update:
@@ -834,9 +827,10 @@ ALTER SEQUENCE "` +
         `" <> NEW."` +
         sqlField.sqlName +
         `")) THEN
-        INSERT INTO model_change_log (type, row_id, field) VALUES (TG_TABLE_NAME, NEW.id, '` +
+        INSERT INTO model_change_log (type, row_id, field, at) VALUES (TG_TABLE_NAME, NEW.id, '` +
         sqlField.sqlName +
-        `') ON CONFLICT DO NOTHING;
+        `', now_time) ON CONFLICT DO NOTHING;
+        changed := TRUE;
     END IF;
 `,
     };

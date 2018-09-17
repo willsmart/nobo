@@ -140,7 +140,7 @@ class WebSocketClient {
     );
   }
 
-  sendPayload({ messageIndex = -1, messageType, payloadObject }) {
+  sendPayload({ messageIndex = -1, messageType, payloadObject = {} }) {
     const client = this;
 
     if (!client.isOpen) return;
@@ -158,9 +158,9 @@ class WebSocketClient {
   signOut() {
     const client = this;
 
-//TODO    SharedState.global.withTemporaryState(tempState => {
-//      tempState.atPath().datapointsById = {};
-//    });
+    //TODO    SharedState.global.withTemporaryState(tempState => {
+    //      tempState.atPath().datapointsById = {};
+    //    });
     client.phoenix = 'out';
     client.intentionalClose = true;
     client.ws.close();
@@ -534,7 +534,7 @@ class WebSocketProtocol {
               wsc.getOrCreateDatapoint(datapointId);
             }
             const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-            if (datapoint.valueIfAny == null) {
+            if (!datapoint.initialized) {
               wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
             } else {
               wsp.addDatapointValue({
@@ -570,7 +570,8 @@ class WebSocketProtocol {
         });
       },
     });
-    if (datapoint.valueIfAny != null) wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
+    if (datapoint.initialized && datapoint.valueIfAny != null)
+      wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
 
     return pdatapoint;
   }
@@ -584,6 +585,9 @@ class WebSocketProtocol {
     const { values } = pdatapoint;
 
     if (values.length && isEqual(value, values[values.length - 1].value)) {
+      if (versionByConnectionIndex) {
+        Object.assign(values[values.length - 1].versionByConnectionIndex, versionByConnectionIndex);
+      }
       return;
     }
 
@@ -669,20 +673,7 @@ module.exports = PublicApi({
 });
 
 },{"../datapoints/convert-ids":7,"../datapoints/required-datapoints":10,"../general/diff":22,"../general/is-equal":23,"../general/log":25,"../general/public-api":29}],3:[function(require,module,exports){
-/*const codeDom = require('../thingcoder/code-dom'),
-  codeParser = require('../thingcoder/code-parser'),
-  render = require('../thingcoder/render'),
-  codeTokenizer = require('../thingcoder/code-tokenizer'),
-  parsedTexts = require('../thingcoder/parsed-texts');
-
-module.exports = {
-  codeDom,
-  codeParser,
-  render,
-  codeTokenizer,
-  parsedTexts,
-};
-*/
+module.exports = undefined;
 
 },{}],4:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
@@ -1732,6 +1723,8 @@ class Datapoint {
     datapoint.schema = schema;
     datapoint.templates = templates;
 
+    if (fieldName == '*') datapoint._value = true;
+
     let type;
     if (typeName && fieldName && schema.allTypes[typeName]) {
       type = schema.allTypes[typeName];
@@ -1891,7 +1884,7 @@ class Datapoint {
     return datapoint.publicApi;
   }
 
-  validate({ value, evenIfValid } = {}) {
+  validate({ value, evenIfValid, queueValidationJob = true } = {}) {
     const datapoint = this,
       { cache } = datapoint;
 
@@ -1908,13 +1901,12 @@ class Datapoint {
 
     log('dp', `Datapoint ${datapoint.datapointId} -> ${value}`);
 
-    const valueWas = datapoint._value,
-      hadValue = datapoint.hasOwnProperty('_value');
+    const valueWas = datapoint._value;
     value = datapoint._value = clone(value);
-    const changed = !hadValue || !isEqual(value, valueWas, { exact: true });
+    const changed = !isEqual(value, valueWas, { exact: true });
     delete datapoint._invalid;
 
-    const didInit = datapoint._initializing;
+    const didInit = datapoint._initializing || (!datapoint._initialized && changed);
     if (didInit) {
       datapoint._initialized = true;
       delete datapoint._initializing;
@@ -1962,6 +1954,8 @@ class Datapoint {
     }
 
     datapoint.deleteIfUnwatched();
+
+    if (queueValidationJob) cache.queueValidationJob();
   }
 
   get ownerId() {
@@ -2375,6 +2369,7 @@ module.exports = PublicApi({
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
+const log = require('../general/log');
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -2417,9 +2412,20 @@ class RequiredDatapoints {
     return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
   }
 
-  _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId }) {
+  _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId, stack: astack = [] }) {
     const requiredDatapoints = this,
       { templates } = requiredDatapoints;
+
+    const stack = astack.slice();
+    stack.push({ rowId, variant });
+    if (astack.find(({ rowId: rowId2, variant: variant2 }) => rowId === rowId2 && variant === variant2)) {
+      log('err', 'Recursive required datapoints. Stack: ', stack);
+      return;
+    }
+    if (stack.length > 50) {
+      log('err', 'Required datapoints recursed too many times. Stack: ', stack);
+      return;
+    }
 
     const templateDatapointId = ConvertIds.recomposeId({ rowId, fieldName: `template_${variant || ''}` }).datapointId,
       templateDatapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId: templateDatapointId, rowProxy });
@@ -2487,6 +2493,7 @@ class RequiredDatapoints {
             promises,
             rowProxy,
             userId,
+            stack,
           });
         }
         for (const { fieldName, variants } of template.children) {
@@ -2527,6 +2534,7 @@ class RequiredDatapoints {
                     promises,
                     rowProxy,
                     userId,
+                    stack,
                   });
                 }
               }
@@ -2544,7 +2552,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/map-values":26,"../general/public-api":29,"./convert-ids":7}],11:[function(require,module,exports){
+},{"../general/log":25,"../general/map-values":26,"../general/public-api":29,"./convert-ids":7}],11:[function(require,module,exports){
 // row-change-trackers
 // © Will Smart 2018. Licence: MIT
 
@@ -2839,6 +2847,10 @@ class Templates {
       };
       node.subtree = [node];
       for (const parent of parents) parent.subtree.push(node);
+
+      const useParent = parents.find(parent => parent.template);
+      node.template = useParent ? useParent.template : undefined;
+
       node.datapoint = templates.cache.getOrCreateDatapoint({
         datapointId: templates.appTemplateDatapointId({
           variant,
@@ -2883,6 +2895,7 @@ class Templates {
       if (!canCreate) return;
 
       const parents = node.parents.slice();
+      parents.unshift(node);
       for (const parent of node.parents) {
         parents.unshift(
           withClassFilter({
@@ -2891,7 +2904,6 @@ class Templates {
           })
         );
       }
-      parents.unshift(node);
 
       if (!node.classFilters) node.classFilters = {};
       return (node.classFilters[classFilter] = newTreeNode({
@@ -2907,7 +2919,17 @@ class Templates {
       if (node.variants && node.variants[variant]) return node.variants[variant];
       if (!canCreate) return;
 
-      const parents = node.parents.slice();
+      const parents = [];
+      if (variant != 'missingvariant') {
+        for (const parent of node.parents) {
+          parents.unshift(
+            withVariant({
+              node: parent,
+              variant: 'missingvariant',
+            })
+          );
+        }
+      }
       for (const parent of node.parents) {
         parents.unshift(
           withVariant({
@@ -2916,11 +2938,10 @@ class Templates {
           })
         );
       }
-      parents.unshift(node);
 
       if (!node.variants) node.variants = {};
       return (node.variants[variant] = newTreeNode({
-        classFilter: classFilter,
+        classFilter: node.classFilter,
         variant,
         ownerOnly: node.ownerOnly,
         parents,
@@ -3020,8 +3041,8 @@ class Template {
         children[datapointInfo.fieldName][element.getAttribute('variant') || 'default'] = true;
       }
       if (
-        (element.classList.contains('model-child') && element.getAttribute('model')) ||
-        element.hasAttribute('variant')
+        element.classList.contains('model-child') &&
+        (element.getAttribute('model') || element.hasAttribute('variant'))
       ) {
         const rowId = element.getAttribute('model'),
           variant = element.getAttribute('variant');
@@ -5967,7 +5988,7 @@ function locateEnd(string, closeChar, openIndex = 0) {
 },{}],25:[function(require,module,exports){
 module.exports = log;
 
-const enabledLogs = { err: true, dom: true };
+const enabledLogs = { err: true, dom: true, ws: true };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;

@@ -4,6 +4,7 @@
     rowId(integer): null
     field(string): null
     at(datetime): now
+    notify(boolean): null
 
     ~- notifyRequest(ModelChangeNotifyRequest):
       protectedTable: true
