@@ -139,7 +139,7 @@ echo -e "${DARKBLUE}... pushing the templates up to the database$DARKGREY"
 if ! joined/bin/update-db-templates ; then exit 1 ; fi
 
 echo -e "${DARKBLUE}... bundling client code$DARKGREY"
-if ! joined/tools/js/client/bundle ; then exit 1 ; fi
+if ! joined/bin/bundle-client ; then exit 1 ; fi
 
 echo -e "${DARKBLUE}... doing another join$DARKGREY"
 if ! ruby "nobo/tools/rb/joiner.rb" ; then exit 1 ; fi
