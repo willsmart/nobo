@@ -4,7 +4,15 @@
 const locateEnd = require('./locate-end');
 const unicodeCategories = require('./unicode-categories');
 
-const permissableGlobals = { Function: true, Math: true, Object: true, console: true, model: true, event: true };
+const permissableGlobals = {
+  Function: true,
+  Math: true,
+  Object: true,
+  console: true,
+  model: true,
+  event: true,
+  newrow: true,
+};
 const jsKeywords = {
   break: true,
   case: true,

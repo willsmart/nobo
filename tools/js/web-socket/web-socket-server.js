@@ -3,10 +3,9 @@ const { URL } = require('url');
 const MyCrypto = require('../general/mycrypto');
 const Cookie = require('cookie');
 const ConvertIds = require('../datapoints/convert-ids');
-const PageServer = require('../server/page-server');
+const PageServer = require('../page/page-server');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
-const WebSocketProtocol = require('./web-socket-protocol');
 const RowProxy = require('../datapoints/row-proxy');
 const log = require('../general/log');
 
@@ -18,17 +17,12 @@ class WebSocketServer {
     return ['start', 'cache', 'watch', 'stopWatching'];
   }
 
-  constructor({ cache, schema, hasPageServer, pagePath, cachePage = false }) {
+  constructor({ cache, schema, dbConnection, hasPageServer, pagePath, cachePage = false }) {
     const server = this;
 
     server._cache = cache;
     server._schema = schema;
-
-    server.wsp = new WebSocketProtocol({
-      cache,
-      ws: server,
-      isServer: true,
-    });
+    server._dbConnection = dbConnection;
 
     if (hasPageServer) {
       server.pageServer = new PageServer({ path: pagePath, doCache: cachePage });
@@ -41,6 +35,10 @@ class WebSocketServer {
 
   get schema() {
     return this._schema;
+  }
+
+  get dbConnection() {
+    return this._dbConnection;
   }
 
   get sessionCookieName() {
@@ -191,7 +189,12 @@ class WebSocketClient {
 
     const { cache, schema } = server;
     client.userId = userId;
-    client.rowProxy = new RowProxy({ policy: RowProxy.userIdPolicy({ userId, cache, schema }) });
+    client.rowProxy = new RowProxy({
+      policy: RowProxy.chainPolicy(
+        RowProxy.userIdPolicy({ userId, cache, schema }),
+        RowProxy.clientLocalDbRowIdPolicy({ dbConnection: server.dbConnection })
+      ),
+    });
   }
 
   serverReceivedMessage(message) {

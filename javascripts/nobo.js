@@ -1,681 +1,7 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-const WebSocket = require('isomorphic-ws');
-const PublicApi = require('../general/public-api');
-const makeClassWatchable = require('../general/watchable');
-const PageState = require('../client/page-state');
-const log = require('../general/log');
-
-// API is auto-generated at the bottom from the public interface of this class
-
-class WebSocketClient {
-  // public methods
-  static publicMethods() {
-    return ['sendMessage', 'sendPayload', 'isOpen', 'watch', 'stopWatching', 'signOut'];
-  }
-
-  constructor({ port = 3000 } = {}) {
-    const client = this;
-
-    client._isOpen = false;
-    client.nextMessageIndex = 1;
-    client.clientParams = {
-      port: port,
-    };
-
-    function open() {
-      const host =
-        window.location.protocol == 'https:'
-          ? `wss://sock.${window.location.host}`
-          : `ws://${window.location.hostname}:${port}`;
-      const ws = (client.ws = new WebSocket(
-        `${host}/sock${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
-      ));
-      delete client.phoenix;
-      ws.onopen = function open() {
-        client._isOpen = true;
-        client.notifyListeners('onopen');
-
-        (client.pongHistory = [0, 0, 0, 1]), (client.pongCount = 1);
-      };
-
-      ws.onclose = function close() {
-        clearInterval(ws.pingInterval);
-        client._isOpen = false;
-        client.notifyListeners('onclose');
-        delete client.intentionalClose;
-        setTimeout(() => open(), client.intentionalClose ? 100 : 2000);
-      };
-
-      if (ws.on) {
-        ws.on('pong', () => {
-          ws.pongHistory[ws.pongHistory.length - 1]++;
-          ws.pongCount++;
-        });
-      }
-
-      ws.onmessage = function incoming(message) {
-        const match = /^Phoenix:(.*)$/.exec(message.data);
-        if (match) {
-          client.phoenix = JSON.parse(match[1]);
-          client.intentionalClose = true;
-          ws.close();
-          return;
-        }
-
-        performance.mark('receive');
-        log('ws', 'Got message from server:   ' + message.data);
-
-        client.notifyListeners(
-          'onpayload',
-          WebSocketClient.decodeMessage({
-            message: message.data,
-          })
-        );
-      };
-
-      ws.onerror = err => {
-        log('err', `Error: ${err.message}`);
-      };
-
-      if (ws.ping) {
-        ws.pingInterval = setInterval(function ping() {
-          if (!ws.pongCount) {
-            client.intentionalClose = true;
-            return ws.close();
-          }
-
-          ws.pongHistory.push(0);
-          clwsient.pongCount -= ws.pongHistory.shift();
-
-          ws.ping('', false, true);
-        }, 10000);
-      }
-    }
-    open();
-
-    log('ws', `Web socket client listening to server on port ${port}`);
-  }
-
-  get isOpen() {
-    return this._isOpen;
-  }
-
-  static decodeMessage({ message }) {
-    const matches = /^(?:(\d+)|(\w+)):/.exec(message),
-      messageIndex = matches && matches[1] !== undefined ? +matches[1] : -1,
-      messageType = matches && matches[2] !== undefined ? matches[2] : undefined;
-    if (matches) message = message.substring(matches[0].length);
-
-    let payloadObject;
-    try {
-      payloadObject = JSON.parse(message);
-    } catch (err) {
-      payloadObject = message;
-    }
-    if (Array.isArray(payloadObject)) {
-      payloadObject = {
-        array: payloadObject,
-      };
-    } else if (!payloadObject || typeof payloadObject != 'object') {
-      payloadObject = {
-        message: `${payloadObject}`,
-      };
-    }
-
-    return {
-      messageIndex,
-      messageType,
-      payloadObject,
-    };
-  }
-  get cache() {
-    return this._cache;
-  }
-
-  sendMessage({ message }) {
-    this.sendPayload(
-      WebSocketClient.decodeMessage({
-        message,
-      })
-    );
-  }
-
-  sendPayload({ messageIndex = -1, messageType, payloadObject = {} }) {
-    const client = this;
-
-    if (!client.isOpen) return;
-
-    if (messageIndex == -1 && !messageType) messageIndex = client.nextMessageIndex++;
-    const message = `${
-      messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
-    }${JSON.stringify(payloadObject)}`;
-    performance.mark('send');
-    log('ws', 'Sending message to server:   ' + message);
-
-    client.ws.send(message);
-  }
-
-  signOut() {
-    const client = this;
-
-    //TODO    SharedState.global.withTemporaryState(tempState => {
-    //      tempState.atPath().datapointsById = {};
-    //    });
-    client.phoenix = 'out';
-    client.intentionalClose = true;
-    client.ws.close();
-
-    PageState.global.visit('app__default');
-  }
-}
-
-makeClassWatchable(WebSocketClient);
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: WebSocketClient,
-  hasExposedBackDoor: true,
-});
-
-},{"../client/page-state":6,"../general/log":25,"../general/public-api":29,"../general/watchable":34,"isomorphic-ws":43}],2:[function(require,module,exports){
-const { applyDiff, createDiff } = require('../general/diff');
-const PublicApi = require('../general/public-api');
-const isEqual = require('../general/is-equal');
-const ConvertIds = require('../datapoints/convert-ids');
-const RequiredDatapoints = require('../datapoints/required-datapoints');
-const log = require('../general/log');
-
-const ValueHistoryLength = 1;
-
-// API is auto-generated at the bottom from the public interface of the WebSocketProtocol class
-
-class WebSocketConnection {
-  constructor({ ws, wsp }) {
-    const wsc = this,
-      index = wsp.nextConnectionIndex++;
-
-    Object.assign(wsc, {
-      wsp,
-      ws,
-      index,
-      datapoints: {},
-      callbackKey: `wsc-${index}`,
-    });
-
-    ws.watch({
-      callbackKey: wsc.callbackKey,
-      onclose: () => {
-        wsc.close();
-      },
-      onpayload: ({ messageType, payloadObject }) => {
-        if (messageType == 'datapoints') {
-          wsc.handleDatapointPayload(payloadObject);
-        }
-      },
-    });
-
-    wsp.connections[index] = wsc;
-
-    if (!wsp.isServer) {
-      for (const datapoint of wsp.cache.datapoints) {
-        if (datapoint.isClient) continue;
-        wsp.queueSendDatapoint({
-          theirDatapointId: datapoint.datapointId,
-          datapointId: datapoint.datapointId,
-          index,
-        });
-      }
-    }
-  }
-
-  close() {
-    const wsc = this,
-      { callbackKey, wsp, index, ws, datapoints } = wsc;
-
-    ws.stopWatching({ callbackKey });
-
-    for (const datapointId of Object.keys(datapoints)) wsc.deleteDatapoint(datapointId);
-
-    delete wsp.connections[index];
-
-    wsc.datapoints = {};
-  }
-
-  handleDatapointPayload(payloadObject) {
-    const wsc = this,
-      { ws } = wsc;
-
-    if (!payloadObject || Array.isArray(payloadObject) || typeof payloadObject != 'object') return;
-
-    for (const [theirDatapointId, msgData] of Object.entries(payloadObject)) {
-      if (typeof msgData == 'number') {
-        wsc.handleVersionNumber({ theirDatapointId, version: msgData });
-      } else if (typeof msgData == 'object') {
-        let { version, value, diff, baseVersion } = msgData;
-        if (!version || !(value !== undefined || (diff !== undefined && baseVersion))) {
-          log('err', `Bad msg data for datapoint ${theirDatapointId} ${JSON.stringify(msgData)}`);
-          continue;
-        }
-        wsc.handleVersionValue({ theirDatapointId, version, value, diff, baseVersion });
-      }
-    }
-  }
-
-  makeConcreteDatapointId(theirDatapointId) {
-    const { rowProxy } = this.ws;
-    if (!rowProxy) return theirDatapointId;
-    const datapointInfo = rowProxy.makeConcrete({ datapointId: theirDatapointId });
-    return datapointInfo ? datapointInfo.datapointId : 'unknown__1__';
-  }
-
-  // other side is saying "I've got this version"
-  // reply options are:
-  // (A)  "I know" (no reply)
-  // (B)  "Oh, that's higher that I mine" (reply with my version number)
-  // (C)  "Well, I've got this higher version, which I haven't told you about" (reply with the diff to the newer version)
-  // (D)  "Well, I've got this higher version, which I've already told you about" (reply with the value of the newer version)
-  // the server also has to deal with:
-  // (E)  "Oh, I didn't think you knew about that datapoint" (subscribe the client to datapoint changes)
-  // (F)  "Version 0 eh, ok you're unsubscribed" (version 0 is the client's way of unsubscribing to updates for a datapoint)
-  handleVersionNumber({ theirDatapointId, version }) {
-    const wsc = this,
-      { wsp, index, ws } = wsc;
-    let cdatapoint = wsc.datapoints[theirDatapointId];
-
-    if (!cdatapoint) {
-      if (version == 0) return;
-      if (!wsp.isServer) {
-        if (version == 1) {
-          const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
-          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
-          if (!datapoint.initialized) {
-            datapoint.setAsInitializing();
-            datapoint.validate({ evenIfValid: true });
-          }
-        }
-        return;
-      }
-
-      cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-
-      if (wsp.isServer && ws.rowProxy) {
-        const { rowId, fieldName } = ConvertIds.decomposeId({ datapointId: theirDatapointId });
-        const match = /^template_?(.*)$/.exec(fieldName);
-        if (match) {
-          const variant = match[1];
-          wsp.requiredDatapoints
-            .forView({ rowId, variant, rowProxy: ws.rowProxy, userId: ws.userId })
-            .then(datapoints => {
-              for (const [theirDatapointId, { datapoint, callbackKey }] of Object.entries(datapoints)) {
-                const cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-                const datapointId = cdatapoint.datapointId || theirDatapointId;
-                wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-                datapoint.stopWatching({ callbackKey });
-              }
-            });
-        }
-      }
-    }
-
-    if (!version) {
-      wsc.deleteDatapoint(theirDatapointId);
-      return;
-    }
-
-    cdatapoint.theirVersion = version;
-    if (cdatapoint.theirVersion == cdatapoint.myVersion) return;
-
-    const datapointId = cdatapoint.datapointId || theirDatapointId;
-
-    wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-  }
-
-  // other side is saying "Version msgData.version has value msgData.value"
-  //   or "Version msgData.version is the result of applying msgData.diff to version msgData.baseVersion"
-  // reply options are:
-  // A  "Snap! I've got that too" (reply with my version number)
-  // B  "Cool, that's higher that I mine and I've got the new value" (reply with my version number)
-  // C  "Well, I've got this higher version" (reply with the value of the newer version)
-  // D  "Um, I don't have that baseVersion you speak of" (reply with my version number)
-  // E  "Eek, I tried that diff and it didn't fit" (reply with my version number)
-  // the server also has to deal with:
-  // F  "Oh, I didn't think you knew about that datapoint" (subscribe the client to datapoint changes)
-  handleVersionValue({ theirDatapointId, version, value, diff, baseVersion }) {
-    const wsc = this,
-      { wsp, index } = wsc;
-    let cdatapoint = wsc.datapoints[theirDatapointId];
-
-    if (version <= 1) return;
-
-    if (!cdatapoint) {
-      // todo client should start a timer
-      cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-    }
-
-    const datapointId = cdatapoint.datapointId || theirDatapointId;
-
-    cdatapoint.theirVersion = version;
-
-    if (cdatapoint.theirVersion > cdatapoint.myVersion) {
-      if (baseVersion) {
-        const pdatapoint = wsp.datapoints[datapointId];
-        let base;
-        for (const valueInfo of pdatapoint.values) {
-          if (valueInfo.versionByConnectionIndex[index] == baseVersion) {
-            base = valueInfo.value;
-          }
-        }
-        if (base !== undefined) {
-          value = applyDiff({ diff, base });
-          if (value === undefined) {
-            log(
-              'err',
-              `Couldn't apply diff for datapoint ${theirDatapointId}\n   Base: ${JSON.stringify(
-                base
-              )}\n   Diff: ${JSON.stringify(diff)}`
-            );
-          }
-        }
-      }
-      if (value !== undefined) {
-        const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
-        wsp.addDatapointValue({
-          datapointId,
-          value,
-          versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
-        });
-        if (wsp.isServer) {
-          datapoint.updateValue({ newValue: value });
-        } else {
-          datapoint.setAsInitializing();
-          datapoint.validate({ value, evenIfValid: true });
-        }
-      }
-    }
-
-    wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-  }
-
-  deleteDatapoint(theirDatapointId) {
-    const wsc = this,
-      { wsp, index } = wsc,
-      cdatapoint = wsc.datapoints[theirDatapointId];
-    if (!cdatapoint) return;
-    delete wsc.datapoints[theirDatapointId];
-
-    const datapointId = cdatapoint.datapointId || theirDatapointId,
-      pdatapoint = wsp.datapoints[datapointId];
-
-    if (pdatapoint) {
-      for (const valueInfo of pdatapoint.values) {
-        delete valueInfo.versionByConnectionIndex[index];
-      }
-      delete pdatapoint.connectionIndexes[index][theirDatapointId];
-      if (!Object.keys(pdatapoint.connectionIndexes[index]).length) {
-        delete pdatapoint.connectionIndexes[index];
-
-        if (!Object.keys(pdatapoint.connectionIndexes).length) {
-          wsp.deleteDatapoint(datapointId);
-        }
-      }
-    }
-  }
-
-  getOrCreateDatapoint(theirDatapointId) {
-    const wsc = this,
-      { wsp, index } = wsc;
-    let cdatapoint = wsc.datapoints[theirDatapointId];
-    if (cdatapoint) return cdatapoint;
-
-    const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
-
-    let pdatapoint = wsp.datapoints[datapointId];
-
-    cdatapoint = wsc.datapoints[theirDatapointId] = {
-      myVersion: 1,
-      theirVersion: 0,
-      datapointId: datapointId == theirDatapointId ? undefined : datapointId,
-    };
-
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-
-    (pdatapoint.connectionIndexes[index] = pdatapoint.connectionIndexes[index] || {})[theirDatapointId] = true;
-
-    if (pdatapoint.values.length) {
-      cdatapoint.myVersion = 2 + (wsp.isServer ? 1 : 0);
-    }
-    return cdatapoint;
-  }
-
-  payload({ theirDatapointId, datapointId, values }) {
-    const wsc = this,
-      { index, datapoints, wsp, ws } = wsc,
-      cdatapoint = datapoints[theirDatapointId];
-
-    if (!cdatapoint) return 1;
-
-    if (!values.length) {
-      cdatapoint.myVersion = 1;
-      return 1;
-    }
-
-    const valueInfo = values[values.length - 1];
-
-    let myVersion = valueInfo.versionByConnectionIndex[index];
-    if (myVersion === undefined) {
-      const maxVersion = Math.max(cdatapoint.theirVersion, cdatapoint.myVersion),
-        nextEvenVersion = Math.floor(maxVersion / 2 + 1) * 2;
-      myVersion = valueInfo.versionByConnectionIndex[index] = nextEvenVersion + (wsp.isServer ? 1 : 0);
-    }
-    cdatapoint.myVersion = myVersion;
-
-    if (myVersion <= 1 || myVersion <= cdatapoint.theirVersion) return myVersion;
-
-    const prevValueInfo = values.find(
-      valueInfo => valueInfo.versionByConnectionIndex[index] === cdatapoint.theirVersion
-    );
-    if (prevValueInfo) {
-      // TODO do a diff
-    }
-
-    let { value } = valueInfo;
-    if (value && typeof value == 'object' && value.public !== undefined) {
-      const { public: publicValue, private: privateValue, ownerId } = value,
-        userId = ws.userId;
-      value = (ownerId ? ownerId == userId : !userId) ? privateValue || publicValue : publicValue;
-    }
-    return { version: myVersion, value };
-  }
-
-  sendPayload({ payloadObject }) {
-    this.ws.sendPayload({ messageType: 'datapoints', payloadObject });
-  }
-}
-
-class WebSocketProtocol {
-  // public methods
-  static publicMethods() {
-    return [];
-  }
-
-  constructor({ cache, ws, isServer }) {
-    const wsp = this;
-
-    wsp.isServer = isServer;
-    wsp.cache = cache;
-    wsp.requiredDatapoints = new RequiredDatapoints({ cache });
-    wsp.queuedDatapoints = {};
-    wsp.queueTimer = undefined;
-    wsp.queueDelay = 1;
-    wsp.datapoints = {};
-    wsp.nextConnectionIndex = 1; //owned by WebSocketConnection
-    wsp.connections = {}; //owned by WebSocketConnection
-
-    const callbackKey = (wsp.callbackKey = 'wsp');
-    ws.watch({
-      callbackKey,
-      onclientConnected: client => {
-        new WebSocketConnection({ ws: client, wsp });
-      },
-      onopen: () => {
-        new WebSocketConnection({ ws, wsp });
-      },
-    });
-
-    if (!wsp.isServer) {
-      cache.watch({
-        callbackKey,
-        onvalid: ({ newlyValidDatapoints }) => {
-          for (const datapointId of newlyValidDatapoints) {
-            if (wsp.datapoints[datapointId]) continue;
-            const datapoint = cache.getExistingDatapoint({ datapointId });
-            if (!datapoint || datapoint.isClient) continue;
-            for (const wsc of Object.values(wsp.connections)) {
-              wsc.getOrCreateDatapoint(datapointId);
-            }
-            const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-            if (!datapoint.initialized) {
-              wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
-            } else {
-              wsp.addDatapointValue({
-                datapointId,
-                value: datapoint.valueIfAny,
-              });
-            }
-          }
-        },
-      });
-    }
-  }
-
-  getOrCreateDatapoint(datapointId) {
-    const wsp = this,
-      { cache, callbackKey } = wsp;
-    let pdatapoint = wsp.datapoints[datapointId];
-
-    if (pdatapoint) return pdatapoint;
-    pdatapoint = wsp.datapoints[datapointId] = {
-      values: [],
-      connectionIndexes: {},
-    };
-
-    const datapoint = cache.getOrCreateDatapoint({ datapointId });
-    datapoint.watch({
-      callbackKey,
-      onchange: datapoint => {
-        const { valueIfAny: value, datapointId } = datapoint;
-        wsp.addDatapointValue({
-          datapointId,
-          value,
-        });
-      },
-    });
-    if (datapoint.initialized && datapoint.valueIfAny != null)
-      wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
-
-    return pdatapoint;
-  }
-
-  addDatapointValue({ datapointId, value, versionByConnectionIndex = {} }) {
-    if (value === undefined) value = null;
-
-    const wsp = this;
-    let pdatapoint = wsp.datapoints[datapointId];
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint({ datapointId });
-    const { values } = pdatapoint;
-
-    if (values.length && isEqual(value, values[values.length - 1].value)) {
-      if (versionByConnectionIndex) {
-        Object.assign(values[values.length - 1].versionByConnectionIndex, versionByConnectionIndex);
-      }
-      return;
-    }
-
-    values.push({
-      value,
-      versionByConnectionIndex,
-    });
-
-    if (values.length > ValueHistoryLength) values.shift();
-
-    wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
-  }
-
-  deleteDatapoint(datapointId) {
-    const wsp = this,
-      { cache, callbackKey } = wsp,
-      pdatapoint = wsp.datapoints[datapointId];
-
-    if (!pdatapoint || Object.keys(pdatapoint.connectionIndexes).length) return;
-
-    const datapoint = cache.getExistingDatapoint({ datapointId });
-    if (datapoint) datapoint.stopWatching({ callbackKey });
-
-    delete wsp.datapoints[datapointId];
-  }
-
-  queueSendDatapoint({ theirDatapointId, datapointId, index, connectionIndexes }) {
-    const wsp = this,
-      indexes = (wsp.queuedDatapoints[datapointId] = wsp.queuedDatapoints[datapointId] || {});
-    if (index && theirDatapointId) {
-      const theirDatapointIds = (indexes[index] = Object.assign({}, indexes[index]) || {});
-      theirDatapointIds[theirDatapointId] = true;
-    }
-    if (connectionIndexes) Object.assign(indexes, connectionIndexes);
-
-    if (wsp.queueTimer === undefined) {
-      wsp.queueTimer = setTimeout(() => {
-        const queuedDatapoints = wsp.queuedDatapoints;
-        wsp.queuedDatapoints = {};
-        wsp.sendDatapoints(queuedDatapoints);
-      }, wsp.queueDelay);
-    }
-  }
-
-  sendDatapoints(datapoints) {
-    const wsp = this,
-      { cache } = wsp;
-
-    if (wsp.queueTimer !== undefined) {
-      clearTimeout(wsp.queueTimer);
-      wsp.queueTimer = undefined;
-    }
-
-    const payloadObjects = {};
-
-    for (const [datapointId, theirDatapointIdsByIndex] of Object.entries(datapoints)) {
-      const pdatapoint = wsp.datapoints[datapointId];
-      if (!pdatapoint) continue;
-
-      const { values } = pdatapoint;
-
-      for (const [index, theirDatapointIds] of Object.entries(theirDatapointIdsByIndex)) {
-        const wsc = wsp.connections[index];
-        if (!wsc) continue;
-        //if (wsp.isServer && (wsc.msgCount = (wsc.msgCount || 0) + 1) > 20) continue;
-
-        const payloadObject = (payloadObjects[index] = payloadObjects[index] || {});
-        for (const theirDatapointId of Object.keys(theirDatapointIds)) {
-          payloadObject[theirDatapointId] = wsc.payload({ theirDatapointId, datapointId, values, pdatapoint });
-        }
-      }
-    }
-    for (const [index, payloadObject] of Object.entries(payloadObjects)) {
-      wsp.connections[index].sendPayload({ payloadObject });
-    }
-  }
-}
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: WebSocketProtocol,
-  hasExposedBackDoor: true,
-});
-
-},{"../datapoints/convert-ids":7,"../datapoints/required-datapoints":10,"../general/diff":22,"../general/is-equal":23,"../general/log":25,"../general/public-api":29}],3:[function(require,module,exports){
 module.exports = undefined;
 
-},{}],4:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 const PageState = require('./page-state');
@@ -746,10 +72,10 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../dom/dom-functions":14,"../general/public-api":29,"./page-state":6}],5:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../dom/dom-functions":14,"../general/public-api":29,"./page-state":5}],3:[function(require,module,exports){
 const PageState = require('./page-state'),
-  WebSocketClient = require('../api/web-socket-client'),
-  WebSocketProtocol = require('../api/web-socket-protocol'),
+  WebSocketClient = require('../web-socket/web-socket-client'),
+  WebSocketProtocol = require('../web-socket/web-socket-protocol'),
   DomGenerator = require('../dom/dom-generator'),
   DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
@@ -759,6 +85,8 @@ const PageState = require('./page-state'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
   log = require('../general/log');
+require('./page-util');
+require('./datapoint-util');
 
 const schema = new Schema();
 schema.loadSource([
@@ -894,9 +222,19 @@ window.nobo = {
   clientActions,
   appClient,
   wsprotocol,
+  log,
 };
 
-},{"../api/web-socket-client":1,"../api/web-socket-protocol":2,"../datapoints/datapoint-cache":8,"../dom/dom-functions":14,"../dom/dom-generator":15,"../dom/dom-updater":16,"../general/log":25,"../general/schema":30,"./app-client":3,"./client-actions":4,"./page-state":6}],6:[function(require,module,exports){
+},{"../datapoints/datapoint-cache":8,"../dom/dom-functions":14,"../dom/dom-generator":15,"../dom/dom-updater":16,"../general/log":25,"../general/schema":30,"../web-socket/web-socket-client":61,"../web-socket/web-socket-protocol":62,"./app-client":1,"./client-actions":2,"./datapoint-util":4,"./page-state":5,"./page-util":6}],4:[function(require,module,exports){
+const ConvertIds = require('../datapoints/convert-ids');
+
+let nextLocalId = 1;
+window.newdp = (typeName, fieldName) => {
+  const datapointInfo = ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}`, fieldName });
+  return datapointInfo.datapointId || datapointInfo.rowId;
+};
+
+},{"../datapoints/convert-ids":7}],5:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 
@@ -1075,7 +413,55 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/public-api":29}],7:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/public-api":29}],6:[function(require,module,exports){
+window.forEachLocal = (el, cb) => {
+  while (el && !el.hasAttribute('sourcetemplate')) el = el.parentElement;
+  if (!el) return;
+  go(el);
+  function go(el) {
+    cb(el);
+    for (let child = el.firstElementChild; child; child = child.nextElementSibling) {
+      if (!child.hasAttribute('sourcetemplate')) go(child);
+    }
+  }
+};
+
+window.filterLocal = (el, select) => {
+  while (el && !el.hasAttribute('sourcetemplate')) el = el.parentElement;
+  if (!el) return;
+  const ret = [];
+  go(el);
+  return ret;
+  function go(el) {
+    if (select(el)) ret.push(el);
+    for (let child = el.firstElementChild; child; child = child.nextElementSibling) {
+      if (!child.hasAttribute('sourcetemplate')) go(child);
+    }
+  }
+};
+
+window.findLocal = (el, select) => {
+  while (el && !el.hasAttribute('sourcetemplate')) {
+    el = el.parentElement;
+  }
+  if (!el) return;
+  return go(el);
+  function go(el) {
+    if (select(el)) return el;
+    for (let child = el.firstElementChild; child; child = child.nextElementSibling) {
+      if (!child.hasAttribute('sourcetemplate')) {
+        const ret = go(child);
+        if (ret) return ret;
+      }
+    }
+  }
+};
+
+window.localElement = (el, name) => {
+  return findLocal(el, el => el.getAttribute('localid') === name);
+};
+
+},{}],7:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -1301,7 +687,7 @@ function stringToDatapoint(datapointId, permissive) {
   const match = datapointRegex.exec(datapointId);
   if (!match) {
     if (permissive) return;
-    throw new Error(`Bad datapoint id ${rowId}`);
+    throw new Error(`Bad datapoint id ${datapointId}`);
   }
 
   return Object.assign(
@@ -1594,7 +980,7 @@ class DatapointCache {
     let { deletionLists } = cache;
     if (!deletionLists) {
       deletionLists = cache.deletionLists = [{}];
-      setInterval(() => cache._cycleDeletionList(), 1000);
+      setTimeout(() => cache._cycleDeletionList(), 1000);
     }
     let deletionList = deletionLists[0];
     if (!deletionList) deletionList = deletionLists[0] = {};
@@ -1620,7 +1006,7 @@ class DatapointCache {
       cache.deletionLists = undefined;
     } else {
       deletionLists.unshift(undefined);
-      setInterval(() => cache._cycleDeletionList(), 1000);
+      setTimeout(() => cache._cycleDeletionList(), 1000);
     }
   }
 }
@@ -1677,14 +1063,13 @@ class Datapoint {
       'watch',
       'stopWatching',
       'value',
+      'setValue',
       'valueIfAny',
       'setVirtualField',
       'invalid',
       'initialized',
       'fieldIfAny',
       'datapointId',
-      'datapointId',
-      'rowId',
       'rowId',
       'typeName',
       'fieldName',
@@ -1723,12 +1108,12 @@ class Datapoint {
     datapoint.schema = schema;
     datapoint.templates = templates;
 
+    // the '*' field is special, with a default value of true
     if (fieldName == '*') datapoint._value = true;
 
     let type;
     if (typeName && fieldName && schema.allTypes[typeName]) {
       type = schema.allTypes[typeName];
-      datapoint._fieldIfAny = type.fields[datapoint._fieldName];
     }
     if (datapoint.getterIfAny) {
       datapoint.setupDependencyFields();
@@ -1791,6 +1176,11 @@ class Datapoint {
   get getterIfAny() {
     const field = this.fieldIfAny;
     return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.get : undefined;
+  }
+
+  get setterIfAny() {
+    const field = this.fieldIfAny;
+    return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.set : undefined;
   }
 
   get datapointId() {
@@ -1884,9 +1274,19 @@ class Datapoint {
     return datapoint.publicApi;
   }
 
+  setValue(value) {
+    const datapoint = this,
+      { cache, setterIfAny: setter } = datapoint;
+    if (setter && !isEqual(value, datapoint._value, { exact: true })) {
+      Datapoint.valueToSetter({ cache, setter, value, dependencies: datapoint.dependencies });
+    }
+    datapoint.validate({ value, evenIfValid: true });
+  }
+
   validate({ value, evenIfValid, queueValidationJob = true } = {}) {
     const datapoint = this,
-      { cache } = datapoint;
+      { cache } = datapoint,
+      wasInvalid = datapoint._invalid;
 
     if ((!evenIfValid && !datapoint._invalid) || datapoint.invalidDependencyDatapointCount) return;
 
@@ -1894,7 +1294,7 @@ class Datapoint {
     if (getter) {
       value = Datapoint.valueFromGetter({
         cache,
-        getter,
+        getter: getter,
         dependencies: datapoint.dependencies,
       });
     }
@@ -1928,9 +1328,11 @@ class Datapoint {
             }
           }
         }
-        if (!--dependentDatapoint.invalidDependencyDatapointCount) {
-          dependentDatapoint.validate();
-        }
+        if (wasInvalid) {
+          if (!--dependentDatapoint.invalidDependencyDatapointCount) {
+            dependentDatapoint.validate();
+          }
+        } else dependentDatapoint.validate({ evenIfValid: true });
       }
     }
 
@@ -2000,28 +1402,58 @@ class Datapoint {
     const datapoint = this;
 
     if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
-    try {
-      datapoint._fieldIfAny = datapoint.schema.fieldForDatapoint(datapoint);
-    } catch (err) {}
-    if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
+
+    const isLocalRow = datapoint._proxyKey && /^l\d+$/.test(datapoint._proxyKey);
+    if (!isLocalRow || datapoint._fieldName == 'id') {
+      try {
+        datapoint._fieldIfAny = datapoint.schema.fieldForDatapoint(datapoint);
+      } catch (err) {}
+      if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
+    }
 
     return (datapoint._fieldIfAny = datapoint.virtualFieldIfAny);
   }
 
   get virtualFieldIfAny() {
     const datapoint = this,
-      { templates, schema } = datapoint;
+      { templates, schema } = datapoint,
+      isLocalRow = datapoint._proxyKey && /^l\d+$/.test(datapoint._proxyKey);
 
     if (datapoint.fieldName == 'id') {
+      if (!isLocalRow) {
+        datapoint._isClient = true;
+        return datapoint.makeVirtualField({
+          isId: false,
+          isMultiple: false,
+          getterFunction: () => {
+            return datapoint.rowId;
+          },
+        });
+      }
+    } else if (isLocalRow) {
       datapoint._isClient = true;
       return datapoint.makeVirtualField({
         isId: false,
         isMultiple: false,
-        getterFunction: () => {
-          return datapoint.rowId;
+        names: {
+          remoteDatapoint: {
+            datapointId: ConvertIds.recomposeId({
+              typeName: datapoint._typeName,
+              proxyKey: datapoint._proxyKey,
+              fieldName: 'id',
+            }).datapointId,
+            [datapoint._fieldName]: {},
+          },
+        },
+        getterFunction: args => {
+          return args.remoteDatapoint ? args.remoteDatapoint[datapoint._fieldName] : undefined;
+        },
+        setterFunction: function(args) {
+          args.remoteDatapoint[datapoint._fieldName] = this.value;
         },
       });
     }
+
     let match = /^dom(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
       const variant = ChangeCase.camelCase(match[1]);
@@ -2113,11 +1545,11 @@ class Datapoint {
     }
   }
 
-  setVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
+  setVirtualField({ getterFunction, setterFunction, names = {}, isId, isMultiple }) {
     this._fieldIfAny = this.makeVirtualField(arguments[0]);
   }
 
-  makeVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
+  makeVirtualField({ getterFunction, setterFunction, names = {}, isId, isMultiple }) {
     const datapoint = this,
       field = {
         isClient: true, // force this field to evaluate locally
@@ -2139,11 +1571,20 @@ class Datapoint {
         ignoreNames: { datapointId: true },
       });
     }
+    if (setterFunction) {
+      field.set = new CodeSnippet({
+        func: setterFunction,
+        names,
+        ignoreNames: { datapointId: true },
+      });
+    }
     return field;
   }
 
   valueAsRowId(value) {
     const datapoint = this;
+
+    if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) return value;
 
     const field = datapoint.fieldIfAny;
     if (!field || !field.isId || field.isMultiple || datapoint._invalid || !Array.isArray(value) || value.length != 1)
@@ -2354,6 +1795,33 @@ class Datapoint {
     }
 
     return getter.evaluate({ valuesByName: dependencyValues, cache });
+  }
+
+  static valueToSetter({ setter, value, dependencies, cache }) {
+    const dependencyValues = {},
+      rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined;
+
+    if (dependencies) {
+      (function addDependencyValues(dependencies, to) {
+        for (let [name, dependency] of Object.entries(dependencies)) {
+          if (dependency.children) {
+            if (rowChangeTrackers && dependency.datapoint) {
+              const rowId = dependency.datapoint.valueAsRowId(dependency.datapoint.valueIfAny);
+              if (rowId) {
+                to[name] = rowChangeTrackers.rowObject(rowId);
+                continue;
+              }
+            }
+            to[name] = {};
+            addDependencyValues(dependency.children, to[name]);
+          } else if (dependency.datapoint && !dependency.datapoint._invalid) {
+            to[name] = dependency.datapoint.valueIfAny;
+          }
+        }
+      })(dependencies, dependencyValues);
+    }
+
+    return setter.evaluate({ valuesByName: dependencyValues, cache, event: { value } });
   }
 }
 
@@ -2663,7 +2131,7 @@ class RowChangeTrackers {
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
       datapoint = cache.getOrCreateDatapoint({ datapointId });
 
-    if (datapoint) datapoint.validate({ value, evenIfValid: true });
+    if (datapoint) datapoint.setValue(value);
   }
 
   getDatapointValue(rowId, fieldName) {
@@ -3132,7 +2600,7 @@ class Template {
       });
     }
     template.datapoints = {};
-    templates.removeFromTemplatesTree(vcoWas);
+    templates.removeFromTemplatesTree(template._variantClassFilterOwnership);
   }
 }
 
@@ -4796,6 +4264,8 @@ module.exports = PublicApi({
 
 module.exports = changeDetectorObject;
 
+changeDetectorObject.isCDO = object => '__cdo__' in object;
+
 function changeDetectorObject(baseObject, setParentModified) {
   if (!baseObject || typeof baseObject != 'object') return baseObject;
   const changeObject = {},
@@ -4841,7 +4311,7 @@ function changeDetectorObject(baseObject, setParentModified) {
           delete deletionsObject[key];
           return Object.defineProperty(changeObject, key, descriptor);
         },
-        has: (_obj, key) => !deletionsObject[key] && (key in changeObject || key in baseObject),
+        has: (_obj, key) => key == '__cdo__' || (!deletionsObject[key] && (key in changeObject || key in baseObject)),
         get: (_obj, key) => {
           if (deletionsObject[key]) return;
           if (key in changeObject) {
@@ -4932,6 +4402,9 @@ const PublicApi = require('./public-api');
 const changeDetectorObject = require('./change-detector-object');
 const wrapFunctionLocals = require('./wrap-function-locals');
 const log = require('../general/log');
+const ConvertIds = require('../datapoints/convert-ids');
+
+let nextLocalId = 1;
 
 class Code {
   static withString(codeString) {
@@ -4944,7 +4417,7 @@ class Code {
     Object.assign(code, wrapFunctionLocals(codeString));
   }
 
-  evalOnContext(context, state, event) {
+  evalOnContext(context, state, event, allocateRowObject) {
     const code = this,
       { wrappedFunction } = code,
       changeDetectingContext = changeDetectorObject(context);
@@ -4952,8 +4425,8 @@ class Code {
     try {
       result = wrappedFunction
         ? event
-          ? wrappedFunction.call(event.target, changeDetectingContext.useObject, state, {}, event)
-          : wrappedFunction(changeDetectingContext.useObject, state, {}, event)
+          ? wrappedFunction.call(event.target, changeDetectingContext.useObject, state, {}, event, allocateRowObject)
+          : wrappedFunction(changeDetectingContext.useObject, state, {}, event, allocateRowObject)
         : undefined;
     } catch (error) {
       log('err.code', `Error while evaluating code: ${error.message}`);
@@ -4965,15 +4438,15 @@ class Code {
     };
   }
 
-  evalOnModelCDO(modelCDO, state, event) {
+  evalOnModelCDO(modelCDO, state, event, allocateRowObject) {
     const code = this,
       { wrappedFunction } = code;
     let result;
     try {
       result = wrappedFunction
         ? event
-          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event)
-          : wrappedFunction(modelCDO, state, modelCDO, event)
+          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event, allocateRowObject)
+          : wrappedFunction(modelCDO, state, modelCDO, event, allocateRowObject)
         : undefined;
     } catch (error) {
       log('err.code', `Error while evaluating code: ${error.message}`);
@@ -5050,7 +4523,10 @@ class CodeSnippet {
     const stateVar = cache ? cache.stateVar : undefined,
       state = stateVar ? stateVar.stateVar : {},
       rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined,
-      rowObject = rowId && rowChangeTrackers ? rowChangeTrackers.rowObject(rowId) : undefined;
+      rowObject = rowId && rowChangeTrackers ? rowChangeTrackers.rowObject(rowId) : undefined,
+      allocateRowObject = typeName => {
+        return rowChangeTrackers.rowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}` }).rowId);
+      };
 
     if (typeof valueForNameCallback != 'function') {
       valueForNameCallback = (...names) => {
@@ -5066,23 +4542,29 @@ class CodeSnippet {
     }
 
     codeSnippet.forEachName((...names) => {
-      let localSandbox = sandbox;
-      names.forEach((name, index) => {
-        if (index < names.length - 1)
+      let localSandbox = sandbox,
+        index = 0;
+      for (const name of names) {
+        const value = valueForNameCallback(...names.slice(0, index + 1));
+        if (index == names.length - 1 || changeDetectorObject.isCDO(value)) {
+          localSandbox[name] = value;
+          break;
+        } else {
           localSandbox = localSandbox[name] ? localSandbox[name] : (localSandbox[name] = {});
-        else {
-          localSandbox[name] = valueForNameCallback(...names);
         }
-      });
+        index++;
+      }
     });
 
     let ret = codeSnippet.defaultValue;
     if (codeSnippet._func) {
-      ret = codeSnippet._func(sandbox, state);
+      if (event) {
+        ret = codeSnippet._func.call(event, sandbox, state, allocateRowObject);
+      } else ret = codeSnippet._func(sandbox, state, allocateRowObject);
     } else if (rowObject) {
-      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state, event));
+      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state, event, allocateRowObject));
     } else {
-      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event));
+      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event, allocateRowObject));
     }
     if (stateVar) stateVar.commitStateVar();
 
@@ -5096,7 +4578,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/log":25,"./change-detector-object":19,"./public-api":29,"./wrap-function-locals":35}],22:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/log":25,"./change-detector-object":19,"./public-api":29,"./wrap-function-locals":35}],22:[function(require,module,exports){
 // diff
 // © Will Smart 2018. Licence: MIT
 
@@ -6106,7 +5588,15 @@ function _cloneShowingElementNames(value) {
 const locateEnd = require('./locate-end');
 const unicodeCategories = require('./unicode-categories');
 
-const permissableGlobals = { Function: true, Math: true, Object: true, console: true, model: true, event: true };
+const permissableGlobals = {
+  Function: true,
+  Math: true,
+  Object: true,
+  console: true,
+  model: true,
+  event: true,
+  newrow: true,
+};
 const jsKeywords = {
   break: true,
   case: true,
@@ -6647,7 +6137,7 @@ class StateVar {
         const datapointId = StateVar.datapointId(`${path}.${key}`),
           datapoint = cache.getExistingDatapoint({ datapointId });
         if (datapoint) {
-          datapoint.validate({ value: undefined, evenIfValid: true });
+          datapoint.setValue(undefined);
         }
       }
     }
@@ -6659,7 +6149,7 @@ class StateVar {
         }
         const datapointId = StateVar.datapointId(`${path}.${key}`),
           datapoint = cache.getOrCreateDatapoint({ datapointId });
-        datapoint.validate({ value, evenIfValid: true });
+        datapoint.setValue(value);
       }
     }
   }
@@ -6835,6 +6325,7 @@ function wrapFunctionLocals(codeString) {
       'state',
       'model',
       'event',
+      'newrow',
       '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: true })
     );
   } catch (err) {
@@ -6844,6 +6335,7 @@ function wrapFunctionLocals(codeString) {
         'state',
         'model',
         'event',
+        'newrow',
         '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {
@@ -7627,4 +7119,715 @@ module.exports = function (str, locale) {
   return str.toUpperCase()
 }
 
-},{}]},{},[5]);
+},{}],61:[function(require,module,exports){
+const WebSocket = require('isomorphic-ws');
+const PublicApi = require('../general/public-api');
+const makeClassWatchable = require('../general/watchable');
+const PageState = require('../client/page-state');
+const log = require('../general/log');
+
+// API is auto-generated at the bottom from the public interface of this class
+
+class WebSocketClient {
+  // public methods
+  static publicMethods() {
+    return ['sendMessage', 'sendPayload', 'isOpen', 'watch', 'stopWatching', 'signOut'];
+  }
+
+  constructor({ port = 3000 } = {}) {
+    const client = this;
+
+    client._isOpen = false;
+    client.nextMessageIndex = 1;
+    client.clientParams = {
+      port: port,
+    };
+
+    function open() {
+      const host =
+        window.location.protocol == 'https:'
+          ? `wss://sock.${window.location.host}`
+          : `ws://${window.location.hostname}:${port}`;
+      const ws = (client.ws = new WebSocket(
+        `${host}/sock${client.phoenix ? `?phoenix=${encodeURIComponent(client.phoenix)}` : ''}`
+      ));
+      delete client.phoenix;
+      ws.onopen = function open() {
+        client._isOpen = true;
+        client.notifyListeners('onopen');
+
+        (client.pongHistory = [0, 0, 0, 1]), (client.pongCount = 1);
+      };
+
+      ws.onclose = function close() {
+        clearInterval(ws.pingInterval);
+        client._isOpen = false;
+        client.notifyListeners('onclose');
+        delete client.intentionalClose;
+        setTimeout(() => open(), client.intentionalClose ? 100 : 2000);
+      };
+
+      if (ws.on) {
+        ws.on('pong', () => {
+          ws.pongHistory[ws.pongHistory.length - 1]++;
+          ws.pongCount++;
+        });
+      }
+
+      ws.onmessage = function incoming(message) {
+        const match = /^Phoenix:(.*)$/.exec(message.data);
+        if (match) {
+          client.phoenix = JSON.parse(match[1]);
+          client.intentionalClose = true;
+          ws.close();
+          return;
+        }
+
+        performance.mark('receive');
+        log('ws', 'Got message from server:   ' + message.data);
+
+        client.notifyListeners(
+          'onpayload',
+          WebSocketClient.decodeMessage({
+            message: message.data,
+          })
+        );
+      };
+
+      ws.onerror = err => {
+        log('err', `Error: ${err.message}`);
+      };
+
+      if (ws.ping) {
+        ws.pingInterval = setInterval(function ping() {
+          if (!ws.pongCount) {
+            client.intentionalClose = true;
+            return ws.close();
+          }
+
+          ws.pongHistory.push(0);
+          clwsient.pongCount -= ws.pongHistory.shift();
+
+          ws.ping('', false, true);
+        }, 10000);
+      }
+    }
+    open();
+
+    log('ws', `Web socket client listening to server on port ${port}`);
+  }
+
+  get isOpen() {
+    return this._isOpen;
+  }
+
+  static decodeMessage({ message }) {
+    const matches = /^(?:(\d+)|(\w+)):/.exec(message),
+      messageIndex = matches && matches[1] !== undefined ? +matches[1] : -1,
+      messageType = matches && matches[2] !== undefined ? matches[2] : undefined;
+    if (matches) message = message.substring(matches[0].length);
+
+    let payloadObject;
+    try {
+      payloadObject = JSON.parse(message);
+    } catch (err) {
+      payloadObject = message;
+    }
+    if (Array.isArray(payloadObject)) {
+      payloadObject = {
+        array: payloadObject,
+      };
+    } else if (!payloadObject || typeof payloadObject != 'object') {
+      payloadObject = {
+        message: `${payloadObject}`,
+      };
+    }
+
+    return {
+      messageIndex,
+      messageType,
+      payloadObject,
+    };
+  }
+  get cache() {
+    return this._cache;
+  }
+
+  sendMessage({ message }) {
+    this.sendPayload(
+      WebSocketClient.decodeMessage({
+        message,
+      })
+    );
+  }
+
+  sendPayload({ messageIndex = -1, messageType, payloadObject = {} }) {
+    const client = this;
+
+    if (!client.isOpen) return;
+
+    if (messageIndex == -1 && !messageType) messageIndex = client.nextMessageIndex++;
+    const message = `${
+      messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
+    }${JSON.stringify(payloadObject)}`;
+    performance.mark('send');
+    log('ws', 'Sending message to server:   ' + message);
+
+    client.ws.send(message);
+  }
+
+  signOut() {
+    const client = this;
+
+    //TODO    SharedState.global.withTemporaryState(tempState => {
+    //      tempState.atPath().datapointsById = {};
+    //    });
+    client.phoenix = 'out';
+    client.intentionalClose = true;
+    client.ws.close();
+
+    PageState.global.visit('app__default');
+  }
+}
+
+makeClassWatchable(WebSocketClient);
+
+// API is the public facing class
+module.exports = PublicApi({
+  fromClass: WebSocketClient,
+  hasExposedBackDoor: true,
+});
+
+},{"../client/page-state":5,"../general/log":25,"../general/public-api":29,"../general/watchable":34,"isomorphic-ws":43}],62:[function(require,module,exports){
+const { applyDiff, createDiff } = require('../general/diff');
+const PublicApi = require('../general/public-api');
+const isEqual = require('../general/is-equal');
+const ConvertIds = require('../datapoints/convert-ids');
+const RequiredDatapoints = require('../datapoints/required-datapoints');
+const log = require('../general/log');
+
+const ValueHistoryLength = 1;
+
+// API is auto-generated at the bottom from the public interface of the WebSocketProtocol class
+
+class WebSocketConnection {
+  constructor({ ws, wsp }) {
+    const wsc = this,
+      index = wsp.nextConnectionIndex++;
+
+    Object.assign(wsc, {
+      wsp,
+      ws,
+      index,
+      datapoints: {},
+      callbackKey: `wsc-${index}`,
+      localDBRowIds: {},
+    });
+
+    ws.watch({
+      callbackKey: wsc.callbackKey,
+      onclose: () => {
+        wsc.close();
+      },
+      onpayload: ({ messageType, payloadObject }) => {
+        if (messageType == 'datapoints') {
+          wsc.handleDatapointPayload(payloadObject);
+        }
+      },
+    });
+
+    wsp.connections[index] = wsc;
+
+    if (!wsp.isServer) {
+      for (const datapoint of wsp.cache.datapoints) {
+        if (datapoint.isClient) continue;
+        wsp.queueSendDatapoint({
+          theirDatapointId: datapoint.datapointId,
+          datapointId: datapoint.datapointId,
+          index,
+        });
+      }
+    }
+  }
+
+  close() {
+    const wsc = this,
+      { callbackKey, wsp, index, ws, datapoints } = wsc;
+
+    ws.stopWatching({ callbackKey });
+
+    for (const datapointId of Object.keys(datapoints)) wsc.deleteDatapoint(datapointId);
+
+    delete wsp.connections[index];
+
+    wsc.datapoints = {};
+  }
+
+  handleDatapointPayload(payloadObject) {
+    const wsc = this,
+      { ws } = wsc;
+
+    if (!payloadObject || Array.isArray(payloadObject) || typeof payloadObject != 'object') return;
+
+    for (const [theirDatapointId, msgData] of Object.entries(payloadObject)) {
+      if (typeof msgData == 'number') {
+        wsc.handleVersionNumber({ theirDatapointId, version: msgData });
+      } else if (typeof msgData == 'object') {
+        let { version, value, diff, baseVersion } = msgData;
+        if (!version || !(value !== undefined || (diff !== undefined && baseVersion))) {
+          log('err', `Bad msg data for datapoint ${theirDatapointId} ${JSON.stringify(msgData)}`);
+          continue;
+        }
+        wsc.handleVersionValue({ theirDatapointId, version, value, diff, baseVersion });
+      }
+    }
+  }
+
+  // semi-async
+  makeConcreteDatapointId(theirDatapointId) {
+    const { rowProxy } = this.ws;
+    if (!rowProxy) return theirDatapointId;
+    const datapointInfo = rowProxy.makeConcrete({ datapointId: theirDatapointId });
+    if (!datapointInfo) return 'unknown__1__';
+    if (datapointInfo.then) return datapointInfo.then(datapointInfo => datapointInfo.datapointId);
+    return datapointInfo.datapointId;
+  }
+
+  // other side is saying "I've got this version"
+  // reply options are:
+  // (A)  "I know" (no reply)
+  // (B)  "Oh, that's higher that I mine" (reply with my version number)
+  // (C)  "Well, I've got this higher version, which I haven't told you about" (reply with the diff to the newer version)
+  // (D)  "Well, I've got this higher version, which I've already told you about" (reply with the value of the newer version)
+  // the server also has to deal with:
+  // (E)  "Oh, I didn't think you knew about that datapoint" (subscribe the client to datapoint changes)
+  // (F)  "Version 0 eh, ok you're unsubscribed" (version 0 is the client's way of unsubscribing to updates for a datapoint)
+  handleVersionNumber({ theirDatapointId, version }) {
+    const wsc = this,
+      { wsp, index, ws } = wsc;
+    let cdatapoint = wsc.datapoints[theirDatapointId];
+
+    if (!cdatapoint) {
+      if (version == 0) return;
+
+      if (!wsp.isServer) {
+        if (version == 1) {
+          const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
+          if (datapointId.then) datapointId.then(handleDatapointId);
+          else handleDatapointId(datapointId);
+
+          function handleDatapointId(datapointId) {
+            if (!datapointId) return;
+            const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+            if (!datapoint.initialized) {
+              datapoint.setAsInitializing();
+              datapoint.setValue(undefined);
+            }
+          }
+        }
+        return;
+      }
+
+      cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
+
+      if (wsp.isServer && ws.rowProxy) {
+        const { rowId, fieldName } = ConvertIds.decomposeId({ datapointId: theirDatapointId });
+        const match = /^template_?(.*)$/.exec(fieldName);
+        if (match) {
+          const variant = match[1];
+          wsp.requiredDatapoints
+            .forView({ rowId, variant, rowProxy: ws.rowProxy, userId: ws.userId })
+            .then(datapoints => {
+              for (const [theirDatapointId, { datapoint, callbackKey }] of Object.entries(datapoints)) {
+                const cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
+                if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
+                else handleCDatapoint(cdatapoint);
+
+                function handleCDatapoint(cdatapoint) {
+                  const datapointId = cdatapoint.datapointId || theirDatapointId;
+                  wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+                  datapoint.stopWatching({ callbackKey });
+                }
+              }
+            });
+        }
+      }
+    }
+
+    if (!version) {
+      wsc.deleteDatapoint(theirDatapointId);
+      return;
+    }
+
+    if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
+    else handleCDatapoint(cdatapoint);
+
+    function handleCDatapoint(cdatapoint) {
+      cdatapoint.theirVersion = version;
+      if (cdatapoint.theirVersion == cdatapoint.myVersion) return;
+
+      const datapointId = cdatapoint.datapointId || theirDatapointId;
+
+      wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+    }
+  }
+
+  // other side is saying "Version msgData.version has value msgData.value"
+  //   or "Version msgData.version is the result of applying msgData.diff to version msgData.baseVersion"
+  // reply options are:
+  // A  "Snap! I've got that too" (reply with my version number)
+  // B  "Cool, that's higher that I mine and I've got the new value" (reply with my version number)
+  // C  "Well, I've got this higher version" (reply with the value of the newer version)
+  // D  "Um, I don't have that baseVersion you speak of" (reply with my version number)
+  // E  "Eek, I tried that diff and it didn't fit" (reply with my version number)
+  // the server also has to deal with:
+  // F  "Oh, I didn't think you knew about that datapoint" (subscribe the client to datapoint changes)
+  handleVersionValue({ theirDatapointId, version, value, diff, baseVersion }) {
+    const wsc = this,
+      { wsp, index } = wsc;
+    let cdatapoint = wsc.datapoints[theirDatapointId];
+
+    if (version <= 1) return;
+
+    if (!cdatapoint) {
+      // todo client should start a timer
+      cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
+    }
+
+    if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
+    else handleCDatapoint(cdatapoint);
+
+    function handleCDatapoint(cdatapoint) {
+      const datapointId = cdatapoint.datapointId || theirDatapointId;
+
+      cdatapoint.theirVersion = version;
+
+      if (cdatapoint.theirVersion > cdatapoint.myVersion) {
+        if (baseVersion) {
+          const pdatapoint = wsp.datapoints[datapointId];
+          let base;
+          for (const valueInfo of pdatapoint.values) {
+            if (valueInfo.versionByConnectionIndex[index] == baseVersion) {
+              base = valueInfo.value;
+            }
+          }
+          if (base !== undefined) {
+            value = applyDiff({ diff, base });
+            if (value === undefined) {
+              log(
+                'err',
+                `Couldn't apply diff for datapoint ${theirDatapointId}\n   Base: ${JSON.stringify(
+                  base
+                )}\n   Diff: ${JSON.stringify(diff)}`
+              );
+            }
+          }
+        }
+        if (value !== undefined) {
+          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+          wsp.addDatapointValue({
+            datapointId,
+            value,
+            versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
+          });
+          if (wsp.isServer) {
+            datapoint.updateValue({ newValue: value });
+          } else {
+            datapoint.setAsInitializing();
+            datapoint.setValue(value);
+          }
+        }
+      }
+
+      wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+    }
+  }
+
+  deleteDatapoint(theirDatapointId) {
+    const wsc = this,
+      { wsp, index } = wsc,
+      cdatapoint = wsc.datapoints[theirDatapointId];
+    if (!cdatapoint) return;
+    delete wsc.datapoints[theirDatapointId];
+
+    const datapointId = cdatapoint.datapointId || theirDatapointId,
+      pdatapoint = wsp.datapoints[datapointId];
+
+    if (pdatapoint) {
+      for (const valueInfo of pdatapoint.values) {
+        delete valueInfo.versionByConnectionIndex[index];
+      }
+      delete pdatapoint.connectionIndexes[index][theirDatapointId];
+      if (!Object.keys(pdatapoint.connectionIndexes[index]).length) {
+        delete pdatapoint.connectionIndexes[index];
+
+        if (!Object.keys(pdatapoint.connectionIndexes).length) {
+          wsp.deleteDatapoint(datapointId);
+        }
+      }
+    }
+  }
+
+  // semi-async
+  getOrCreateDatapoint(theirDatapointId) {
+    const wsc = this,
+      { wsp, index } = wsc;
+    let cdatapoint = wsc.datapoints[theirDatapointId];
+    if (cdatapoint) return cdatapoint;
+
+    const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
+    if (datapointId.then) return datapointId.then(handleDatapointId);
+    else return handleDatapointId(datapointId);
+
+    function handleDatapointId(datapointId) {
+      let pdatapoint = wsp.datapoints[datapointId];
+
+      cdatapoint = wsc.datapoints[theirDatapointId] = {
+        myVersion: 1,
+        theirVersion: 0,
+        datapointId: datapointId == theirDatapointId ? undefined : datapointId,
+      };
+
+      if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
+
+      (pdatapoint.connectionIndexes[index] = pdatapoint.connectionIndexes[index] || {})[theirDatapointId] = true;
+
+      if (pdatapoint.values.length) {
+        cdatapoint.myVersion = 2 + (wsp.isServer ? 1 : 0);
+      }
+      return cdatapoint;
+    }
+  }
+
+  payload({ theirDatapointId, datapointId, values }) {
+    const wsc = this,
+      { index, datapoints, wsp, ws } = wsc,
+      cdatapoint = datapoints[theirDatapointId];
+
+    if (!cdatapoint) return 1;
+
+    if (!values.length) {
+      cdatapoint.myVersion = 1;
+      return 1;
+    }
+
+    const valueInfo = values[values.length - 1];
+
+    let myVersion = valueInfo.versionByConnectionIndex[index];
+    if (myVersion === undefined) {
+      const maxVersion = Math.max(cdatapoint.theirVersion, cdatapoint.myVersion),
+        nextEvenVersion = Math.floor(maxVersion / 2 + 1) * 2;
+      myVersion = valueInfo.versionByConnectionIndex[index] = nextEvenVersion + (wsp.isServer ? 1 : 0);
+    }
+    cdatapoint.myVersion = myVersion;
+
+    if (myVersion <= 1 || myVersion <= cdatapoint.theirVersion) return myVersion;
+
+    const prevValueInfo = values.find(
+      valueInfo => valueInfo.versionByConnectionIndex[index] === cdatapoint.theirVersion
+    );
+    if (prevValueInfo) {
+      // TODO do a diff
+    }
+
+    let { value } = valueInfo;
+    if (value && typeof value == 'object' && value.public !== undefined) {
+      const { public: publicValue, private: privateValue, ownerId } = value,
+        userId = ws.userId;
+      value = (ownerId ? ownerId == userId : !userId) ? privateValue || publicValue : publicValue;
+    }
+    return { version: myVersion, value };
+  }
+
+  sendPayload({ payloadObject }) {
+    this.ws.sendPayload({ messageType: 'datapoints', payloadObject });
+  }
+}
+
+class WebSocketProtocol {
+  // public methods
+  static publicMethods() {
+    return [];
+  }
+
+  constructor({ cache, dbConnection, ws, isServer }) {
+    const wsp = this;
+
+    wsp.isServer = isServer;
+    wsp.dbConnection = dbConnection;
+    wsp.cache = cache;
+    wsp.requiredDatapoints = new RequiredDatapoints({ cache });
+    wsp.queuedDatapoints = {};
+    wsp.queueTimer = undefined;
+    wsp.queueDelay = 1;
+    wsp.datapoints = {};
+    wsp.nextConnectionIndex = 1; //owned by WebSocketConnection
+    wsp.connections = {}; //owned by WebSocketConnection
+
+    const callbackKey = (wsp.callbackKey = 'wsp');
+    ws.watch({
+      callbackKey,
+      onclientConnected: client => {
+        new WebSocketConnection({ ws: client, wsp });
+      },
+      onopen: () => {
+        new WebSocketConnection({ ws, wsp });
+      },
+    });
+
+    if (!wsp.isServer) {
+      cache.watch({
+        callbackKey,
+        onvalid: ({ newlyValidDatapoints }) => {
+          for (const datapointId of newlyValidDatapoints) {
+            if (wsp.datapoints[datapointId]) continue;
+            const datapointInfo = ConvertIds.decomposeId({ datapointId });
+            if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
+              const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
+              cache.getOrCreateDatapoint({ datapointId: dbRowIdDatapointId });
+            }
+            const datapoint = cache.getExistingDatapoint({ datapointId });
+            if (!datapoint || datapoint.isClient) continue;
+            for (const wsc of Object.values(wsp.connections)) {
+              wsc.getOrCreateDatapoint(datapointId);
+            }
+            const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
+            if (!datapoint.initialized) {
+              wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
+            } else {
+              wsp.addDatapointValue({
+                datapointId,
+                value: datapoint.valueIfAny,
+              });
+            }
+          }
+        },
+      });
+    }
+  }
+
+  getOrCreateDatapoint(datapointId) {
+    const wsp = this,
+      { cache, callbackKey } = wsp;
+    let pdatapoint = wsp.datapoints[datapointId];
+
+    if (pdatapoint) return pdatapoint;
+    pdatapoint = wsp.datapoints[datapointId] = {
+      values: [],
+      connectionIndexes: {},
+    };
+
+    const datapoint = cache.getOrCreateDatapoint({ datapointId });
+    datapoint.watch({
+      callbackKey,
+      onchange: datapoint => {
+        const { valueIfAny: value, datapointId } = datapoint;
+        wsp.addDatapointValue({
+          datapointId,
+          value,
+        });
+      },
+    });
+    if (datapoint.initialized && datapoint.valueIfAny != null)
+      wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
+
+    return pdatapoint;
+  }
+
+  addDatapointValue({ datapointId, value, versionByConnectionIndex = {} }) {
+    if (value === undefined) value = null;
+
+    const wsp = this;
+    let pdatapoint = wsp.datapoints[datapointId];
+    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint({ datapointId });
+    const { values } = pdatapoint;
+
+    if (values.length && isEqual(value, values[values.length - 1].value)) {
+      if (versionByConnectionIndex) {
+        Object.assign(values[values.length - 1].versionByConnectionIndex, versionByConnectionIndex);
+      }
+      return;
+    }
+
+    values.push({
+      value,
+      versionByConnectionIndex,
+    });
+
+    if (values.length > ValueHistoryLength) values.shift();
+
+    wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
+  }
+
+  deleteDatapoint(datapointId) {
+    const wsp = this,
+      { cache, callbackKey } = wsp,
+      pdatapoint = wsp.datapoints[datapointId];
+
+    if (!pdatapoint || Object.keys(pdatapoint.connectionIndexes).length) return;
+
+    const datapoint = cache.getExistingDatapoint({ datapointId });
+    if (datapoint) datapoint.stopWatching({ callbackKey });
+
+    delete wsp.datapoints[datapointId];
+  }
+
+  queueSendDatapoint({ theirDatapointId, datapointId, index, connectionIndexes }) {
+    const wsp = this,
+      indexes = (wsp.queuedDatapoints[datapointId] = wsp.queuedDatapoints[datapointId] || {});
+    if (index && theirDatapointId) {
+      const theirDatapointIds = (indexes[index] = Object.assign({}, indexes[index]) || {});
+      theirDatapointIds[theirDatapointId] = true;
+    }
+    if (connectionIndexes) Object.assign(indexes, connectionIndexes);
+
+    if (wsp.queueTimer === undefined) {
+      wsp.queueTimer = setTimeout(() => {
+        const queuedDatapoints = wsp.queuedDatapoints;
+        wsp.queuedDatapoints = {};
+        wsp.sendDatapoints(queuedDatapoints);
+      }, wsp.queueDelay);
+    }
+  }
+
+  sendDatapoints(datapoints) {
+    const wsp = this,
+      { cache } = wsp;
+
+    if (wsp.queueTimer !== undefined) {
+      clearTimeout(wsp.queueTimer);
+      wsp.queueTimer = undefined;
+    }
+
+    const payloadObjects = {};
+
+    for (const [datapointId, theirDatapointIdsByIndex] of Object.entries(datapoints)) {
+      const pdatapoint = wsp.datapoints[datapointId];
+      if (!pdatapoint) continue;
+
+      const { values } = pdatapoint;
+
+      for (const [index, theirDatapointIds] of Object.entries(theirDatapointIdsByIndex)) {
+        const wsc = wsp.connections[index];
+        if (!wsc) continue;
+        //if (wsp.isServer && (wsc.msgCount = (wsc.msgCount || 0) + 1) > 20) continue;
+
+        const payloadObject = (payloadObjects[index] = payloadObjects[index] || {});
+        for (const theirDatapointId of Object.keys(theirDatapointIds)) {
+          payloadObject[theirDatapointId] = wsc.payload({ theirDatapointId, datapointId, values, pdatapoint });
+        }
+      }
+    }
+    for (const [index, payloadObject] of Object.entries(payloadObjects)) {
+      wsp.connections[index].sendPayload({ payloadObject });
+    }
+  }
+}
+
+// API is the public facing class
+module.exports = PublicApi({
+  fromClass: WebSocketProtocol,
+  hasExposedBackDoor: true,
+});
+
+},{"../datapoints/convert-ids":7,"../datapoints/required-datapoints":10,"../general/diff":22,"../general/is-equal":23,"../general/log":25,"../general/public-api":29}]},{},[3]);

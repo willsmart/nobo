@@ -1,13 +1,12 @@
 const fs = require('fs');
-const log = require('../general/log');
-const PublicApi = require('../general/public-api');
 const util = require('util');
 const { promisify } = util;
+
+const log = require('../general/log');
+const PublicApi = require('../general/public-api');
+
 const exec = util.promisify(require('child_process').exec);
 const readFile_p = promisify(fs.readFile);
-
-const jsFileRegex = /\.js$/;
-const cssFileRegex = /\.css$/;
 
 // API is auto-generated at the bottom from the public interface of the Page class
 

@@ -268,7 +268,7 @@ class DatapointCache {
     let { deletionLists } = cache;
     if (!deletionLists) {
       deletionLists = cache.deletionLists = [{}];
-      setInterval(() => cache._cycleDeletionList(), 1000);
+      setTimeout(() => cache._cycleDeletionList(), 1000);
     }
     let deletionList = deletionLists[0];
     if (!deletionList) deletionList = deletionLists[0] = {};
@@ -294,7 +294,7 @@ class DatapointCache {
       cache.deletionLists = undefined;
     } else {
       deletionLists.unshift(undefined);
-      setInterval(() => cache._cycleDeletionList(), 1000);
+      setTimeout(() => cache._cycleDeletionList(), 1000);
     }
   }
 }

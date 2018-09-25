@@ -4,11 +4,12 @@ const ConvertIds = require('./convert-ids');
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
 
 const appDbRowId = 1;
+const localDBRowIds = {};
 
 class RowProxy {
   // public methods
   static publicMethods() {
-    return ['chainPolicy', 'basePolicy', 'userIdPolicy', 'makeConcrete'];
+    return ['chainPolicy', 'basePolicy', 'userIdPolicy', 'clientLocalDbRowIdPolicy', 'makeConcrete'];
   }
 
   constructor({ policy } = {}) {
@@ -46,6 +47,30 @@ class RowProxy {
       fromProxy: ({ typeName, proxyKey }) => {
         if (typeName == 'User' && proxyKey == 'default') {
           return userId ? { dbRowId: userId } : { typeName: 'App', dbRowId: appDbRowId };
+        }
+      },
+    };
+  }
+
+  // semi-async
+  static clientLocalDbRowIdPolicy({ dbConnection }) {
+    function getLocalDbRowId({ typeName, proxyKey }) {
+      const typeDBRowIds = localDBRowIds[typeName] || (localDBRowIds[typeName] = {});
+      if (typeDBRowIds[proxyKey]) return typeDBRowIds[proxyKey];
+
+      return dbConnection.allocateDbRowId({ typeName }).then(dbRowId => (typeDBRowIds[proxyKey] = dbRowId));
+    }
+
+    return {
+      localDBRowIds: {},
+      fromConcrete: () => undefined,
+      fromProxy: ({ typeName, proxyKey }) => {
+        if (!dbConnection) return;
+        if (/^l\d+$/.test(proxyKey)) {
+          const dbRowId = getLocalDbRowId({ typeName, proxyKey });
+          if (dbRowId.then) {
+            return dbRowId.then(dbRowId => ({ typeName, dbRowId: dbRowId }));
+          } else return { typeName, dbRowId: dbRowId };
         }
       },
     };

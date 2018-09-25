@@ -33,6 +33,7 @@ function wrapFunctionLocals(codeString) {
       'state',
       'model',
       'event',
+      'newrow',
       '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: true })
     );
   } catch (err) {
@@ -42,6 +43,7 @@ function wrapFunctionLocals(codeString) {
         'state',
         'model',
         'event',
+        'newrow',
         '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {

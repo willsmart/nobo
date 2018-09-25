@@ -20,6 +20,7 @@ class WebSocketConnection {
       index,
       datapoints: {},
       callbackKey: `wsc-${index}`,
+      localDBRowIds: {},
     });
 
     ws.watch({
@@ -81,11 +82,14 @@ class WebSocketConnection {
     }
   }
 
+  // semi-async
   makeConcreteDatapointId(theirDatapointId) {
     const { rowProxy } = this.ws;
     if (!rowProxy) return theirDatapointId;
     const datapointInfo = rowProxy.makeConcrete({ datapointId: theirDatapointId });
-    return datapointInfo ? datapointInfo.datapointId : 'unknown__1__';
+    if (!datapointInfo) return 'unknown__1__';
+    if (datapointInfo.then) return datapointInfo.then(datapointInfo => datapointInfo.datapointId);
+    return datapointInfo.datapointId;
   }
 
   // other side is saying "I've got this version"
@@ -104,13 +108,20 @@ class WebSocketConnection {
 
     if (!cdatapoint) {
       if (version == 0) return;
+
       if (!wsp.isServer) {
         if (version == 1) {
           const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
-          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
-          if (!datapoint.initialized) {
-            datapoint.setAsInitializing();
-            datapoint.validate({ evenIfValid: true });
+          if (datapointId.then) datapointId.then(handleDatapointId);
+          else handleDatapointId(datapointId);
+
+          function handleDatapointId(datapointId) {
+            if (!datapointId) return;
+            const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+            if (!datapoint.initialized) {
+              datapoint.setAsInitializing();
+              datapoint.setValue(undefined);
+            }
           }
         }
         return;
@@ -128,9 +139,14 @@ class WebSocketConnection {
             .then(datapoints => {
               for (const [theirDatapointId, { datapoint, callbackKey }] of Object.entries(datapoints)) {
                 const cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-                const datapointId = cdatapoint.datapointId || theirDatapointId;
-                wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-                datapoint.stopWatching({ callbackKey });
+                if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
+                else handleCDatapoint(cdatapoint);
+
+                function handleCDatapoint(cdatapoint) {
+                  const datapointId = cdatapoint.datapointId || theirDatapointId;
+                  wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+                  datapoint.stopWatching({ callbackKey });
+                }
               }
             });
         }
@@ -142,12 +158,17 @@ class WebSocketConnection {
       return;
     }
 
-    cdatapoint.theirVersion = version;
-    if (cdatapoint.theirVersion == cdatapoint.myVersion) return;
+    if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
+    else handleCDatapoint(cdatapoint);
 
-    const datapointId = cdatapoint.datapointId || theirDatapointId;
+    function handleCDatapoint(cdatapoint) {
+      cdatapoint.theirVersion = version;
+      if (cdatapoint.theirVersion == cdatapoint.myVersion) return;
 
-    wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+      const datapointId = cdatapoint.datapointId || theirDatapointId;
+
+      wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
+    }
   }
 
   // other side is saying "Version msgData.version has value msgData.value"
@@ -172,48 +193,53 @@ class WebSocketConnection {
       cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
     }
 
-    const datapointId = cdatapoint.datapointId || theirDatapointId;
+    if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
+    else handleCDatapoint(cdatapoint);
 
-    cdatapoint.theirVersion = version;
+    function handleCDatapoint(cdatapoint) {
+      const datapointId = cdatapoint.datapointId || theirDatapointId;
 
-    if (cdatapoint.theirVersion > cdatapoint.myVersion) {
-      if (baseVersion) {
-        const pdatapoint = wsp.datapoints[datapointId];
-        let base;
-        for (const valueInfo of pdatapoint.values) {
-          if (valueInfo.versionByConnectionIndex[index] == baseVersion) {
-            base = valueInfo.value;
+      cdatapoint.theirVersion = version;
+
+      if (cdatapoint.theirVersion > cdatapoint.myVersion) {
+        if (baseVersion) {
+          const pdatapoint = wsp.datapoints[datapointId];
+          let base;
+          for (const valueInfo of pdatapoint.values) {
+            if (valueInfo.versionByConnectionIndex[index] == baseVersion) {
+              base = valueInfo.value;
+            }
+          }
+          if (base !== undefined) {
+            value = applyDiff({ diff, base });
+            if (value === undefined) {
+              log(
+                'err',
+                `Couldn't apply diff for datapoint ${theirDatapointId}\n   Base: ${JSON.stringify(
+                  base
+                )}\n   Diff: ${JSON.stringify(diff)}`
+              );
+            }
           }
         }
-        if (base !== undefined) {
-          value = applyDiff({ diff, base });
-          if (value === undefined) {
-            log(
-              'err',
-              `Couldn't apply diff for datapoint ${theirDatapointId}\n   Base: ${JSON.stringify(
-                base
-              )}\n   Diff: ${JSON.stringify(diff)}`
-            );
+        if (value !== undefined) {
+          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+          wsp.addDatapointValue({
+            datapointId,
+            value,
+            versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
+          });
+          if (wsp.isServer) {
+            datapoint.updateValue({ newValue: value });
+          } else {
+            datapoint.setAsInitializing();
+            datapoint.setValue(value);
           }
         }
       }
-      if (value !== undefined) {
-        const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
-        wsp.addDatapointValue({
-          datapointId,
-          value,
-          versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
-        });
-        if (wsp.isServer) {
-          datapoint.updateValue({ newValue: value });
-        } else {
-          datapoint.setAsInitializing();
-          datapoint.validate({ value, evenIfValid: true });
-        }
-      }
+
+      wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
     }
-
-    wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
   }
 
   deleteDatapoint(theirDatapointId) {
@@ -241,6 +267,7 @@ class WebSocketConnection {
     }
   }
 
+  // semi-async
   getOrCreateDatapoint(theirDatapointId) {
     const wsc = this,
       { wsp, index } = wsc;
@@ -248,23 +275,27 @@ class WebSocketConnection {
     if (cdatapoint) return cdatapoint;
 
     const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
+    if (datapointId.then) return datapointId.then(handleDatapointId);
+    else return handleDatapointId(datapointId);
 
-    let pdatapoint = wsp.datapoints[datapointId];
+    function handleDatapointId(datapointId) {
+      let pdatapoint = wsp.datapoints[datapointId];
 
-    cdatapoint = wsc.datapoints[theirDatapointId] = {
-      myVersion: 1,
-      theirVersion: 0,
-      datapointId: datapointId == theirDatapointId ? undefined : datapointId,
-    };
+      cdatapoint = wsc.datapoints[theirDatapointId] = {
+        myVersion: 1,
+        theirVersion: 0,
+        datapointId: datapointId == theirDatapointId ? undefined : datapointId,
+      };
 
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
+      if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
 
-    (pdatapoint.connectionIndexes[index] = pdatapoint.connectionIndexes[index] || {})[theirDatapointId] = true;
+      (pdatapoint.connectionIndexes[index] = pdatapoint.connectionIndexes[index] || {})[theirDatapointId] = true;
 
-    if (pdatapoint.values.length) {
-      cdatapoint.myVersion = 2 + (wsp.isServer ? 1 : 0);
+      if (pdatapoint.values.length) {
+        cdatapoint.myVersion = 2 + (wsp.isServer ? 1 : 0);
+      }
+      return cdatapoint;
     }
-    return cdatapoint;
   }
 
   payload({ theirDatapointId, datapointId, values }) {
@@ -318,10 +349,11 @@ class WebSocketProtocol {
     return [];
   }
 
-  constructor({ cache, ws, isServer }) {
+  constructor({ cache, dbConnection, ws, isServer }) {
     const wsp = this;
 
     wsp.isServer = isServer;
+    wsp.dbConnection = dbConnection;
     wsp.cache = cache;
     wsp.requiredDatapoints = new RequiredDatapoints({ cache });
     wsp.queuedDatapoints = {};
@@ -348,6 +380,11 @@ class WebSocketProtocol {
         onvalid: ({ newlyValidDatapoints }) => {
           for (const datapointId of newlyValidDatapoints) {
             if (wsp.datapoints[datapointId]) continue;
+            const datapointInfo = ConvertIds.decomposeId({ datapointId });
+            if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
+              const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
+              cache.getOrCreateDatapoint({ datapointId: dbRowIdDatapointId });
+            }
             const datapoint = cache.getExistingDatapoint({ datapointId });
             if (!datapoint || datapoint.isClient) continue;
             for (const wsc of Object.values(wsp.connections)) {

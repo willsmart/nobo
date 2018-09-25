@@ -4,26 +4,27 @@
 // TODO this is the result of a rabid day's coding. Clean
 
 const Parse5 = require('parse5');
-const Connection = require('../db/postgresql-connection');
-const processArgs = require('../general/process-args');
-const TemplatedText = require('../dom/templated-text');
-const locateEnd = require('../general/locate-end');
 const fs = require('fs');
-const { promisify } = require('util');
-
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
+const { promisify } = util;
 
-async function execHaml(hamlFilename) {
+const locateEnd = require('../../general/locate-end');
+const processArgs = require('../../general/process-args');
+
+const Connection = require('../../db/postgresql-connection');
+const TemplatedText = require('../../dom/templated-text');
+
+async function execHaml(hamlPath) {
   const processedHamlDir = 'templates/processedHaml/',
-    htmlFilename = `${hamlFilename.replace(/^templates\//, processedHamlDir)}.html`;
-  await exec(`mkdir -p "$(dirname '${htmlFilename}')"`);
-  console.log(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
-  const { stdout, stderr, error } = await exec(`haml --trace "${hamlFilename}" "${htmlFilename}"`);
+    htmlPath = `${hamlPath.replace(/^templates\//, processedHamlDir)}.html`;
+  await exec(`mkdir -p "$(dirname '${htmlPath}')"`);
+  console.log(`haml --trace "${hamlPath}" "${htmlPath}"`);
+  const { stdout, stderr, error } = await exec(`haml --trace "${hamlPath}" "${htmlPath}"`);
   //if (stdout.length) console.log(stdout);
   if (stderr.length) console.log(stderr);
   if (error) return;
-  return await readFile_p(htmlFilename, 'utf8');
+  return await readFile_p(htmlPath, 'utf8');
 }
 
 const readFile_p = promisify(fs.readFile);
@@ -40,16 +41,21 @@ async function getAppRow() {
   return rows && rows.length ? rows[0] : undefined;
 }
 
+async function nextDbRowId() {
+  const rows = (await connection.query("SELECT nextval('template_id_seq');")).rows;
+  return rows[0].nextval;
+}
+
 async function ensureAppRow() {
   if (await getAppRow()) return;
   console.log(`Creating app with id ${appId}`);
   await connection.query('INSERT INTO app(id) VALUES ($1::integer);', [appId]);
 }
 
-async function findTemplateByFilename(filename) {
+async function findTemplateByPath(path) {
   const rows = (await connection.query(
-    'SELECT * FROM template WHERE app_id=$1::integer AND filename=$2::character varying',
-    [appId, filename]
+    'SELECT * FROM template WHERE app_id=$1::integer AND path=$2::character varying',
+    [appId, path]
   )).rows;
   return rows.length ? rows[0] : undefined;
 }
@@ -60,7 +66,7 @@ async function dealWithTemplatesDirectory({
   path,
   templatesById,
   newTemplates,
-  templatesByFilename,
+  templatesByPath,
   templatesByOwnershipClassVariant,
   args,
 }) {
@@ -74,17 +80,16 @@ async function dealWithTemplatesDirectory({
         path: filePath,
         templatesById,
         newTemplates,
-        templatesByFilename,
+        templatesByPath,
         templatesByOwnershipClassVariant,
         args,
       });
     } else if (stat.isFile()) {
       await dealWithTemplateFile({
-        filename,
         path: filePath,
         templatesById,
         newTemplates,
-        templatesByFilename,
+        templatesByPath,
         templatesByOwnershipClassVariant,
         args,
       });
@@ -93,60 +98,49 @@ async function dealWithTemplatesDirectory({
 }
 
 async function dealWithTemplateFile({
-  filename,
   path,
   templatesById,
   newTemplates,
-  templatesByFilename,
+  templatesByPath,
   templatesByOwnershipClassVariant,
   args,
 }) {
   const templateFileRegex = /(?:^|\/)((my )?([\w]+)?(?:\[(\w+)\])?)(?:(\.haml)?\.html|\.haml)$/,
-    match = templateFileRegex.exec(filename);
+    match = templateFileRegex.exec(path);
   if (!match) {
-    console.log(`Skipping '${filename}' (unknown name format)`);
+    console.log(`Skipping '${path}' (unknown name format)`);
     return;
   }
-  const matchedFilename = match[1],
-    ownerOnly = !!match[2],
+  const ownerOnly = !!match[2],
     classFilter = match[3],
     variant = match[4];
   if (match[5]) return; // .haml.html files are ignored
-
-  if (templatesByFilename[matchedFilename]) {
-    console.log(
-      `Skipping duplicate filename '${filename}' at path ${path}, (the first file with this filename was at path ${
-        templatesByFilename[matchedFilename].path
-      })`
-    );
-    return;
-  }
 
   const templatesByClassVariant = (templatesByOwnershipClassVariant[ownerOnly] =
       templatesByOwnershipClassVariant[ownerOnly] || {}),
     templatesByVariant = (templatesByClassVariant[classFilter] = templatesByClassVariant[classFilter] || {});
   if (templatesByVariant[variant || 'default']) {
     console.log(
-      `Skipping duplicate template '${filename}' at path ${path}, (the first file with this combination of ownership, class filter, and variant was at path ${
+      `Skipping duplicate template at path ${path}, (the first file with this combination of ownership, class filter, and variant was at path ${
         templatesByVariant[variant || 'default'].path
       })`
     );
     return;
   }
 
-  const row = await findTemplateByFilename(matchedFilename),
+  const row = await findTemplateByPath(path),
+    dbRowId = row ? row.id : await nextDbRowId(),
     fileModifiedAt = '' + fs.statSync(path).mtime,
     modified = !row || row.file_modified_at != fileModifiedAt || args.all,
-    includesTemplateFilenames =
-      row && row.includes_template_filenames ? row.includes_template_filenames.split('|') : [];
+    includesTemplatePaths = row && row.includes_template_paths ? row.includes_template_paths.split('|') : [];
 
   template = {
     path,
     row,
-    filename: matchedFilename,
+    dbRowId,
     fileModifiedAt,
     modified,
-    includesTemplateFilenames,
+    includesTemplatePaths,
     ownerOnly,
     classFilter,
     variant,
@@ -158,7 +152,7 @@ async function dealWithTemplateFile({
     mayHaveUnprocessedIncludes: true,
   };
 
-  templatesByFilename[template.filename] = templatesByVariant[variant || 'default'] = template;
+  templatesByPath[template.path] = templatesByVariant[variant || 'default'] = template;
 
   if (row) templatesById[row.id] = template;
   else newTemplates.push(template);
@@ -171,23 +165,25 @@ async function domForPath(path) {
   else return await readFile_p(path, 'utf8');
 }
 
-async function processTemplateIncludes({ template, templatesByFilename }, stack = {}) {
+async function processTemplateIncludes({ template, templatesByPath }, stack = {}) {
   if (!template.mayHaveUnprocessedIncludes) return;
 
   if (!(template.dom || (template.dom = await domForPath(template.path)))) {
-    console.log(`Couldn't read template file ${filename} (at ${path}). Skipping`);
+    console.log(`Couldn't read template file at ${template.path}. Skipping`);
     return;
   }
   if (!(template.domTree || (template.domTree = Parse5.parseFragment(`${template.dom}`)))) {
-    console.log(`Couldn't parse template file ${filename} (at ${path}). Skipping`);
+    console.log(`Couldn't parse template file at ${template.path}. Skipping`);
     return;
   }
 
-  stack[template.filename] = true;
+  template.domTree.childNodes[0].attrs.unshift({ name: 'sourcetemplate', value: String(template.dbRowId) });
 
-  template.includesTemplatesByFilename = {};
+  stack[template.path] = true;
 
-  async function checkForIncludeComment(node, nodeIndex, siblings, template, templatesByFilename) {
+  template.includesTemplatesByPath = {};
+
+  async function checkForIncludeComment(node, nodeIndex, siblings, template, templatesByPath) {
     if (node.tagName == 'include') {
       const attrs = {},
         fields = {};
@@ -224,7 +220,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
 
         let includedTemplate;
         for (const [classFilter, variant, ownerOnly] of tryCombos) {
-          includedTemplate = Object.values(templatesByFilename).find(
+          includedTemplate = Object.values(templatesByPath).find(
             template =>
               template.classFilter == classFilter && template.variant == variant && template.ownerOnly == ownerOnly
           );
@@ -232,7 +228,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
         }
 
         if (!includedTemplate) {
-          console.log(`Could not find a template to use for an include tag in '${template.filename}'
+          console.log(`Could not find a template to use for an include tag in '${template.path}'
   Include tag has:
     ${hasClassFilter ? `classfilter=${classFilter}` : 'no classfilter specified'}
     ${hasVariant ? `variant=${variant}` : 'no variant specified'}
@@ -241,19 +237,19 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
           return;
         }
 
-        attrs.filename = includedTemplate.filename;
+        attrs.path = includedTemplate.path;
       }
-      if (attrs.filename) {
-        if (!templatesByFilename[attrs.filename]) {
-          console.log(`Ignoring include of unknown template '${attrs.filename}' in template '${template.filename}'`);
-        } else if (stack[attrs.filename]) {
+      if (attrs.path) {
+        if (!templatesByPath[attrs.path]) {
+          console.log(`Ignoring include of unknown template '${attrs.path}' in template '${template.path}'`);
+        } else if (stack[attrs.path]) {
           console.log(
-            `Ignoring recursive include tag in template '${template.filename}'. Stack is ${JSON.stringify(stack)}`
+            `Ignoring recursive include tag in template '${template.path}'. Stack is ${JSON.stringify(stack)}`
           );
         } else {
-          template.includesTemplatesByFilename[attrs.filename] = true;
-          const subtemplate = templatesByFilename[attrs.filename];
-          await processTemplateIncludes({ template: subtemplate, templatesByFilename }, stack);
+          template.includesTemplatesByPath[attrs.path] = true;
+          const subtemplate = templatesByPath[attrs.path];
+          await processTemplateIncludes({ template: subtemplate, templatesByPath }, stack);
           if (!Object.keys(fields).length) {
             siblings.splice(nodeIndex, 1, ...subtemplate.processedRoots);
           } else {
@@ -266,7 +262,7 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
           }
         }
       } else {
-        console.log(`Ignoring include tag without filename in template '${template.filename}'`);
+        console.log(`Ignoring include tag without path in template '${template.path}'`);
       }
       return;
     }
@@ -274,19 +270,19 @@ async function processTemplateIncludes({ template, templatesByFilename }, stack 
     if (node.childNodes) {
       let childIndex = 0;
       for (const child of node.childNodes) {
-        await checkForIncludeComment(child, childIndex++, node.childNodes, template, templatesByFilename);
+        await checkForIncludeComment(child, childIndex++, node.childNodes, template, templatesByPath);
       }
     }
   }
 
   let index = 0;
   for (const root of template.domTree.childNodes) {
-    await checkForIncludeComment(root, index++, template.domTree.childNodes, template, templatesByFilename);
+    await checkForIncludeComment(root, index++, template.domTree.childNodes, template, templatesByPath);
   }
   template.processedDom = Parse5.serialize(template.domTree);
   template.processedRoots = Parse5.parseFragment(template.processedDom || template.dom).childNodes;
 
-  delete stack[template.filename];
+  delete stack[template.path];
   delete template.mayHaveUnprocessedIncludes;
 }
 
@@ -449,7 +445,7 @@ function scrapeTemplateInfo(element) {
 
   await ensureAppRow();
 
-  const templatesByFilename = {},
+  const templatesByPath = {},
     templatesById = {},
     templatesByOwnershipClassVariant = {},
     newTemplates = [],
@@ -461,15 +457,15 @@ function scrapeTemplateInfo(element) {
     path: templateDir,
     templatesByOwnershipClassVariant,
     templatesById,
-    templatesByFilename,
+    templatesByPath,
     newTemplates,
     args,
   });
 
   function getModified(template) {
     if (template.modified) return true;
-    for (const filename of template.includesTemplateFilenames) {
-      const includedTemplate = templatesByFilename[filename];
+    for (const path of template.includesTemplatePaths) {
+      const includedTemplate = templatesByPath[path];
       if (!includedTemplate || includedTemplate.modified) return (template.modified = true);
       if (includedTemplate.unmodified) return false;
       if (getModified(includedTemplate)) return (template.modified = true);
@@ -478,22 +474,22 @@ function scrapeTemplateInfo(element) {
     return false;
   }
 
-  for (const template of Object.values(templatesByFilename)) {
+  for (const template of Object.values(templatesByPath)) {
     if (!getModified(template)) continue;
-    await processTemplateIncludes({ template, templatesByFilename });
+    await processTemplateIncludes({ template, templatesByPath });
   }
 
   for (const template of Object.values(templatesById)) {
     if (!template.modified) continue;
 
-    console.log(`Template: ${template.filename} has changed dom or filename`);
+    console.log(`Template: ${template.path} has changed dom or path`);
     hadChanges = true;
     await connection.query(
-      'UPDATE template SET dom=$1::text, includes_template_filenames=$2::text, filename=$3::character varying, file_modified_at=$4::character varying WHERE id=$5::integer;',
+      'UPDATE template SET dom=$1::text, includes_template_paths=$2::text, path=$3::character varying, file_modified_at=$4::character varying WHERE id=$5::integer;',
       [
         template.processedDom || template.dom,
-        Object.keys(template.includesTemplatesByFilename).join('|'),
-        template.filename,
+        Object.keys(template.includesTemplatesByPath).join('|'),
+        template.path,
         template.fileModifiedAt,
         template.row.id,
       ]
@@ -503,22 +499,23 @@ function scrapeTemplateInfo(element) {
   }
 
   for (const template of newTemplates) {
-    console.log(`New template: ${template.filename}`);
+    console.log(`New template: ${template.path}`);
     hadChanges = true;
     await connection.query(
-      'INSERT INTO template(app_id, class_filter, dom, includes_template_filenames, filename, file_modified_at, owner_only, variant) VALUES ($1::integer, $2::character varying, $3::text, $4::text, $5::character varying, $6::character varying, $7::boolean, $8::character varying);',
+      'INSERT INTO template(id, app_id, class_filter, dom, includes_template_paths, path, file_modified_at, owner_only, variant) VALUES ($1::integer, $2::integer, $3::character varying, $4::text, $5::text, $6::character varying, $7::character varying, $8::boolean, $9::character varying);',
       [
+        template.dbRowId,
         appId,
         template.classFilter,
         template.processedDom || template.dom,
-        Object.keys(template.includesTemplatesByFilename).join('|'),
-        template.filename,
+        Object.keys(template.includesTemplatesByPath).join('|'),
+        template.path,
         template.fileModifiedAt,
         template.ownerOnly,
         template.variant,
       ]
     );
-    template.row = await findTemplateByFilename(template.filename);
+    template.row = await findTemplateByPath(template.path);
     if (!template.row) {
       throw new Error('Failed to save template');
     }

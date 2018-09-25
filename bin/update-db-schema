@@ -5,4 +5,4 @@ toolsdir="$bindir/../tools"
 
 cd "$bindir/.."
 
-node "$toolsdir/js/mains/update-db-schema.js" dryRun=0 $args
+node "$toolsdir/js/mains/db/update-db-schema.js" dryRun=0 $args

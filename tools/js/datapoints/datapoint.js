@@ -41,14 +41,13 @@ class Datapoint {
       'watch',
       'stopWatching',
       'value',
+      'setValue',
       'valueIfAny',
       'setVirtualField',
       'invalid',
       'initialized',
       'fieldIfAny',
       'datapointId',
-      'datapointId',
-      'rowId',
       'rowId',
       'typeName',
       'fieldName',
@@ -87,12 +86,12 @@ class Datapoint {
     datapoint.schema = schema;
     datapoint.templates = templates;
 
+    // the '*' field is special, with a default value of true
     if (fieldName == '*') datapoint._value = true;
 
     let type;
     if (typeName && fieldName && schema.allTypes[typeName]) {
       type = schema.allTypes[typeName];
-      datapoint._fieldIfAny = type.fields[datapoint._fieldName];
     }
     if (datapoint.getterIfAny) {
       datapoint.setupDependencyFields();
@@ -155,6 +154,11 @@ class Datapoint {
   get getterIfAny() {
     const field = this.fieldIfAny;
     return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.get : undefined;
+  }
+
+  get setterIfAny() {
+    const field = this.fieldIfAny;
+    return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.set : undefined;
   }
 
   get datapointId() {
@@ -248,9 +252,19 @@ class Datapoint {
     return datapoint.publicApi;
   }
 
+  setValue(value) {
+    const datapoint = this,
+      { cache, setterIfAny: setter } = datapoint;
+    if (setter && !isEqual(value, datapoint._value, { exact: true })) {
+      Datapoint.valueToSetter({ cache, setter, value, dependencies: datapoint.dependencies });
+    }
+    datapoint.validate({ value, evenIfValid: true });
+  }
+
   validate({ value, evenIfValid, queueValidationJob = true } = {}) {
     const datapoint = this,
-      { cache } = datapoint;
+      { cache } = datapoint,
+      wasInvalid = datapoint._invalid;
 
     if ((!evenIfValid && !datapoint._invalid) || datapoint.invalidDependencyDatapointCount) return;
 
@@ -258,7 +272,7 @@ class Datapoint {
     if (getter) {
       value = Datapoint.valueFromGetter({
         cache,
-        getter,
+        getter: getter,
         dependencies: datapoint.dependencies,
       });
     }
@@ -292,9 +306,11 @@ class Datapoint {
             }
           }
         }
-        if (!--dependentDatapoint.invalidDependencyDatapointCount) {
-          dependentDatapoint.validate();
-        }
+        if (wasInvalid) {
+          if (!--dependentDatapoint.invalidDependencyDatapointCount) {
+            dependentDatapoint.validate();
+          }
+        } else dependentDatapoint.validate({ evenIfValid: true });
       }
     }
 
@@ -364,28 +380,58 @@ class Datapoint {
     const datapoint = this;
 
     if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
-    try {
-      datapoint._fieldIfAny = datapoint.schema.fieldForDatapoint(datapoint);
-    } catch (err) {}
-    if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
+
+    const isLocalRow = datapoint._proxyKey && /^l\d+$/.test(datapoint._proxyKey);
+    if (!isLocalRow || datapoint._fieldName == 'id') {
+      try {
+        datapoint._fieldIfAny = datapoint.schema.fieldForDatapoint(datapoint);
+      } catch (err) {}
+      if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
+    }
 
     return (datapoint._fieldIfAny = datapoint.virtualFieldIfAny);
   }
 
   get virtualFieldIfAny() {
     const datapoint = this,
-      { templates, schema } = datapoint;
+      { templates, schema } = datapoint,
+      isLocalRow = datapoint._proxyKey && /^l\d+$/.test(datapoint._proxyKey);
 
     if (datapoint.fieldName == 'id') {
+      if (!isLocalRow) {
+        datapoint._isClient = true;
+        return datapoint.makeVirtualField({
+          isId: false,
+          isMultiple: false,
+          getterFunction: () => {
+            return datapoint.rowId;
+          },
+        });
+      }
+    } else if (isLocalRow) {
       datapoint._isClient = true;
       return datapoint.makeVirtualField({
         isId: false,
         isMultiple: false,
-        getterFunction: () => {
-          return datapoint.rowId;
+        names: {
+          remoteDatapoint: {
+            datapointId: ConvertIds.recomposeId({
+              typeName: datapoint._typeName,
+              proxyKey: datapoint._proxyKey,
+              fieldName: 'id',
+            }).datapointId,
+            [datapoint._fieldName]: {},
+          },
+        },
+        getterFunction: args => {
+          return args.remoteDatapoint ? args.remoteDatapoint[datapoint._fieldName] : undefined;
+        },
+        setterFunction: function(args) {
+          args.remoteDatapoint[datapoint._fieldName] = this.value;
         },
       });
     }
+
     let match = /^dom(\w*)$/.exec(datapoint.fieldName);
     if (templates && match) {
       const variant = ChangeCase.camelCase(match[1]);
@@ -477,11 +523,11 @@ class Datapoint {
     }
   }
 
-  setVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
+  setVirtualField({ getterFunction, setterFunction, names = {}, isId, isMultiple }) {
     this._fieldIfAny = this.makeVirtualField(arguments[0]);
   }
 
-  makeVirtualField({ getterFunction, names = {}, isId, isMultiple }) {
+  makeVirtualField({ getterFunction, setterFunction, names = {}, isId, isMultiple }) {
     const datapoint = this,
       field = {
         isClient: true, // force this field to evaluate locally
@@ -503,11 +549,20 @@ class Datapoint {
         ignoreNames: { datapointId: true },
       });
     }
+    if (setterFunction) {
+      field.set = new CodeSnippet({
+        func: setterFunction,
+        names,
+        ignoreNames: { datapointId: true },
+      });
+    }
     return field;
   }
 
   valueAsRowId(value) {
     const datapoint = this;
+
+    if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) return value;
 
     const field = datapoint.fieldIfAny;
     if (!field || !field.isId || field.isMultiple || datapoint._invalid || !Array.isArray(value) || value.length != 1)
@@ -718,6 +773,33 @@ class Datapoint {
     }
 
     return getter.evaluate({ valuesByName: dependencyValues, cache });
+  }
+
+  static valueToSetter({ setter, value, dependencies, cache }) {
+    const dependencyValues = {},
+      rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined;
+
+    if (dependencies) {
+      (function addDependencyValues(dependencies, to) {
+        for (let [name, dependency] of Object.entries(dependencies)) {
+          if (dependency.children) {
+            if (rowChangeTrackers && dependency.datapoint) {
+              const rowId = dependency.datapoint.valueAsRowId(dependency.datapoint.valueIfAny);
+              if (rowId) {
+                to[name] = rowChangeTrackers.rowObject(rowId);
+                continue;
+              }
+            }
+            to[name] = {};
+            addDependencyValues(dependency.children, to[name]);
+          } else if (dependency.datapoint && !dependency.datapoint._invalid) {
+            to[name] = dependency.datapoint.valueIfAny;
+          }
+        }
+      })(dependencies, dependencyValues);
+    }
+
+    return setter.evaluate({ valuesByName: dependencyValues, cache, event: { value } });
   }
 }
 

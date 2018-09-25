@@ -193,7 +193,7 @@ class DbSchemaUpdater {
         
     This is a dry run, so I didn't actually save anything.
 
-    To run the listed SQL on the database, ensure the connection parameters in connection.json are correct, and provide the '--save' command line flag
+    To run the listed SQL on the database, ensure the connection parameters in connection.json are correct, and provide 'dryRun=0' as a command line argument
     `);
     }
 

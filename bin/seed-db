@@ -7,4 +7,4 @@ cd "$toolsdir/js"
 if ! ret=$(npm install 2>&1) ; then echo "$ret" ; fi
 
 cd "$bindir/.."
-node "$toolsdir/js/mains/seed-db.js" $args
+node "$toolsdir/js/mains/db/seed-db.js" $args

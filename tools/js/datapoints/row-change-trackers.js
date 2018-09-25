@@ -108,7 +108,7 @@ class RowChangeTrackers {
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
       datapoint = cache.getOrCreateDatapoint({ datapointId });
 
-    if (datapoint) datapoint.validate({ value, evenIfValid: true });
+    if (datapoint) datapoint.setValue(value);
   }
 
   getDatapointValue(rowId, fieldName) {

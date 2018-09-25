@@ -1,8 +1,9 @@
 const http = require('http');
+const url = require('url');
+
 const PublicApi = require('../general/public-api');
 const log = require('../general/log');
 const Page = require('./page');
-const url = require('url');
 
 // API is auto-generated at the bottom from the public interface of this class
 

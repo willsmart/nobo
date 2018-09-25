@@ -26,6 +26,7 @@ class PostgresqlConnection {
       'getRowFields',
       'updateRowFields',
       'query',
+      'allocateDbRowId',
       'newClient',
       'schemaLayoutConnection',
       'dbListener',
@@ -116,6 +117,12 @@ class PostgresqlConnection {
       console.log(`Failed query ${sql}\nStack: ${err.stack}`);
       throw err;
     });
+  }
+
+  async allocateDbRowId({ typeName }) {
+    const sqlName = ChangeCase.snakeCase(typeName);
+    const { rows } = await this.query(`SELECT nextval('${sqlName}_id_seq');`);
+    return +rows[0].nextval;
   }
 
   // methods to load rows and views

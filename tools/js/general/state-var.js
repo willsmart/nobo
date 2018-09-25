@@ -50,7 +50,7 @@ class StateVar {
         const datapointId = StateVar.datapointId(`${path}.${key}`),
           datapoint = cache.getExistingDatapoint({ datapointId });
         if (datapoint) {
-          datapoint.validate({ value: undefined, evenIfValid: true });
+          datapoint.setValue(undefined);
         }
       }
     }
@@ -62,7 +62,7 @@ class StateVar {
         }
         const datapointId = StateVar.datapointId(`${path}.${key}`),
           datapoint = cache.getOrCreateDatapoint({ datapointId });
-        datapoint.validate({ value, evenIfValid: true });
+        datapoint.setValue(value);
       }
     }
   }

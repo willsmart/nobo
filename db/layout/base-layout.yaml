@@ -39,8 +39,8 @@
 
       # the dom string that will be inserted into the document (after customization using the model)
       dom(text): null
-      includesTemplateFilenames(text): null
+      includesTemplatePaths(text): null
 
       # the original file that this template was loaded from
-      filename(string): null
+      path(string): null
       fileModifiedAt(string): null

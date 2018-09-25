@@ -3,6 +3,8 @@
 
 module.exports = changeDetectorObject;
 
+changeDetectorObject.isCDO = object => '__cdo__' in object;
+
 function changeDetectorObject(baseObject, setParentModified) {
   if (!baseObject || typeof baseObject != 'object') return baseObject;
   const changeObject = {},
@@ -48,7 +50,7 @@ function changeDetectorObject(baseObject, setParentModified) {
           delete deletionsObject[key];
           return Object.defineProperty(changeObject, key, descriptor);
         },
-        has: (_obj, key) => !deletionsObject[key] && (key in changeObject || key in baseObject),
+        has: (_obj, key) => key == '__cdo__' || (!deletionsObject[key] && (key in changeObject || key in baseObject)),
         get: (_obj, key) => {
           if (deletionsObject[key]) return;
           if (key in changeObject) {

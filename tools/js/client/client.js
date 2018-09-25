@@ -1,6 +1,6 @@
 const PageState = require('./page-state'),
-  WebSocketClient = require('../api/web-socket-client'),
-  WebSocketProtocol = require('../api/web-socket-protocol'),
+  WebSocketClient = require('../web-socket/web-socket-client'),
+  WebSocketProtocol = require('../web-socket/web-socket-protocol'),
   DomGenerator = require('../dom/dom-generator'),
   DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
@@ -10,6 +10,8 @@ const PageState = require('./page-state'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
   log = require('../general/log');
+require('./page-util');
+require('./datapoint-util');
 
 const schema = new Schema();
 schema.loadSource([
@@ -145,4 +147,5 @@ window.nobo = {
   clientActions,
   appClient,
   wsprotocol,
+  log,
 };

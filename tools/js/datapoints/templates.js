@@ -437,7 +437,7 @@ class Template {
       });
     }
     template.datapoints = {};
-    templates.removeFromTemplatesTree(vcoWas);
+    templates.removeFromTemplatesTree(template._variantClassFilterOwnership);
   }
 }
 

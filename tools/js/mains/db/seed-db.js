@@ -1,11 +1,8 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DbSeeder = require('../db/db-seeder');
-const processArgs = require('../general/process-args');
-const fs = require('fs');
-const { promisify } = require('util');
-const writeFile_p = promisify(fs.writeFile);
+const DbSeeder = require('../../db/db-seeder');
+const processArgs = require('../../general/process-args');
 
 (async function() {
   var args = processArgs();

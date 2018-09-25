@@ -4,4 +4,4 @@ bindir=`realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
 toolsdir="$bindir/../tools"
 
 cd "$bindir/.."
-node "$toolsdir/js/mains/update-db-templates.js" $args
+node "$toolsdir/js/mains/db/update-db-templates.js" $args

@@ -4,7 +4,8 @@
 const fs = require('fs');
 const processArgs = require('../general/process-args');
 
-const WebSocketServer = require('../api/web-socket-server');
+const WebSocketServer = require('../web-socket/web-socket-server');
+const WebSocketProtocol = require('../web-socket/web-socket-protocol');
 const Connection = require('../db/postgresql-connection');
 const DbDatapointConnection = require('../db/db-datapoint-connection');
 const DatapointCache = require('../datapoints/datapoint-cache');
@@ -54,9 +55,15 @@ const { htmlToElement } = require('../dom/node-dom-functions');
   const wsserver = new WebSocketServer({
     cache,
     schema,
+    dbConnection: connection,
     hasPageServer: args['--servepage'],
     pagePath: '.',
     cachePage: args['--cachepage'],
+  });
+  wsserver.wsp = new WebSocketProtocol({
+    cache,
+    ws: wsserver,
+    isServer: true,
   });
   await wsserver.start();
 })();

@@ -223,7 +223,7 @@ function stringToDatapoint(datapointId, permissive) {
   const match = datapointRegex.exec(datapointId);
   if (!match) {
     if (permissive) return;
-    throw new Error(`Bad datapoint id ${rowId}`);
+    throw new Error(`Bad datapoint id ${datapointId}`);
   }
 
   return Object.assign(
