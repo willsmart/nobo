@@ -108,7 +108,7 @@ class Datapoint {
     } else if (type && type.fields[ownerFieldName]) {
       datapoint._ownerId = false;
       const ownerDatapointId = type.fields[ownerFieldName].getDatapointId({ dbRowId, proxyKey });
-      datapoint.ownerDatapoint = cache.getOrCreateDatapoint({ datapointId: ownerDatapointId });
+      datapoint.ownerDatapoint = cache.getOrCreateDatapoint(ownerDatapointId);
       datapoint.ownerDatapoint.watch({
         callbackKey: datapointId,
         onchange: ({ valueIfAny: value }) => {
@@ -637,15 +637,11 @@ class Datapoint {
 
     let dependencyDatapoint;
     if (dependency.datapointId) {
-      dependencyDatapoint = cache.getOrCreateDatapoint({
-        datapointId: dependency.datapointId,
-      }).__private;
+      dependencyDatapoint = cache.getOrCreateDatapoint(dependency.datapointId).__private;
     } else {
       const dependencyField = parentType ? parentType.fields[name] : undefined;
       if (dependencyField) {
-        dependencyDatapoint = cache.getOrCreateDatapoint({
-          datapointId: dependencyField.getDatapointId(parentRowId),
-        }).__private;
+        dependencyDatapoint = cache.getOrCreateDatapoint(dependencyField.getDatapointId(parentRowId)).__private;
       }
     }
 

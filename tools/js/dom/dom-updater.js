@@ -86,7 +86,7 @@ class DomUpdater {
         }
 
         if (templateDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId: templateDatapointId });
+          const datapoint = cache.getOrCreateDatapoint( templateDatapointId );
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -116,7 +116,7 @@ class DomUpdater {
           });
         }
         if (domDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId: domDatapointId });
+          const datapoint = cache.getOrCreateDatapoint( domDatapointId );
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -144,7 +144,7 @@ class DomUpdater {
           });
         }
         if (childrenDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId: childrenDatapointId }),
+          const datapoint = cache.getOrCreateDatapoint( childrenDatapointId ),
             childDepth = element.getAttribute('nobo-child-depth');
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
@@ -216,7 +216,7 @@ class DomUpdater {
         }
         if (valueDatapointIds) {
           for (const datapointId of valueDatapointIds) {
-            const datapoint = cache.getOrCreateDatapoint({ datapointId });
+            const datapoint = cache.getOrCreateDatapoint(datapointId);
             if (!datapoint.initialized) {
               log(
                 'dom',

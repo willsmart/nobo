@@ -173,9 +173,7 @@ module.exports =
     for (const datapointId of datapointsWithoutDependentIds) {
       await rig.assert(
         `the datapoint ${datapointId} was created ok`,
-        (datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
-          datapointId,
-        }))
+        (datapoints[datapointId] = await datapointCache.getOrCreateDatapoint(datapointId))
       );
     }
     //     "getExistingDatapoint",
@@ -234,9 +232,7 @@ module.exports =
     //         CB1: datapoint existed beforehand
     await rig.assert(
       `the already created datapoint ${datapointId} returned by getOrCreateDatapoint`,
-      await datapointCache.getOrCreateDatapoint({
-        datapointId,
-      }),
+      await datapointCache.getOrCreateDatapoint(datapointId),
       {
         sameObject: datapoints[datapointId],
       }
@@ -364,9 +360,7 @@ module.exports =
 
     //      "deleteIfUnwatched" (via validate)
     //        DI3: has watchingOneShotResolver
-    datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
-      datapointId,
-    });
+    datapoints[datapointId] = await datapointCache.getOrCreateDatapoint(datapointId);
     await datapoints[datapointId].value;
     await rig.assert(
       `the recreated datapoint ${datapointId} no longer exists after removing the last watchingOneShotResolver`,
@@ -379,9 +373,7 @@ module.exports =
     );
 
     for (const datapointId of datapointIds) {
-      datapoints[datapointId] = await datapointCache.getOrCreateDatapoint({
-        datapointId,
-      });
+      datapoints[datapointId] = await datapointCache.getOrCreateDatapoint(datapointId);
       datapoints[datapointId].watch({
         callbackKey: baseCallbackKey,
       });

@@ -106,7 +106,7 @@ class RowChangeTrackers {
     const rowChangeTrackers = this,
       { cache } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
-      datapoint = cache.getOrCreateDatapoint({ datapointId });
+      datapoint = cache.getOrCreateDatapoint( datapointId );
 
     if (datapoint) datapoint.setValue(value);
   }

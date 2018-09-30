@@ -38,10 +38,10 @@ class RequiredDatapoints {
     if (datapointInfo.then) {
       return datapointInfo.then(datapointInfo => {
         if (!datapointInfo) return;
-        return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
+        return this.cache.getOrCreateDatapoint( datapointInfo.datapointId );
       });
     }
-    return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
+    return this.cache.getOrCreateDatapoint( datapointInfo.datapointId );
   }
 
   _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId, stack: astack = [] }) {

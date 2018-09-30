@@ -117,7 +117,7 @@ class WebSocketConnection {
 
           function handleDatapointId(datapointId) {
             if (!datapointId) return;
-            const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+            const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
             if (!datapoint.initialized) {
               datapoint.setAsInitializing();
               datapoint.setValue(undefined);
@@ -223,7 +223,7 @@ class WebSocketConnection {
           }
         }
         if (value !== undefined) {
-          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+          const datapoint = wsp.cache.getOrCreateDatapoint( datapointId );
           wsp.addDatapointValue({
             datapointId,
             value,
@@ -383,7 +383,7 @@ class WebSocketProtocol {
             const datapointInfo = ConvertIds.decomposeId({ datapointId });
             if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
               const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
-              cache.getOrCreateDatapoint({ datapointId: dbRowIdDatapointId });
+              cache.getOrCreateDatapoint( dbRowIdDatapointId );
             }
             const datapoint = cache.getExistingDatapoint({ datapointId });
             if (!datapoint || datapoint.isClient) continue;
@@ -416,7 +416,7 @@ class WebSocketProtocol {
       connectionIndexes: {},
     };
 
-    const datapoint = cache.getOrCreateDatapoint({ datapointId });
+    const datapoint = cache.getOrCreateDatapoint( datapointId );
     datapoint.watch({
       callbackKey,
       onchange: datapoint => {
@@ -438,7 +438,7 @@ class WebSocketProtocol {
 
     const wsp = this;
     let pdatapoint = wsp.datapoints[datapointId];
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint({ datapointId });
+    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint( datapointId );
     const { values } = pdatapoint;
 
     if (values.length && isEqual(value, values[values.length - 1].value)) {

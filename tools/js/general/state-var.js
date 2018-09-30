@@ -61,7 +61,7 @@ class StateVar {
           value = value.modifiedObject;
         }
         const datapointId = StateVar.datapointId(`${path}.${key}`),
-          datapoint = cache.getOrCreateDatapoint({ datapointId });
+          datapoint = cache.getOrCreateDatapoint(datapointId);
         datapoint.setValue(value);
       }
     }

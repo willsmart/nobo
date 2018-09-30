@@ -16,7 +16,7 @@ class PageState {
   constructor({ cache, defaultPageDatapointInfo } = {}) {
     const pageState = this;
 
-    let itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint({ datapointId: 'page__1__items' }));
+    let itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint( 'page__1__items' ));
     itemsDatapoint.setIsClient();
 
     itemsDatapoint.setVirtualField({
@@ -109,7 +109,7 @@ class PageState {
         fieldName: 'name',
       }).datapointId;
 
-    const titleDatapoint = pageState.cache.getOrCreateDatapoint({ datapointId: titleDatapointId });
+    const titleDatapoint = pageState.cache.getOrCreateDatapoint( titleDatapointId );
     if (titleDatapoint !== pageState.titleDatapoint) {
       if (pageState.titleDatapoint) pageState.titleDatapoint.stopWatching({ callbackKey });
       (pageState.titleDatapoint = titleDatapoint).watch({

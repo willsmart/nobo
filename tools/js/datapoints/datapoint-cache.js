@@ -238,7 +238,7 @@ class DatapointCache {
     return this.datapointsById[datapointId];
   }
 
-  getOrCreateDatapoint({ datapointId }) {
+  getOrCreateDatapoint( datapointId ) {
     const cache = this;
 
     let datapoint = cache.datapointsById[datapointId];

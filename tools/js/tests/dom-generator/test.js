@@ -69,10 +69,10 @@ module.exports = async function(rig) {
     }
   );
 
-  cache.getOrCreateDatapoint({ datapointId: 'user__1__template' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'user__1__template_tablerow' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'user__2__template' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'app__1__template' }).watch({});
+  cache.getOrCreateDatapoint( 'user__1__template' ).watch({});
+  cache.getOrCreateDatapoint( 'user__1__template_tablerow' ).watch({});
+  cache.getOrCreateDatapoint( 'user__2__template' ).watch({});
+  cache.getOrCreateDatapoint( 'app__1__template' ).watch({});
   await cache.validateAll();
 
   await rig.assert(
@@ -97,9 +97,9 @@ module.exports = async function(rig) {
     }
   );
 
-  cache.getOrCreateDatapoint({ datapointId: 'template__1__dom' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'template__2__dom' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'template__3__dom' }).watch({});
+  cache.getOrCreateDatapoint( 'template__1__dom' ).watch({});
+  cache.getOrCreateDatapoint( 'template__2__dom' ).watch({});
+  cache.getOrCreateDatapoint( 'template__3__dom' ).watch({});
   await cache.validateAll();
 
   await rig.assert(
@@ -112,9 +112,9 @@ module.exports = async function(rig) {
     }
   );
 
-  cache.getOrCreateDatapoint({ datapointId: 'user__1__name' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'user__2__name' }).watch({});
-  cache.getOrCreateDatapoint({ datapointId: 'app__1__users' }).watch({});
+  cache.getOrCreateDatapoint( 'user__1__name' ).watch({});
+  cache.getOrCreateDatapoint( 'user__2__name' ).watch({});
+  cache.getOrCreateDatapoint( 'app__1__users' ).watch({});
   await cache.validateAll();
 
   await rig.assert(

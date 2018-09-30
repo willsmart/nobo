@@ -30,6 +30,9 @@ class DbDatapointConnection {
     this.schema = schema;
   }
 
+
+  queueGet({})
+
   validateDatapoints({ datapoints }) {
     const datapointConnection = this,
       { schema, connection } = datapointConnection;

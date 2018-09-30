@@ -36,19 +36,15 @@ class Templates {
       },
     });
 
-    this.callbackKey = cache
-      .getOrCreateDatapoint({
-        datapointId: this.appTemplatesDatapointId,
-      })
-      .watch({
-        onchange: datapoint => {
-          if (Array.isArray(datapoint.valueIfAny)) {
-            templates.setTemplateRowIds({
-              rowIds: datapoint.valueIfAny,
-            });
-          }
-        },
-      });
+    this.callbackKey = cache.getOrCreateDatapoint(this.appTemplatesDatapointId).watch({
+      onchange: datapoint => {
+        if (Array.isArray(datapoint.valueIfAny)) {
+          templates.setTemplateRowIds({
+            rowIds: datapoint.valueIfAny,
+          });
+        }
+      },
+    });
   }
 
   template({ rowId }) {
@@ -156,13 +152,13 @@ class Templates {
       const useParent = parents.find(parent => parent.template);
       node.template = useParent ? useParent.template : undefined;
 
-      node.datapoint = templates.cache.getOrCreateDatapoint({
-        datapointId: templates.appTemplateDatapointId({
+      node.datapoint = templates.cache.getOrCreateDatapoint(
+        templates.appTemplateDatapointId({
           variant,
           classFilter,
           ownerOnly,
-        }),
-      });
+        })
+      );
       node.datapoint.setVirtualField({
         isId: true,
         isMultiple: false,
@@ -297,12 +293,12 @@ class Template {
       });
     }
 
-    const datapoint = cache.getOrCreateDatapoint({
-      datapointId: ConvertIds.recomposeId({
+    const datapoint = cache.getOrCreateDatapoint(
+      ConvertIds.recomposeId({
         rowId,
         fieldName: 'dom',
-      }).datapointId,
-    });
+      }).datapointId
+    );
     datapoint.watch({
       callbackKey,
       onchange: datapoint => {

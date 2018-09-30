@@ -23,9 +23,7 @@ module.exports = () => {}; /*async function(rig) {
 
   const datapoints = {};
   for (const [key, datapointId] of Object.entries(datapointIds)) {
-    datapoints[key] = datapointCache.getOrCreateDatapoint({
-      datapointId,
-    });
+    datapoints[key] = datapointCache.getOrCreateDatapoint(datapointId);
     datapoints[key].watch({});
   }
 
