@@ -1,5 +1,5 @@
-const requirePath = path => require(`../../${path}`);
-const makeClassWatchable = requirePath('general/watchable');
+const makeClassWatchable = require('../../general/watchable');
+const PublicApi = require('../../general/public-api');
 
 class DatapointDbConnection {
   static publicMethods() {
@@ -35,7 +35,7 @@ class DatapointDbConnection {
       resolves = forRow[field.name] || (forRow[field.name] = []);
     if (resolve) resolves.push(resolve);
 
-    queueGetJob();
+    connection.queueGetJob();
   }
 
   queueSet({ field, dbRowId, newValue, resolve }) {
@@ -47,7 +47,7 @@ class DatapointDbConnection {
     if (resolve) forCell.resolves.push(resolve);
     forCell.newValue = newValue;
 
-    queueSetJob();
+    connection.queueSetJob();
   }
 
   queueGetJob() {

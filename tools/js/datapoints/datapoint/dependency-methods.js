@@ -1,6 +1,5 @@
-const requirePath = path => require(`../../${path}`);
-const { fieldNameRegex, rowRegex, recomposeId } = requirePath('datapoints/convert-ids');
-const log = requirePath('general/log');
+const { fieldNameRegex, rowRegex, recomposeId } = require('../../datapoints/convert-ids');
+const log = require('../../general/log');
 
 module.exports = addDependencyMethods;
 
@@ -45,6 +44,7 @@ function addDependencyMethods(watchableClass) {
 
       const sourceDatapointId = names['.datapointId'];
       if (sourceDatapointId) {
+        const sourceDatapoint = cache.getOrCreateDatapoint(sourceDatapointId);
         if (sourceDatapointId != state.sourceDatapointId) {
           if (state.sourceDatapointId) {
             datapoint._removeDependency({
@@ -55,7 +55,7 @@ function addDependencyMethods(watchableClass) {
           }
           if ((state.sourceDatapointId = sourceDatapointId)) {
             datapoint._addDependency({
-              dependencyDatapoint: cache.getOrCreateDatapoint(sourceDatapointId),
+              dependencyDatapoint: sourceDatapoint,
               type: 'source',
               state,
             });
@@ -67,9 +67,9 @@ function addDependencyMethods(watchableClass) {
       for (const [fieldName, children] of Object.entries(names)) {
         if (!fieldNameRegex.test(fieldName)) continue;
 
-        if (!state.fields[fieldName]) {
+        if (!((children && children['.datapointId']) || state.fields[fieldName])) {
           state.fields[fieldName] = true;
-          const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }),
+          const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
             fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
           datapoint._addDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
         }
@@ -83,7 +83,7 @@ function addDependencyMethods(watchableClass) {
         if (fieldName in names) continue;
 
         delete state.fields[fieldName];
-        const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }),
+        const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
           fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
         datapoint._removeDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
 
@@ -210,7 +210,7 @@ function addDependencyMethods(watchableClass) {
       for (const dependentDatapointId of Object.keys(dependents)) {
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
 
-        if (!--dependentDatapoint.invalidDependencyCount) {
+        if (!dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.validate();
         }
       }

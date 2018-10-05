@@ -15,7 +15,7 @@ const log = require('../general/log');
 //   uses allTypes and fieldForDatapoint
 
 //const Datapoint = require('../datapoint'); // via datapoints arg to functions
-//    uses invalid, fieldIfAny, stopWatching, valueIfAny, invalidate, invalid, setVirtualField
+//    uses valid, fieldIfAny
 
 // API is auto-generated at the bottom from the public interface of this class
 
@@ -30,9 +30,6 @@ class DbDatapointConnection {
     this.schema = schema;
   }
 
-
-  queueGet({})
-
   validateDatapoints({ datapoints }) {
     const datapointConnection = this,
       { schema, connection } = datapointConnection;
@@ -42,7 +39,7 @@ class DbDatapointConnection {
     datapoints.forEach(datapoint => {
       datapoint = datapoint.__private;
 
-      if (!datapoint.invalid) return;
+      if (datapoint.valid) return;
       const field = datapoint.fieldIfAny;
       if (!field || field.get) {
         if (!datapoint.invalidDependencyDatapointCount) {

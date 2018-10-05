@@ -37,7 +37,7 @@ class StateVar {
   }
 
   static datapointId(path) {
-    return ConvertIds.recomposeId({ rowId: 'state__1', fieldName: path.replace('.', '_') }).datapointId;
+    return ConvertIds.recomposeId({ rowId: 'state__default', fieldName: path.replace('.', '_') }).datapointId;
   }
 
   commitStateChange(path, cdo) {

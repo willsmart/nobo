@@ -31,32 +31,47 @@
 //          This allows code to deal with both cases generally if need be
 //
 
-const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
-  dbRowIdRegex = /([1-9][0-9]*)/,
-  fieldNameRegex = /(\*|[a-z0-9]+(?:_[a-z0-9]+)*|)/,
+const typeNameRegex = /^([a-z0-9]+(?:_[a-z0-9]+)*)$/,
+  dbRowIdRegex = /^([1-9][0-9]*)$/,
+  fieldNameRegex = /^(\*|[a-z0-9]+(?:_[a-z0-9]+)*|)$/,
   // at some levels the system uses 'proxy' and 'proxyable' row ids
   // eg, when retrieving a model like 'user__me' the 'me' is a proxy row id
-  proxyKeyRegex = /([a-z][a-z0-9]*(?:_[a-z0-9]+)*)/,
+  proxyKeyRegex = /^([a-z][a-z0-9]*(?:_[a-z0-9]+)*)$/,
   // Pointer to a particular expression of a proxy to a row in the db
   //   captures:
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
-  proxyableRowIdRegex = new RegExp(`(?:${dbRowIdRegex.source}|${proxyKeyRegex.source})`),
+  proxyableRowIdRegex = new RegExp(
+    `^(?:${dbRowIdRegex.source.substring(1, dbRowIdRegex.source.length - 1)}|${proxyKeyRegex.source.substring(
+      1,
+      proxyKeyRegex.source.length - 1
+    )})$`
+  ),
   // Pointer to a particular expression of a row in the db
   //   captures:
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
   //      [4]: field name in snake_case
-  proxyDatapointRegex = new RegExp(`^${typeNameRegex.source}__${proxyKeyRegex.source}__~?${fieldNameRegex.source}$`),
+  proxyDatapointRegex = new RegExp(
+    `^${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyKeyRegex.source.substring(
+      1,
+      proxyKeyRegex.source.length - 1
+    )}__~?${fieldNameRegex.source.substring(1, fieldNameRegex.source.length - 1)}$`
+  ),
   // Pointer to a particular expression of a row in the db
   //   captures:
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: row id as an integer string
   //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
-  rowRegex = new RegExp(`^${typeNameRegex.source}__${proxyableRowIdRegex.source}$`),
+  rowRegex = new RegExp(
+    `^${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyableRowIdRegex.source.substring(
+      1,
+      proxyableRowIdRegex.source.length - 1
+    )}$`
+  ),
   // Pointer to a particular expression of a row in the db
   //   captures:
   //      [1]: the row string
@@ -64,7 +79,12 @@ const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   //      [3]: row id as an integer string
   //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
   //      [5]: field name in snake_case
-  datapointRegex = new RegExp(`^(${typeNameRegex.source}__${proxyableRowIdRegex.source})__~?${fieldNameRegex.source}$`);
+  datapointRegex = new RegExp(
+    `^(${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyableRowIdRegex.source.substring(
+      1,
+      proxyableRowIdRegex.source.length - 1
+    )})__~?${fieldNameRegex.source.substring(1, fieldNameRegex.source.length - 1)}$`
+  );
 
 // API
 module.exports = {

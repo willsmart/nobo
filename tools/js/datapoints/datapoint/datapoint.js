@@ -1,9 +1,9 @@
-const requirePath = path => require(`../../${path}`);
-const { decomposeId } = requirePath('datapoints/convert-ids');
-const makeClassWatchable = requirePath('general/watchable');
-const isEqual = requirePath('general/is-equal');
-const findGetterSetter = requirePath('datapoints/datapoint/getters-setters/all.js');
+const { decomposeId } = require('../../datapoints/convert-ids');
+const makeClassWatchable = require('../../general/watchable');
+const isEqual = require('../../general/is-equal');
+const findGetterSetter = require('../../datapoints/datapoint/getters-setters/all.js');
 const addDependencyMethods = require('./dependency-methods');
+const PublicApi = require('../../general/public-api');
 
 class Datapoint {
   static publicMethods() {
@@ -22,13 +22,21 @@ class Datapoint {
       'value',
       'setValue',
 
+      'initialized',
       'valid',
 
       'deleteIfUnwatched',
+      'undeleteIfWatched',
+
+      'watch',
+      'stopWatching',
+      'ondeletion',
+
+      'ondeletion',
     ];
   }
 
-  constructor({ cache, schema, datapointDbConnection, templates, datapointId }) {
+  constructor({ cache, schema, datapointDbConnection, templates, stateVar, datapointId }) {
     const datapoint = this,
       datapointInfo = decomposeId({ datapointId }),
       isAnyFieldPlaceholder = datapointInfo.fieldName == '*';
@@ -40,14 +48,21 @@ class Datapoint {
       cachedValue: isAnyFieldPlaceholder ? true : undefined,
     });
 
-    const { getter, setter } = findGetterSetter({ datapoint, cache, schema, datapointDbConnection, templates });
+    const { getter, setter } = findGetterSetter({
+      datapoint,
+      cache,
+      schema,
+      datapointDbConnection,
+      templates,
+      stateVar,
+    });
     if (getter) {
       datapoint.getter = getter;
-      if (getter.names) refreshDependencies(getter.names);
+      if (getter.names) datapoint.refreshDependencies(getter.names);
     }
     if (setter) {
       datapoint.setter = setter;
-      if (setter.names) refreshDependencies(setter.names);
+      if (setter.names) datapoint.refreshDependencies(setter.names);
     }
 
     datapoint.deleteIfUnwatched();
@@ -79,6 +94,10 @@ class Datapoint {
     return this.state == 'valid';
   }
 
+  get initialized() {
+    return this.state != 'uninitialized';
+  }
+
   // marks the datapoint as having a possibly incorrect cachedValue
   // i.e. the value that would be obtained from the getter may be different to the cachedValue
   invalidate() {
@@ -108,25 +127,29 @@ class Datapoint {
   // sets the cached value to a trusted value, as would be obtained by the getter
   _setCachedValue(value) {
     const datapoint = this,
-      { valueIfAny, state } = datapoint;
+      { valueIfAny, state, cache } = datapoint;
 
     datapoint.cachedValue = value;
 
-    if (!isEqual(valueIfAny, newValue, { exact: true })) {
+    if (!isEqual(valueIfAny, value, { exact: true })) {
       datapoint.notifyDependentsOfChangeOfValue();
       datapoint.notifyListeners('onchange', datapoint);
+      cache.notifyListeners('onchange', datapoint);
     }
 
     switch (state) {
       case 'invalid':
       case 'uninitialized':
         datapoint.state = 'valid';
+        datapoint.notifyListeners('onvalid', datapoint);
+        cache.notifyListeners('onvalid', datapoint);
         datapoint.notifyDependentsOfMoveToValidState();
         break;
     }
 
     if (state == 'uninitialized') {
       datapoint.notifyListeners('oninit', datapoint);
+      cache.notifyListeners('oninit', datapoint);
     }
   }
 
@@ -164,7 +187,8 @@ class Datapoint {
       });
     }
 
-    if (typeof getter != 'function') {
+    if (!getter || typeof getter != 'object' || !getter.fn) {
+      // TODO codesnippet
       // if the datapoint has no getter method, then the cached value is correct by default
       return Promise.resolve(datapoint.valueIfAny);
     }
@@ -177,7 +201,7 @@ class Datapoint {
 
       function runGetter() {
         datapoint.rerunGetter = false;
-        Promise.resolve(getter.call(datapoint)).then(value => {
+        Promise.resolve(getter.fn.call(datapoint)).then(value => {
           if (datapoint.rerunGetter) runGetter();
           else {
             datapoint.getterOneShotResolvers = undefined;
@@ -197,7 +221,7 @@ class Datapoint {
       { setter, valueIfAny } = datapoint,
       changed = !isEqual(valueIfAny, newValue, { exact: true });
 
-    if (typeof setter != 'function') {
+    if (!setter || typeof setter != 'object' || !setter.fn) {
       // if the datapoint has no setter method, then just set the cached value directly
       datapoint._setCachedValue(newValue);
     } else {
@@ -206,7 +230,7 @@ class Datapoint {
       // the datapoint is revalidated using the value returned from the setter
       // This value should be the same as would be obtained from the getter.
       datapoint.invalidate();
-      Promise.resolve(setter.call(datapoint, newValue)).then(value => {
+      Promise.resolve(setter.fn.call(datapoint, newValue)).then(value => {
         datapoint._setCachedValue(value);
       });
     }
@@ -223,7 +247,12 @@ class Datapoint {
   undeleteIfWatched() {
     const datapoint = this,
       { cache, listeners, getterOneShotResolvers, dependentCount } = datapoint;
-    if (!dependentCount && !listeners.length && !getterOneShotResolvers.length) return;
+    if (
+      !dependentCount &&
+      !(listeners && listeners.length) &&
+      !(getterOneShotResolvers && getterOneShotResolvers.length)
+    )
+      return;
 
     cache.unforgetDatapoint(datapoint.datapointId);
   }
@@ -231,9 +260,26 @@ class Datapoint {
   deleteIfUnwatched() {
     const datapoint = this,
       { cache, listeners, getterOneShotResolvers, dependentCount } = datapoint;
-    if (dependentCount || listeners.length || getterOneShotResolvers.length) return;
+    if (dependentCount || (listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length))
+      return;
 
     cache.forgetDatapoint(datapoint.datapointId);
+  }
+
+  get deletionCallbacks() {
+    return this._deletionCallbacks || (this._deletionCallbacks = []);
+  }
+
+  ondeletion() {
+    const datapoint = this,
+      { _deletionCallbacks } = datapoint;
+    if (_deletionCallbacks) {
+      for (const callback of _deletionCallbacks) {
+        callback(datapoint);
+      }
+      datapoint._deletionCallbacks = undefined;
+    }
+    datapoint.clearDependencies();
   }
 }
 

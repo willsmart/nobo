@@ -10,33 +10,11 @@ const callbackKey = 'page-state';
 class PageState {
   // public methods
   static publicMethods() {
-    return ['visit', 'global'];
+    return ['visit', 'global', 'currentWindowState'];
   }
 
   constructor({ cache, defaultPageDatapointInfo } = {}) {
     const pageState = this;
-
-    let itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint( 'page__1__items' ));
-    itemsDatapoint.setIsClient();
-
-    itemsDatapoint.setVirtualField({
-      getterFunction: () => {
-        const state = PageState.currentWindowState;
-        return state && state.pageDatapointId ? [state.pageDatapointId] : [];
-      },
-      isId: true,
-      isMultiple: true,
-    });
-
-    itemsDatapoint.watch({
-      callbackKey,
-      onchange: datapoint => {
-        const items = datapoint.valueIfAny;
-        if (Array.isArray(items)) {
-          pageState.visit(items.length && typeof items[0] == 'string' ? items[0] : undefined);
-        }
-      },
-    });
 
     globalPageState = pageState;
 
@@ -56,6 +34,10 @@ class PageState {
       pageState.visit();
       pageState.itemsDatapoint.invalidate();
     };
+
+    const itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint('page__default__items'));
+    itemsDatapoint.watch({ callbackKey: 'page-state' });
+    itemsDatapoint.value;
   }
 
   static get global() {
@@ -109,7 +91,7 @@ class PageState {
         fieldName: 'name',
       }).datapointId;
 
-    const titleDatapoint = pageState.cache.getOrCreateDatapoint( titleDatapointId );
+    const titleDatapoint = pageState.cache.getOrCreateDatapoint(titleDatapointId);
     if (titleDatapoint !== pageState.titleDatapoint) {
       if (pageState.titleDatapoint) pageState.titleDatapoint.stopWatching({ callbackKey });
       (pageState.titleDatapoint = titleDatapoint).watch({

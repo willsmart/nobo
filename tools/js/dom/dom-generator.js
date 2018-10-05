@@ -201,10 +201,10 @@ class DomGenerator {
     const element = document.getElementById('page');
     domGenerator._prepChildrenPlaceholderAndCreateChildren({
       element,
-      datapointId: 'page__1__items',
+      datapointId: 'page__default__items',
       childDepth: 1,
     });
-    domGenerator.notifyListeners('onprepelement', { element, rowId: 'page__1' });
+    domGenerator.notifyListeners('onprepelement', { element, rowId: 'page__default' });
   }
 
   prepChildrenPlaceholderAndCreateChildren({ element, rowId, lidCounter, depth }) {

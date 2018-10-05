@@ -1,7 +1,7 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DatapointCache = require('../../datapoint-cache');
+const DatapointCache = require('../../cache/datapoint-cache');
 const DbDatapointConnection = require('../../db/db-datapoint-connection');
 const DomGenerator = require('../../dom/dom-generator');
 const { htmlToElement } = require('../../dom/node-dom-functions');
@@ -58,9 +58,7 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that the depth and template dpid attributes are set correctly for non-nil variant unloaded template`,
-    domTree(
-      domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', rowOrDatapointId: 'user__1' })[0]
-    ),
+    domTree(domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', rowOrDatapointId: 'user__1' })[0]),
     {
       equals: {
         type: 'DIV',
@@ -69,10 +67,10 @@ module.exports = async function(rig) {
     }
   );
 
-  cache.getOrCreateDatapoint( 'user__1__template' ).watch({});
-  cache.getOrCreateDatapoint( 'user__1__template_tablerow' ).watch({});
-  cache.getOrCreateDatapoint( 'user__2__template' ).watch({});
-  cache.getOrCreateDatapoint( 'app__1__template' ).watch({});
+  cache.getOrCreateDatapoint('user__1__template').watch({});
+  cache.getOrCreateDatapoint('user__1__template_tablerow').watch({});
+  cache.getOrCreateDatapoint('user__2__template').watch({});
+  cache.getOrCreateDatapoint('app__1__template').watch({});
   await cache.validateAll();
 
   await rig.assert(
@@ -87,9 +85,7 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that the dom datapoint id attribute is set correctly for non-nil variant loaded template`,
-    domTree(
-      domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', rowOrDatapointId: 'user__1' })[0]
-    ),
+    domTree(domGenerator.createElementsForVariantOfRow({ variant: 'tablerow', rowOrDatapointId: 'user__1' })[0]),
     {
       includes: {
         attributes: { 'nobo-dom-dpid': 'template__2__dom' },
@@ -97,9 +93,9 @@ module.exports = async function(rig) {
     }
   );
 
-  cache.getOrCreateDatapoint( 'template__1__dom' ).watch({});
-  cache.getOrCreateDatapoint( 'template__2__dom' ).watch({});
-  cache.getOrCreateDatapoint( 'template__3__dom' ).watch({});
+  cache.getOrCreateDatapoint('template__1__dom').watch({});
+  cache.getOrCreateDatapoint('template__2__dom').watch({});
+  cache.getOrCreateDatapoint('template__3__dom').watch({});
   await cache.validateAll();
 
   await rig.assert(
@@ -112,9 +108,9 @@ module.exports = async function(rig) {
     }
   );
 
-  cache.getOrCreateDatapoint( 'user__1__name' ).watch({});
-  cache.getOrCreateDatapoint( 'user__2__name' ).watch({});
-  cache.getOrCreateDatapoint( 'app__1__users' ).watch({});
+  cache.getOrCreateDatapoint('user__1__name').watch({});
+  cache.getOrCreateDatapoint('user__2__name').watch({});
+  cache.getOrCreateDatapoint('app__1__users').watch({});
   await cache.validateAll();
 
   await rig.assert(

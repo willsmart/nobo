@@ -119,7 +119,6 @@ class WebSocketConnection {
             if (!datapointId) return;
             const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
             if (!datapoint.initialized) {
-              datapoint.setAsInitializing();
               datapoint.setValue(undefined);
             }
           }
@@ -223,7 +222,7 @@ class WebSocketConnection {
           }
         }
         if (value !== undefined) {
-          const datapoint = wsp.cache.getOrCreateDatapoint( datapointId );
+          const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
           wsp.addDatapointValue({
             datapointId,
             value,
@@ -232,7 +231,6 @@ class WebSocketConnection {
           if (wsp.isServer) {
             datapoint.updateValue({ newValue: value });
           } else {
-            datapoint.setAsInitializing();
             datapoint.setValue(value);
           }
         }
@@ -377,28 +375,26 @@ class WebSocketProtocol {
     if (!wsp.isServer) {
       cache.watch({
         callbackKey,
-        onvalid: ({ newlyValidDatapoints }) => {
-          for (const datapointId of newlyValidDatapoints) {
-            if (wsp.datapoints[datapointId]) continue;
-            const datapointInfo = ConvertIds.decomposeId({ datapointId });
-            if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
-              const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
-              cache.getOrCreateDatapoint( dbRowIdDatapointId );
-            }
-            const datapoint = cache.getExistingDatapoint({ datapointId });
-            if (!datapoint || datapoint.isClient) continue;
-            for (const wsc of Object.values(wsp.connections)) {
-              wsc.getOrCreateDatapoint(datapointId);
-            }
-            const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-            if (!datapoint.initialized) {
-              wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
-            } else {
-              wsp.addDatapointValue({
-                datapointId,
-                value: datapoint.valueIfAny,
-              });
-            }
+        oncreate: datapoint => {
+          const { datapointId } = datapoint;
+          if (wsp.datapoints[datapointId]) return;
+          const datapointInfo = ConvertIds.decomposeId({ datapointId });
+          if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
+            const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
+            cache.getOrCreateDatapoint(dbRowIdDatapointId);
+          }
+          if (datapoint.isClient) return;
+          for (const wsc of Object.values(wsp.connections)) {
+            wsc.getOrCreateDatapoint(datapointId);
+          }
+          const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
+          if (!datapoint.initialized) {
+            wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
+          } else {
+            wsp.addDatapointValue({
+              datapointId,
+              value: datapoint.valueIfAny,
+            });
           }
         },
       });
@@ -416,7 +412,7 @@ class WebSocketProtocol {
       connectionIndexes: {},
     };
 
-    const datapoint = cache.getOrCreateDatapoint( datapointId );
+    const datapoint = cache.getOrCreateDatapoint(datapointId);
     datapoint.watch({
       callbackKey,
       onchange: datapoint => {
@@ -438,7 +434,7 @@ class WebSocketProtocol {
 
     const wsp = this;
     let pdatapoint = wsp.datapoints[datapointId];
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint( datapointId );
+    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
     const { values } = pdatapoint;
 
     if (values.length && isEqual(value, values[values.length - 1].value)) {

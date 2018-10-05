@@ -1,7 +1,7 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DatapointCache = require('../../datapoint-cache');
+const DatapointCache = require('../../cache/datapoint-cache');
 
 module.exports = () => {}; /*async function(rig) {
   rig.startTask('DatapointCache tests');

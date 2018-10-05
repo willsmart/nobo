@@ -1,7 +1,7 @@
 // layout_to_db_schema
 // © Will Smart 2018. Licence: MIT
 
-const DatapointCache = require('../../datapoint-cache');
+const DatapointCache = require('../../cache/datapoint-cache');
 const DbDatapointConnection = require('../../db/db-datapoint-connection');
 const DomGenerator = require('../../dom/dom-generator');
 const DomUpdater = require('../../dom/dom-updater');

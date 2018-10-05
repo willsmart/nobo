@@ -72,7 +72,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../dom/dom-functions":14,"../general/public-api":29,"./page-state":5}],3:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../dom/dom-functions":21,"../general/public-api":35,"./page-state":5}],3:[function(require,module,exports){
 const PageState = require('./page-state'),
   WebSocketClient = require('../web-socket/web-socket-client'),
   WebSocketProtocol = require('../web-socket/web-socket-protocol'),
@@ -81,7 +81,7 @@ const PageState = require('./page-state'),
   DomFunctions = require('../dom/dom-functions'),
   { htmlToElement } = require('../dom/dom-functions'),
   ClientActions = require('./client-actions'),
-  DatapointCache = require('../datapoints/datapoint-cache'),
+  DatapointCache = require('../datapoints/cache/datapoint-cache'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
   log = require('../general/log');
@@ -225,7 +225,7 @@ window.nobo = {
   log,
 };
 
-},{"../datapoints/datapoint-cache":8,"../dom/dom-functions":14,"../dom/dom-generator":15,"../dom/dom-updater":16,"../general/log":25,"../general/schema":30,"../web-socket/web-socket-client":61,"../web-socket/web-socket-protocol":62,"./app-client":1,"./client-actions":2,"./datapoint-util":4,"./page-state":5,"./page-util":6}],4:[function(require,module,exports){
+},{"../datapoints/cache/datapoint-cache":7,"../dom/dom-functions":21,"../dom/dom-generator":22,"../dom/dom-updater":23,"../general/log":31,"../general/schema":36,"../web-socket/web-socket-client":67,"../web-socket/web-socket-protocol":68,"./app-client":1,"./client-actions":2,"./datapoint-util":4,"./page-state":5,"./page-util":6}],4:[function(require,module,exports){
 const ConvertIds = require('../datapoints/convert-ids');
 
 let nextLocalId = 1;
@@ -234,7 +234,7 @@ window.newdp = (typeName, fieldName) => {
   return datapointInfo.datapointId || datapointInfo.rowId;
 };
 
-},{"../datapoints/convert-ids":7}],5:[function(require,module,exports){
+},{"../datapoints/convert-ids":8}],5:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 
@@ -247,33 +247,11 @@ const callbackKey = 'page-state';
 class PageState {
   // public methods
   static publicMethods() {
-    return ['visit', 'global'];
+    return ['visit', 'global', 'currentWindowState'];
   }
 
   constructor({ cache, defaultPageDatapointInfo } = {}) {
     const pageState = this;
-
-    let itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint({ datapointId: 'page__1__items' }));
-    itemsDatapoint.setIsClient();
-
-    itemsDatapoint.setVirtualField({
-      getterFunction: () => {
-        const state = PageState.currentWindowState;
-        return state && state.pageDatapointId ? [state.pageDatapointId] : [];
-      },
-      isId: true,
-      isMultiple: true,
-    });
-
-    itemsDatapoint.watch({
-      callbackKey,
-      onchange: datapoint => {
-        const items = datapoint.valueIfAny;
-        if (Array.isArray(items)) {
-          pageState.visit(items.length && typeof items[0] == 'string' ? items[0] : undefined);
-        }
-      },
-    });
 
     globalPageState = pageState;
 
@@ -293,6 +271,10 @@ class PageState {
       pageState.visit();
       pageState.itemsDatapoint.invalidate();
     };
+
+    const itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint('page__default__items'));
+    itemsDatapoint.watch({ callbackKey: 'page-state' });
+    itemsDatapoint.value;
   }
 
   static get global() {
@@ -346,7 +328,7 @@ class PageState {
         fieldName: 'name',
       }).datapointId;
 
-    const titleDatapoint = pageState.cache.getOrCreateDatapoint({ datapointId: titleDatapointId });
+    const titleDatapoint = pageState.cache.getOrCreateDatapoint(titleDatapointId);
     if (titleDatapoint !== pageState.titleDatapoint) {
       if (pageState.titleDatapoint) pageState.titleDatapoint.stopWatching({ callbackKey });
       (pageState.titleDatapoint = titleDatapoint).watch({
@@ -413,7 +395,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/public-api":29}],6:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/public-api":35}],6:[function(require,module,exports){
 window.forEachLocal = (el, cb) => {
   while (el && !el.hasAttribute('sourcetemplate')) el = el.parentElement;
   if (!el) return;
@@ -462,6 +444,162 @@ window.localElement = (el, name) => {
 };
 
 },{}],7:[function(require,module,exports){
+const makeClassWatchable = require('../../general/watchable');
+const Datapoint = require('../../datapoints/datapoint/datapoint');
+const PublicApi = require('../../general/public-api');
+const StateVar = require('../../general/state-var');
+const RowChangeTrackers = require('../../datapoints/row-change-trackers');
+const Templates = require('../../datapoints/templates');
+
+class DatapointCache {
+  static publicMethods() {
+    return [
+      'templates',
+      'schema',
+      'isClient',
+      'datapointDbConnection',
+      'getExistingDatapoint',
+      'getOrCreateDatapoint',
+      'forgetDatapoint',
+      'unforgetDatapoint',
+      'datapoints',
+      'uninitedDatapoints',
+
+      'watch',
+      'stopWatching',
+    ];
+  }
+
+  constructor({ schema, htmlToElement, datapointDbConnection, appDbRowId = 1, isClient = false }) {
+    const cache = this;
+
+    Object.assign(cache, {
+      _datapointDbConnection: datapointDbConnection,
+      _schema: schema,
+      datapointsById: {},
+      deletionLists: [undefined],
+      deletionListByDatapointId: {},
+      deletionDelaySeconds: 30,
+      _stateVar: new StateVar({ cache }),
+      _rowChangeTrackers: new RowChangeTrackers({ cache }),
+      _isClient: isClient,
+    });
+
+    if (!isClient) {
+      cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
+    }
+  }
+
+  get rowChangeTrackers() {
+    return this._rowChangeTrackers;
+  }
+
+  get stateVar() {
+    return this._stateVar;
+  }
+
+  get isClient() {
+    return this._isClient;
+  }
+
+  get datapointDbConnection() {
+    return this._datapointDbConnection;
+  }
+
+  get schema() {
+    return this._schema;
+  }
+
+  get templates() {
+    return this._templates;
+  }
+
+  get datapoints() {
+    return Object.values(this.datapointsById);
+  }
+
+  get uninitedDatapoints() {
+    const ret = {};
+    for (const [datapointId, datapoint] of Object.entries(this.datapointsById)) {
+      if (!datapoint.initialized) {
+        ret[datapointId] = datapoint;
+      }
+    }
+    return ret;
+  }
+
+  getExistingDatapoint(datapointId) {
+    return this.datapointsById[datapointId];
+  }
+
+  getOrCreateDatapoint(datapointId) {
+    const cache = this,
+      { datapointsById } = cache,
+      existingDatapoint = datapointsById[datapointId];
+    if (existingDatapoint) return existingDatapoint;
+
+    const { schema, datapointDbConnection, templates, stateVar } = cache;
+    const datapoint = (datapointsById[datapointId] = new Datapoint({
+      cache,
+      schema,
+      datapointDbConnection,
+      templates,
+      stateVar,
+      datapointId,
+    }));
+    cache.notifyListeners('oncreate', datapoint);
+    return datapoint;
+  }
+
+  forgetDatapoint(datapointId) {
+    const cache = this,
+      { deletionLists, deletionListByDatapointId } = cache;
+    if (deletionListByDatapointId[datapointId]) return;
+    const currentList = deletionLists[0] || (deletionLists[0] = {});
+    currentList[datapointId] = true;
+    deletionListByDatapointId[datapointId] = currentList;
+
+    if (cache.deletionTickTimeout) return;
+    cache.deletionTickTimeout = setTimeout(() => cache.deletionTick(), 1000);
+  }
+
+  unforgetDatapoint(datapointId) {
+    const cache = this,
+      { deletionListByDatapointId } = cache;
+    if (!deletionListByDatapointId[datapointId]) return;
+    delete deletionListByDatapointId[datapointId][datapointId];
+    delete deletionListByDatapointId[datapointId];
+  }
+
+  deletionTick() {
+    const cache = this,
+      { deletionLists, deletionListByDatapointId, deletionDelaySeconds, datapointsById } = cache;
+    deletionLists.unshift(undefined);
+
+    if (deletionLists.length <= deletionDelaySeconds) return;
+
+    const deletionList = deletionLists.pop();
+    if (!deletionList) return;
+    for (const datapointId of Object.keys(deletionList)) {
+      datapointsById[datapointId].ondeletion();
+      delete deletionListByDatapointId[datapointId];
+      delete datapointsById[datapointId];
+    }
+    if (deletionLists.find(list => list)) {
+      cache.deletionTickTimeout = setTimeout(() => cache.deletionTick(), 1000);
+    }
+  }
+}
+
+makeClassWatchable(DatapointCache);
+
+// API is the public facing class
+module.exports = PublicApi({
+  fromClass: DatapointCache,
+  hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
+});
+
+},{"../../datapoints/datapoint/datapoint":9,"../../datapoints/row-change-trackers":18,"../../datapoints/templates":19,"../../general/public-api":35,"../../general/state-var":37,"../../general/watchable":40}],8:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -495,32 +633,47 @@ window.localElement = (el, name) => {
 //          This allows code to deal with both cases generally if need be
 //
 
-const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
-  dbRowIdRegex = /([1-9][0-9]*)/,
-  fieldNameRegex = /(\*|[a-z0-9]+(?:_[a-z0-9]+)*|)/,
+const typeNameRegex = /^([a-z0-9]+(?:_[a-z0-9]+)*)$/,
+  dbRowIdRegex = /^([1-9][0-9]*)$/,
+  fieldNameRegex = /^(\*|[a-z0-9]+(?:_[a-z0-9]+)*|)$/,
   // at some levels the system uses 'proxy' and 'proxyable' row ids
   // eg, when retrieving a model like 'user__me' the 'me' is a proxy row id
-  proxyKeyRegex = /([a-z][a-z0-9]*(?:_[a-z0-9]+)*)/,
+  proxyKeyRegex = /^([a-z][a-z0-9]*(?:_[a-z0-9]+)*)$/,
   // Pointer to a particular expression of a proxy to a row in the db
   //   captures:
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
-  proxyableRowIdRegex = new RegExp(`(?:${dbRowIdRegex.source}|${proxyKeyRegex.source})`),
+  proxyableRowIdRegex = new RegExp(
+    `^(?:${dbRowIdRegex.source.substring(1, dbRowIdRegex.source.length - 1)}|${proxyKeyRegex.source.substring(
+      1,
+      proxyKeyRegex.source.length - 1
+    )})$`
+  ),
   // Pointer to a particular expression of a row in the db
   //   captures:
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: proxy row id as a snake_case word (eg for proxy row strings like "user__me")
   //      [4]: field name in snake_case
-  proxyDatapointRegex = new RegExp(`^${typeNameRegex.source}__${proxyKeyRegex.source}__~?${fieldNameRegex.source}$`),
+  proxyDatapointRegex = new RegExp(
+    `^${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyKeyRegex.source.substring(
+      1,
+      proxyKeyRegex.source.length - 1
+    )}__~?${fieldNameRegex.source.substring(1, fieldNameRegex.source.length - 1)}$`
+  ),
   // Pointer to a particular expression of a row in the db
   //   captures:
   //      [1]: the row string
   //      [2]: typename in snake_case
   //      [3]: row id as an integer string
   //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
-  rowRegex = new RegExp(`^${typeNameRegex.source}__${proxyableRowIdRegex.source}$`),
+  rowRegex = new RegExp(
+    `^${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyableRowIdRegex.source.substring(
+      1,
+      proxyableRowIdRegex.source.length - 1
+    )}$`
+  ),
   // Pointer to a particular expression of a row in the db
   //   captures:
   //      [1]: the row string
@@ -528,7 +681,12 @@ const typeNameRegex = /([a-z0-9]+(?:_[a-z0-9]+)*)/,
   //      [3]: row id as an integer string
   //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
   //      [5]: field name in snake_case
-  datapointRegex = new RegExp(`^(${typeNameRegex.source}__${proxyableRowIdRegex.source})__~?${fieldNameRegex.source}$`);
+  datapointRegex = new RegExp(
+    `^(${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyableRowIdRegex.source.substring(
+      1,
+      proxyableRowIdRegex.source.length - 1
+    )})__~?${fieldNameRegex.source.substring(1, fieldNameRegex.source.length - 1)}$`
+  );
 
 // API
 module.exports = {
@@ -709,1006 +867,241 @@ function stringToDatapoint(datapointId, permissive) {
   );
 }
 
-},{"change-case":37}],8:[function(require,module,exports){
-// datapoint-cache
-// © Will Smart 2018. Licence: MIT
+},{"change-case":43}],9:[function(require,module,exports){
+const { decomposeId } = require('../../datapoints/convert-ids');
+const makeClassWatchable = require('../../general/watchable');
+const isEqual = require('../../general/is-equal');
+const findGetterSetter = require('../../datapoints/datapoint/getters-setters/all.js');
+const addDependencyMethods = require('./dependency-methods');
+const PublicApi = require('../../general/public-api');
 
-// This is the central datapoint cache used by nobo
-// Datapoints can be marked as 'invalid' via invalidateDatapoint (i.e. need to be reloaded from the db)
-//   This should be called in response to a signal from the db
-// They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
-
-const PublicApi = require('../general/public-api');
-const makeClassWatchable = require('../general/watchable');
-const StateVar = require('../general/state-var');
-const RowChangeTrackers = require('./row-change-trackers');
-
-const Datapoint = require('./datapoint');
-const Templates = require('./templates');
-
-const forgetDatapointAge = 20;
-
-// other implied dependencies
-
-//const Schema = require('./schema'); // via constructor arg: schema
-//   uses allTypes and fieldForDatapoint
-
-//const DbDatapointConnection = require('./db/db-datapoint-connection'); // via constructor arg: datapointConnection
-//   uses validateDatapoionts and commitDatapoints
-
-class NullDatapointConnection {
-  constructor({ cache }) {
-    this.cache = cache;
-  }
-
-  validateDatapoints({ datapoints }) {
-    datapoints.forEach(datapoint => {
-      datapoint.validate({ value: datapoint.valueIfAny });
-    });
-  }
-
-  commitDatapoints({ datapoints }) {
-    datapoints.forEach(datapoint => {
-      if (datapoint.__private.updated) {
-        datapoint.commit({ updateIndex: datapoint.__private.updateIndex, keepNewValue: true });
-      }
-    });
-  }
-}
-// API is auto-generated at the bottom from the public interface of this class
-class DatapointCache {
-  // public methods
-  static publicMethods() {
-    return [
-      'getExistingDatapoint',
-      'getOrCreateDatapoint',
-      'validateNewlyInvalidDatapoints',
-      'validateAll',
-      'queueValidationJob',
-      'commitNewlyUpdatedDatapoints',
-
-      'datapoints',
-      'templates',
-      'stateVar',
-      'rowChangeTrackers',
-
-      'isClient',
-
-      'watch',
-      'stopWatching',
-
-      'uninitedDatapoints',
-      'deletionList',
-    ];
-  }
-
-  constructor({ schema, htmlToElement, datapointConnection, appDbRowId = 1, isClient = false }) {
-    const cache = this;
-
-    cache._isClient = isClient;
-    cache.schema = schema;
-    cache.datapointConnection = datapointConnection || new NullDatapointConnection({ cache });
-    cache.datapointsById = {};
-    cache.newlyInvalidDatapointIds = [];
-    cache.newlyUpdatedDatapointIds = [];
-    cache.newlyValidDatapoints = [];
-    cache._stateVar = new StateVar({ cache });
-    cache._rowChangeTrackers = new RowChangeTrackers({ cache });
-
-    if (!isClient) {
-      cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
-    }
-  }
-
-  get rowChangeTrackers() {
-    return this._rowChangeTrackers;
-  }
-
-  get stateVar() {
-    return this._stateVar;
-  }
-
-  get isClient() {
-    return this._isClient;
-  }
-
-  get datapoints() {
-    return Object.values(this.datapointsById);
-  }
-
-  get templates() {
-    return this._templates;
-  }
-
-  forgetDatapoint({ datapointId }) {
-    const cache = this;
-
-    delete cache.datapointsById[datapointId];
-  }
-
-  queueValidationJob({ delay = 1 } = {}) {
-    const cache = this;
-
-    if (delay <= 0) {
-      cache.validateNewlyInvalidDatapoints();
-      return;
-    }
-
-    if (cache._validateTimeout) return;
-    cache._validateTimeout = setTimeout(() => {
-      delete cache._validateTimeout;
-      cache.validateNewlyInvalidDatapoints();
-    }, delay);
-  }
-
-  async validateAll() {
-    while (true) {
-      if (!(await this.validateNewlyInvalidDatapoints()).length) break;
-    }
-  }
-
-  validateNewlyInvalidDatapoints() {
-    const cache = this;
-
-    if (cache._validateTimeout) {
-      clearTimeout(cache._validateTimeout);
-      delete cache._validateTimeout;
-    }
-
-    const datapoints = cache.newlyInvalidDatapointIds
-      .map(datapointId => cache.datapointsById[datapointId])
-      .filter(datapoint => datapoint);
-
-    cache.newlyInvalidDatapointIds = [];
-
-    let promise =
-      cache.datapointConnection.validateDatapoints({ datapoints }) ||
-      Promise.all(
-        datapoints
-          .map(datapoint => {
-            datapoint = datapoint.__private;
-            if (datapoint.invalid)
-              return new Promise(resolve => {
-                if (!datapoint.invalid) resolve();
-                else {
-                  datapoint.watchingOneShotResolvers = datapoint.watchingOneShotResolvers || [];
-                  datapoint.watchingOneShotResolvers.push(resolve);
-                }
-              });
-          })
-          .filter(promise => promise)
-      );
-
-    return promise.then(() => {
-      const newlyValidDatapoints = cache.newlyValidDatapoints;
-      cache.newlyValidDatapoints = [];
-      cache.notifyListeners('onvalid', {
-        newlyValidDatapoints,
-      });
-      return newlyValidDatapoints;
-    });
-  }
-
-  queueUpdateJob({ delay = 10 } = {}) {
-    const cache = this;
-
-    if (delay <= 0) {
-      cache.commitNewlyUpdatedDatapoints();
-      return;
-    }
-
-    if (cache._updateTimeout) return;
-    cache._updateTimeout = setTimeout(() => {
-      delete cache._updateTimeout;
-      cache.commitNewlyUpdatedDatapoints();
-    }, delay);
-  }
-
-  async updateAll() {
-    while (true) {
-      if (!(await this.commitNewlyUpdatedDatapoints()).length) break;
-    }
-  }
-
-  commitNewlyUpdatedDatapoints({ returnWait = true } = {}) {
-    const cache = this;
-
-    if (cache._updateTimeout) {
-      clearTimeout(cache._updateTimeout);
-      delete cache._updateTimeout;
-    }
-
-    const datapoints = cache.newlyUpdatedDatapointIds
-      .map(datapointId => cache.datapointsById[datapointId])
-      .filter(datapoint => datapoint);
-
-    cache.newlyUpdatedDatapointIds = [];
-
-    let promise = cache.datapointConnection.commitDatapoints({ datapoints });
-
-    if (returnWait && !promise) {
-      promise = Promise.all(
-        datapoints
-          .map(datapoint => {
-            datapoint = datapoint.__private;
-            if (datapoint.updated)
-              return new Promise(resolve => {
-                if (!datapoint.updated) resolve();
-                else {
-                  datapoint.watchingCommitOneShotResolvers = datapoint.watchingCommitOneShotResolvers || [];
-                  datapoint.watchingCommitOneShotResolvers.push(resolve);
-                }
-              });
-          })
-          .filter(promise => promise)
-      );
-    }
-    return promise;
-  }
-
-  getExistingDatapoint({ datapointId }) {
-    return this.datapointsById[datapointId];
-  }
-
-  getOrCreateDatapoint({ datapointId }) {
-    const cache = this;
-
-    let datapoint = cache.datapointsById[datapointId];
-    if (datapoint) return datapoint;
-
-    return (cache.datapointsById[datapointId] = new Datapoint({
-      cache,
-      isClient: cache.isClient,
-      schema: cache.schema,
-      templates: cache.templates,
-      datapointId,
-    }));
-  }
-
-  get uninitedDatapoints() {
-    const ret = {};
-    for (const [datapointId, datapoint] of Object.entries(this.datapointsById)) {
-      if (!datapoint.initialized) {
-        ret[datapointId] = datapoint;
-      }
-    }
-    return ret;
-  }
-
-  get deletionList() {
-    const cache = this;
-    let { deletionLists } = cache;
-    if (!deletionLists) {
-      deletionLists = cache.deletionLists = [{}];
-      setTimeout(() => cache._cycleDeletionList(), 1000);
-    }
-    let deletionList = deletionLists[0];
-    if (!deletionList) deletionList = deletionLists[0] = {};
-    return deletionList;
-  }
-
-  _cycleDeletionList() {
-    const cache = this,
-      { deletionLists } = cache;
-
-    if (!(deletionLists && deletionLists.length)) return;
-
-    if (deletionLists.length == forgetDatapointAge) {
-      const deletionList = deletionLists.pop();
-      if (deletionList) {
-        for (const datapoint of Object.values(deletionList)) {
-          datapoint.forget();
-        }
-      }
-    }
-
-    if (!deletionLists.find(list => list)) {
-      cache.deletionLists = undefined;
-    } else {
-      deletionLists.unshift(undefined);
-      setTimeout(() => cache._cycleDeletionList(), 1000);
-    }
-  }
-}
-
-makeClassWatchable(DatapointCache);
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: DatapointCache,
-  hasExposedBackDoor: true,
-});
-
-},{"../general/public-api":29,"../general/state-var":31,"../general/watchable":34,"./datapoint":9,"./row-change-trackers":11,"./templates":12}],9:[function(require,module,exports){
-// datapoint
-// © Will Smart 2018. Licence: MIT
-
-// This is the central datapoint object used by nobo
-// Datapoints can be marked as 'invalid' via invalidateDatapoint (i.e. need to be reloaded from the db)
-//   This should be called in response to a signal from the db
-// They can also be marked as updated via updateDatapointValue (i.e. a new valud should be written to the db)
-
-const ChangeCase = require('change-case');
-
-const clone = require('../general/clone');
-const PublicApi = require('../general/public-api');
-const mapValues = require('../general/map-values');
-const isEqual = require('../general/is-equal');
-const makeClassWatchable = require('../general/watchable');
-const CodeSnippet = require('../general/code-snippet');
-
-const ConvertIds = require('./convert-ids');
-const log = require('../general/log');
-
-// other implied dependencies
-
-//const DatapointCache = require('./datapoint-cache'); // via constructor arg: cache
-//    uses pretty much the whole public api
-
-//const Templates = require('./templates'); // via constructor arg: templates
-//    uses getTemplateReferencingDatapoint
-
-//const Schema = require('./schema'); // via constructor arg: schema
-//    uses allTypes and fieldForDatapoint
-
-// API is auto-generated at the bottom from the public interface of this class
 class Datapoint {
   static publicMethods() {
     return [
+      'typeName',
+      'type',
+      'dbRowId',
+      'fieldName',
+      'proxyKey',
+      'rowId',
+      'datapointId',
+
       'invalidate',
       'validate',
-      'commit',
-      'updateValue',
-      'setAsInitializing',
-      'watch',
-      'stopWatching',
+      'valueIfAny',
       'value',
       'setValue',
-      'valueIfAny',
-      'setVirtualField',
-      'invalid',
+
       'initialized',
-      'fieldIfAny',
-      'datapointId',
-      'rowId',
-      'typeName',
-      'fieldName',
-      'dbRowId',
-      'isClient',
-      'setIsClient',
-      'forget',
+      'valid',
+
+      'deleteIfUnwatched',
+      'undeleteIfWatched',
+
+      'watch',
+      'stopWatching',
+      'ondeletion',
+
+      'ondeletion',
     ];
   }
 
-  constructor({ cache, schema, templates, datapointId, isClient }) {
-    const datapoint = this;
+  constructor({ cache, schema, datapointDbConnection, templates, stateVar, datapointId }) {
+    const datapoint = this,
+      datapointInfo = decomposeId({ datapointId }),
+      isAnyFieldPlaceholder = datapointInfo.fieldName == '*';
 
-    log('dp', `creating datapoint ${datapointId}`);
-
-    const datapointInfo = ConvertIds.decomposeId({
-      datapointId: datapointId,
-    });
-    const { rowId, typeName, dbRowId, fieldName, proxyKey } = datapointInfo;
     Object.assign(datapoint, {
-      _datapointId: datapointId,
-      _rowId: rowId,
-      _typeName: typeName,
-      _dbRowId: dbRowId,
-      _fieldName: fieldName,
-      _proxyKey: proxyKey,
-    });
-    datapoint._isClient = false;
-
-    if (typeName == 'State') {
-      datapoint._isClient = true;
-      datapoint._initialized = true;
-    }
-
-    datapoint.cache = cache;
-    datapoint.schema = schema;
-    datapoint.templates = templates;
-
-    // the '*' field is special, with a default value of true
-    if (fieldName == '*') datapoint._value = true;
-
-    let type;
-    if (typeName && fieldName && schema.allTypes[typeName]) {
-      type = schema.allTypes[typeName];
-    }
-    if (datapoint.getterIfAny) {
-      datapoint.setupDependencyFields();
-      datapoint.setAsInitializing();
-    }
-    datapoint.invalidate();
-
-    const ownerFieldName = datapoint.ownerFieldName;
-
-    if (fieldName == ownerFieldName) {
-      datapoint._ownerId = false;
-    } else if (type && type.protected) {
-      datapoint._ownerId = false;
-    } else if (type && type.fields[ownerFieldName]) {
-      datapoint._ownerId = false;
-      const ownerDatapointId = type.fields[ownerFieldName].getDatapointId({ dbRowId, proxyKey });
-      datapoint.ownerDatapoint = cache.getOrCreateDatapoint({ datapointId: ownerDatapointId });
-      datapoint.ownerDatapoint.watch({
-        callbackKey: datapointId,
-        onchange: ({ valueIfAny: value }) => {
-          let ownerId;
-          if (Array.isArray(value) && value.length == 1) value = value[0];
-          if (value === 'id') ownerId = dbRowId;
-          if (typeof value == 'number') ownerId = value;
-          else if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {
-            const { dbRowId: ownerDbRowId } = ConvertIds.decomposeId({ rowId: value });
-            ownerId = ownerDbRowId;
-          }
-          datapoint.setOwnerId(ownerId);
-        },
-      });
-    }
-  }
-
-  get ownerFieldName() {
-    const type = this.schema.allTypes[this._typeName];
-    return type && type.ownerField ? type.ownerField : 'owner';
-  }
-
-  get isClient() {
-    return this._isClient;
-  }
-
-  setIsClient(isClient) {
-    this._isClient = isClient === undefined || isClient;
-  }
-
-  get valueIfAny() {
-    return this._value;
-  }
-
-  get invalid() {
-    return this._invalid || false;
-  }
-
-  get initialized() {
-    return this._initialized || false;
-  }
-
-  get getterIfAny() {
-    const field = this.fieldIfAny;
-    return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.get : undefined;
-  }
-
-  get setterIfAny() {
-    const field = this.fieldIfAny;
-    return field && (!this.cache.isClient || this.isClient || field.isClient) ? field.set : undefined;
-  }
-
-  get datapointId() {
-    return this._datapointId;
-  }
-
-  get datapointId() {
-    return this._datapointId;
-  }
-
-  get rowId() {
-    return this._rowId;
-  }
-
-  get rowId() {
-    return this._rowId;
-  }
-
-  get typeName() {
-    return this._typeName;
-  }
-
-  get dbRowId() {
-    return this._dbRowId;
-  }
-
-  get fieldName() {
-    return this._fieldName;
-  }
-
-  get value() {
-    const datapoint = this;
-
-    if (!datapoint._invalid) return Promise.resolve(datapoint.valueIfAny);
-
-    const ret = new Promise(resolve => {
-      datapoint.watchingOneShotResolvers = datapoint.watchingOneShotResolvers || [];
-      datapoint.watchingOneShotResolvers.push(resolve);
-    }).then(theDatapoint => {
-      return theDatapoint.value;
+      cache,
+      datapointInfo,
+      state: 'uninitialized',
+      cachedValue: isAnyFieldPlaceholder ? true : undefined,
     });
 
-    datapoint.cache.queueValidationJob();
-
-    return ret;
-  }
-
-  setAsInitializing() {
-    const datapoint = this;
-    if (!datapoint._initialized) datapoint._initializing = true;
-  }
-
-  commit({ updateIndex, keepNewValue }) {
-    const datapoint = this;
-
-    if (datapoint.updateIndex == updateIndex) {
-      datapoint.setAsInitializing();
-      delete datapoint.updated;
-      if (!keepNewValue) delete datapoint.newValue;
-    }
-  }
-
-  invalidate({ queueValidationJob = true } = {}) {
-    const datapoint = this,
-      { cache } = datapoint;
-
-    if (datapoint._invalid) return datapoint.publicApi;
-
-    datapoint._invalid = true;
-    cache.newlyInvalidDatapointIds.push(datapoint.datapointId);
-
-    if (datapoint.dependentDatapointsById) {
-      for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
-        if (!dependentDatapoint.invalidDependencyDatapointCount++) {
-          dependentDatapoint.invalidate({ queueValidationJob });
-        }
-
-        if (dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-          for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-            dependentDatapoint.updateDependencies({
-              dependencies: dependency.children,
-            });
-          }
-        }
-      }
-    }
-
-    datapoint.notifyListeners('oninvalid', datapoint);
-
-    if (queueValidationJob) cache.queueValidationJob();
-    return datapoint.publicApi;
-  }
-
-  setValue(value) {
-    const datapoint = this,
-      { cache, setterIfAny: setter } = datapoint;
-    if (setter && !isEqual(value, datapoint._value, { exact: true })) {
-      Datapoint.valueToSetter({ cache, setter, value, dependencies: datapoint.dependencies });
-    }
-    datapoint.validate({ value, evenIfValid: true });
-  }
-
-  validate({ value, evenIfValid, queueValidationJob = true } = {}) {
-    const datapoint = this,
-      { cache } = datapoint,
-      wasInvalid = datapoint._invalid;
-
-    if ((!evenIfValid && !datapoint._invalid) || datapoint.invalidDependencyDatapointCount) return;
-
-    const getter = datapoint.getterIfAny;
+    const { getter, setter } = findGetterSetter({
+      datapoint,
+      cache,
+      schema,
+      datapointDbConnection,
+      templates,
+      stateVar,
+    });
     if (getter) {
-      value = Datapoint.valueFromGetter({
-        cache,
-        getter: getter,
-        dependencies: datapoint.dependencies,
-      });
+      datapoint.getter = getter;
+      if (getter.names) datapoint.refreshDependencies(getter.names);
     }
-
-    log('dp', `Datapoint ${datapoint.datapointId} -> ${value}`);
-
-    const valueWas = datapoint._value;
-    value = datapoint._value = clone(value);
-    const changed = !isEqual(value, valueWas, { exact: true });
-    delete datapoint._invalid;
-
-    const didInit = datapoint._initializing || (!datapoint._initialized && changed);
-    if (didInit) {
-      datapoint._initialized = true;
-      delete datapoint._initializing;
-    }
-
-    cache.newlyValidDatapoints.push(datapoint.datapointId);
-
-    if (datapoint.dependentDatapointsById) {
-      for (let dependentDatapoint of Object.values(datapoint.dependentDatapointsById)) {
-        if (changed && dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-          const rowIdWas = datapoint.valueAsDecomposedRowId(valueWas),
-            rowId = datapoint.valueAsDecomposedRowId(value);
-          if (rowIdWas !== rowId) {
-            for (const dependency of dependentDatapoint.dependenciesByDatapointId[datapoint.datapointId]) {
-              dependentDatapoint.updateDependencies({
-                parentRowId: rowId,
-                dependencies: dependency.children,
-              });
-            }
-          }
-        }
-        if (wasInvalid) {
-          if (!--dependentDatapoint.invalidDependencyDatapointCount) {
-            dependentDatapoint.validate();
-          }
-        } else dependentDatapoint.validate({ evenIfValid: true });
-      }
-    }
-
-    datapoint.notifyListeners('onvalid_prioritized', datapoint);
-    datapoint.notifyListeners('onvalid', datapoint);
-
-    if (changed) {
-      datapoint.notifyListeners('onchange', datapoint);
-    }
-
-    if (didInit) {
-      datapoint.notifyListeners('oninit', datapoint);
-    }
-
-    if (datapoint.watchingOneShotResolvers) {
-      const watchingOneShotResolvers = datapoint.watchingOneShotResolvers;
-      delete datapoint.watchingOneShotResolvers;
-      for (let resolve of watchingOneShotResolvers) {
-        resolve(datapoint);
-      }
+    if (setter) {
+      datapoint.setter = setter;
+      if (setter.names) datapoint.refreshDependencies(setter.names);
     }
 
     datapoint.deleteIfUnwatched();
-
-    if (queueValidationJob) cache.queueValidationJob();
   }
 
-  get ownerId() {
-    return this._ownerId;
+  get typeName() {
+    return this.datapointInfo.typeName;
+  }
+  get type() {
+    return this.datapointInfo.type;
+  }
+  get dbRowId() {
+    return this.datapointInfo.dbRowId;
+  }
+  get proxyKey() {
+    return this.datapointInfo.proxyKey;
+  }
+  get fieldName() {
+    return this.datapointInfo.fieldName;
+  }
+  get rowId() {
+    return this.datapointInfo.rowId;
+  }
+  get datapointId() {
+    return this.datapointInfo.datapointId;
   }
 
-  setOwnerId(ownerId) {
-    const datapoint = this,
-      { _unauthorizedUpdateArguments: updateArguments } = datapoint;
-
-    datapoint._ownerId = ownerId;
-    if (updateArguments) {
-      delete datapoint._unauthorizedUpdateArguments;
-      datapoint.updateValue(updateArguments);
-    }
+  get valid() {
+    return this.state == 'valid';
   }
 
-  updateValue({ newValue, userId }) {
-    const datapoint = this,
-      { cache, ownerId } = datapoint;
-
-    if (ownerId !== undefined) {
-      if (ownerId === false || ownerId !== userId) {
-        datapoint._unauthorizedUpdateArguments = { newValue: clone(newValue), userId };
-        return;
-      }
-    }
-    delete datapoint._unauthorizedUpdateArguments;
-
-    datapoint.newValue = clone(newValue);
-    datapoint.updated = true;
-    datapoint.updateIndex = (datapoint.updateIndex || 0) + 1;
-
-    cache.newlyUpdatedDatapointIds.push(datapoint.datapointId);
-
-    cache.queueUpdateJob();
-
-    return datapoint.publicApi;
+  get initialized() {
+    return this.state != 'uninitialized';
   }
 
-  get fieldIfAny() {
+  // marks the datapoint as having a possibly incorrect cachedValue
+  // i.e. the value that would be obtained from the getter may be different to the cachedValue
+  invalidate() {
     const datapoint = this;
-
-    if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
-
-    const isLocalRow = datapoint._proxyKey && /^l\d+$/.test(datapoint._proxyKey);
-    if (!isLocalRow || datapoint._fieldName == 'id') {
-      try {
-        datapoint._fieldIfAny = datapoint.schema.fieldForDatapoint(datapoint);
-      } catch (err) {}
-      if (datapoint._fieldIfAny) return datapoint._fieldIfAny;
+    switch (datapoint.state) {
+      case 'valid':
+        datapoint.state = 'invalid';
+        datapoint.notifyDependentsOfMoveToInvalidState();
+        break;
+      case 'invalid':
+      case 'uninitialized':
+        datapoint.rerunGetter = true;
     }
-
-    return (datapoint._fieldIfAny = datapoint.virtualFieldIfAny);
   }
 
-  get virtualFieldIfAny() {
+  // refresh the cachedValue using the getter
+  validate() {
+    const datapoint = this;
+    switch (datapoint.state) {
+      case 'invalid':
+      case 'uninitialized':
+        datapoint.value;
+        break;
+    }
+  }
+
+  // sets the cached value to a trusted value, as would be obtained by the getter
+  _setCachedValue(value) {
     const datapoint = this,
-      { templates, schema } = datapoint,
-      isLocalRow = datapoint._proxyKey && /^l\d+$/.test(datapoint._proxyKey);
+      { valueIfAny, state, cache } = datapoint;
 
-    if (datapoint.fieldName == 'id') {
-      if (!isLocalRow) {
-        datapoint._isClient = true;
-        return datapoint.makeVirtualField({
-          isId: false,
-          isMultiple: false,
-          getterFunction: () => {
-            return datapoint.rowId;
-          },
+    datapoint.cachedValue = value;
+
+    if (!isEqual(valueIfAny, value, { exact: true })) {
+      datapoint.notifyDependentsOfChangeOfValue();
+      datapoint.notifyListeners('onchange', datapoint);
+      cache.notifyListeners('onchange', datapoint);
+    }
+
+    switch (state) {
+      case 'invalid':
+      case 'uninitialized':
+        datapoint.state = 'valid';
+        datapoint.notifyListeners('onvalid', datapoint);
+        cache.notifyListeners('onvalid', datapoint);
+        datapoint.notifyDependentsOfMoveToValidState();
+        break;
+    }
+
+    if (state == 'uninitialized') {
+      datapoint.notifyListeners('oninit', datapoint);
+      cache.notifyListeners('oninit', datapoint);
+    }
+  }
+
+  // return the cached value
+  get valueIfAny() {
+    return this.cachedValue;
+  }
+
+  // async method that returns the cached value if valid, otherwise get the correct value via the getter
+  get value() {
+    const datapoint = this;
+    switch (datapoint.state) {
+      case 'valid':
+        return Promise.resolve(datapoint.valueIfAny);
+      case 'invalid':
+      case 'uninitialized':
+        return datapoint._valueFromGetter.then(value => {
+          datapoint._setCachedValue(value);
+          return datapoint.valueIfAny;
         });
-      }
-    } else if (isLocalRow) {
-      datapoint._isClient = true;
-      return datapoint.makeVirtualField({
-        isId: false,
-        isMultiple: false,
-        names: {
-          remoteDatapoint: {
-            datapointId: ConvertIds.recomposeId({
-              typeName: datapoint._typeName,
-              proxyKey: datapoint._proxyKey,
-              fieldName: 'id',
-            }).datapointId,
-            [datapoint._fieldName]: {},
-          },
-        },
-        getterFunction: args => {
-          return args.remoteDatapoint ? args.remoteDatapoint[datapoint._fieldName] : undefined;
-        },
-        setterFunction: function(args) {
-          args.remoteDatapoint[datapoint._fieldName] = this.value;
-        },
+    }
+  }
+
+  // gets the _actual_ value of the datapoints via the getter method
+  get _valueFromGetter() {
+    const datapoint = this,
+      { getter, getterOneShotResolvers } = datapoint;
+
+    if (getterOneShotResolvers) {
+      return new Promise(resolve => {
+        getterOneShotResolvers.push(() => {
+          resolve(datapoint.valueIfAny);
+        });
+        datapoint.undeleteIfWatched();
       });
     }
 
-    let match = /^dom(\w*)$/.exec(datapoint.fieldName);
-    if (templates && match) {
-      const variant = ChangeCase.camelCase(match[1]);
-      return datapoint.makeVirtualField({
-        isId: false,
-        isMultiple: false,
-        names: {
-          template: {
-            datapointId: templates.getTemplateReferencingDatapoint({
-              variant,
-              classFilter: datapoint.typeName,
-              ownerOnly: false,
-            }).datapointId,
-            dom: {},
-          },
-        },
-        getterFunction: args => {
-          return args.template.dom;
-        },
-      });
+    if (!getter || typeof getter != 'object' || !getter.fn) {
+      // TODO codesnippet
+      // if the datapoint has no getter method, then the cached value is correct by default
+      return Promise.resolve(datapoint.valueIfAny);
     }
-    match = /^template(\w*)$/.exec(datapoint.fieldName);
-    if (templates && match) {
-      const variant = ChangeCase.camelCase(match[1]);
 
-      const type = schema.allTypes[datapoint.typeName],
-        ownerField = type ? type.fields[datapoint.ownerFieldName] : undefined;
-      if (!ownerField) {
-        return datapoint.makeVirtualField({
-          isId: true,
-          isMultiple: false,
-          names: {
-            template: {
-              datapointId: templates.getTemplateReferencingDatapoint({
-                variant,
-                classFilter: datapoint.typeName,
-                ownerOnly: false,
-              }).datapointId,
-            },
-          },
-          getterFunction: args => {
-            return { public: args.template };
-          },
-        });
-      }
-      return datapoint.makeVirtualField({
-        isId: true,
-        isMultiple: false,
-        names: {
-          public: {
-            datapointId: templates.getTemplateReferencingDatapoint({
-              variant,
-              classFilter: datapoint.typeName,
-              ownerOnly: false,
-            }).datapointId,
-          },
-          private: {
-            datapointId: templates.getTemplateReferencingDatapoint({
-              variant,
-              classFilter: datapoint.typeName,
-              ownerOnly: true,
-            }).datapointId,
-          },
-          owner: {
-            datapointId: ownerField.getDatapointId({ dbRowId: datapoint.dbRowId, proxyKey: datapoint.proxyKey }),
-          },
-        },
-        getterFunction: args => {
-          if (args.owner) {
-            let ownerId;
-            if (args.owner == 'id') {
-              ownerId = datapoint.dbRowId;
-            } else {
-              const ownerRowId = Array.isArray(args.owner) && args.owner.length == 1 ? args.owner[0] : undefined,
-                ownerInfo = ownerRowId ? ConvertIds.decomposeId({ rowId: ownerRowId }) : {};
-              ownerId = ownerInfo.dbRowId || 0;
+    return new Promise(resolve => {
+      const getterOneShotResolvers = (datapoint.getterOneShotResolvers = [resolve]);
+      datapoint.undeleteIfWatched();
+
+      runGetter();
+
+      function runGetter() {
+        datapoint.rerunGetter = false;
+        Promise.resolve(getter.fn.call(datapoint)).then(value => {
+          if (datapoint.rerunGetter) runGetter();
+          else {
+            datapoint.getterOneShotResolvers = undefined;
+            datapoint.deleteIfUnwatched();
+            for (const resolve of getterOneShotResolvers) {
+              resolve(value);
             }
-            return {
-              public: args.public,
-              private: args.private,
-              ownerId: ownerId,
-            };
           }
-          return {
-            public: args.public,
-          };
-        },
-      });
-    }
-  }
-
-  setVirtualField({ getterFunction, setterFunction, names = {}, isId, isMultiple }) {
-    this._fieldIfAny = this.makeVirtualField(arguments[0]);
-  }
-
-  makeVirtualField({ getterFunction, setterFunction, names = {}, isId, isMultiple }) {
-    const datapoint = this,
-      field = {
-        isClient: true, // force this field to evaluate locally
-        isId,
-        isMultiple,
-        name: datapoint.fieldName,
-        getDatapointId: ({ dbRowId, proxyKey }) =>
-          ConvertIds.recomposeId({
-            typeName: datapoint.typeName,
-            dbRowId,
-            proxyKey,
-            fieldName: datapoint.fieldName,
-          }),
-      };
-    if (getterFunction) {
-      field.get = new CodeSnippet({
-        func: getterFunction,
-        names,
-        ignoreNames: { datapointId: true },
-      });
-    }
-    if (setterFunction) {
-      field.set = new CodeSnippet({
-        func: setterFunction,
-        names,
-        ignoreNames: { datapointId: true },
-      });
-    }
-    return field;
-  }
-
-  valueAsRowId(value) {
-    const datapoint = this;
-
-    if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) return value;
-
-    const field = datapoint.fieldIfAny;
-    if (!field || !field.isId || field.isMultiple || datapoint._invalid || !Array.isArray(value) || value.length != 1)
-      return;
-
-    return value[0];
-  }
-
-  valueAsDecomposedRowId(value) {
-    const rowId = this.valueAsRowId(value);
-    if (!rowId) return;
-    try {
-      return ConvertIds.decomposeId({
-        rowId,
-      });
-    } catch (err) {
-      log('err', err);
-    }
-  }
-
-  setupDependencyFields() {
-    const datapoint = this;
-
-    const field = datapoint.fieldIfAny;
-    Object.assign(datapoint, {
-      dependenciesByDatapointId: {},
-      dependencyDatapointCountsById: {},
-      invalidDependencyDatapointCount: 0,
-      dependencies: !field
-        ? {}
-        : (function dependencyTreeFromNames(names) {
-            return mapValues(names, (subNames, name) => {
-              if (name == 'datapointId') return undefined;
-              const ret = {};
-              if (subNames.datapointId && typeof subNames.datapointId == 'string') {
-                ret.datapointId = subNames.datapointId;
-              }
-              const children = dependencyTreeFromNames(subNames);
-              delete children.datapointId;
-              if (Object.keys(children).length) ret.children = children;
-              return ret;
-            });
-          })(field.get.names),
-    });
-
-    datapoint.updateDependencies({
-      parentRowId: datapoint,
-      dependencies: datapoint.dependencies,
-    });
-  }
-
-  updateDependencies({ parentRowId, dependencies }) {
-    const datapoint = this;
-
-    if (!dependencies) return;
-
-    const parentType = parentRowId ? datapoint.schema.allTypes[parentRowId.typeName] : undefined;
-
-    for (const [name, dependency] of Object.entries(dependencies)) {
-      datapoint.updateDependency({
-        name,
-        dependency,
-        parentRowId,
-        parentType,
-      });
-    }
-  }
-
-  updateDependency({ name, dependency, parentRowId, parentType }) {
-    const datapoint = this,
-      { cache } = datapoint;
-
-    let dependencyDatapoint;
-    if (dependency.datapointId) {
-      dependencyDatapoint = cache.getOrCreateDatapoint({
-        datapointId: dependency.datapointId,
-      }).__private;
-    } else {
-      const dependencyField = parentType ? parentType.fields[name] : undefined;
-      if (dependencyField) {
-        dependencyDatapoint = cache.getOrCreateDatapoint({
-          datapointId: dependencyField.getDatapointId(parentRowId),
-        }).__private;
-      }
-    }
-
-    if (dependency.datapoint) {
-      if (!dependencyDatapoint || dependency.datapoint.datapointId != dependencyDatapoint.datapointId) {
-        const oldDependencyDatapoint = dependency.datapoint;
-        delete oldDependencyDatapoint.dependentDatapointsById[datapoint.datapointId];
-        datapoint.dependenciesByDatapointId[oldDependencyDatapoint.datapointId] = datapoint.dependenciesByDatapointId[
-          oldDependencyDatapoint.datapointId
-        ].filter(dependency2 => {
-          dependency !== dependency2;
         });
-        if (!datapoint.dependenciesByDatapointId[oldDependencyDatapoint.datapointId].length) {
-          delete datapoint.dependenciesByDatapointId[oldDependencyDatapoint.datapointId];
-        }
-        if (!--datapoint.dependencyDatapointCountsById[oldDependencyDatapoint.datapointId]) {
-          delete datapoint.dependencyDatapointCountsById[oldDependencyDatapoint.datapointId];
-        }
-        if (oldDependencyDatapoint._invalid) datapoint.invalidDependencyDatapointCount--;
-        delete dependency.datapoint;
-
-        oldDependencyDatapoint.deleteIfUnwatched();
       }
-    }
+    });
+  }
 
-    if (dependencyDatapoint && !dependency.datapoint) {
-      dependency.datapoint = dependencyDatapoint;
-      dependencyDatapoint.dependentDatapointsById = dependencyDatapoint.dependentDatapointsById || {};
-      dependencyDatapoint.dependentDatapointsById[datapoint.datapointId] = datapoint;
-      datapoint.dependenciesByDatapointId[dependencyDatapoint.datapointId] =
-        datapoint.dependenciesByDatapointId[dependencyDatapoint.datapointId] || [];
-      datapoint.dependenciesByDatapointId[dependencyDatapoint.datapointId].push(dependency);
-      datapoint.dependencyDatapointCountsById[dependencyDatapoint.datapointId] =
-        (datapoint.dependencyDatapointCountsById[dependencyDatapoint.datapointId] || 0) + 1;
-      if (dependencyDatapoint._invalid) datapoint.invalidDependencyDatapointCount++;
-    }
+  // sets the value by invoking the setter method if any
+  setValue(newValue) {
+    const datapoint = this,
+      { setter, valueIfAny } = datapoint,
+      changed = !isEqual(valueIfAny, newValue, { exact: true });
 
-    if (dependency.children && dependencyDatapoint) {
-      datapoint.updateDependencies({
-        parentRowId: dependencyDatapoint.valueAsDecomposedRowId(dependencyDatapoint.valueIfAny),
-        dependencies: dependency.children,
+    if (!setter || typeof setter != 'object' || !setter.fn) {
+      // if the datapoint has no setter method, then just set the cached value directly
+      datapoint._setCachedValue(newValue);
+    } else {
+      // to set the value if there is a setter method, the datapoint is marked as invalid,
+      // then the setter method is invoked, then as it returns (either sync or async)
+      // the datapoint is revalidated using the value returned from the setter
+      // This value should be the same as would be obtained from the getter.
+      datapoint.invalidate();
+      Promise.resolve(setter.fn.call(datapoint, newValue)).then(value => {
+        datapoint._setCachedValue(value);
       });
     }
   }
@@ -1717,113 +1110,50 @@ class Datapoint {
     this.deleteIfUnwatched();
   }
 
+  firstListenerAdded() {
+    this.undeleteIfWatched();
+  }
+
+  undeleteIfWatched() {
+    const datapoint = this,
+      { cache, listeners, getterOneShotResolvers, dependentCount } = datapoint;
+    if (
+      !dependentCount &&
+      !(listeners && listeners.length) &&
+      !(getterOneShotResolvers && getterOneShotResolvers.length)
+    )
+      return;
+
+    cache.unforgetDatapoint(datapoint.datapointId);
+  }
+
   deleteIfUnwatched() {
     const datapoint = this,
-      { inDeletionList } = datapoint;
-
-    if (
-      inDeletionList ||
-      (datapoint.listeners && datapoint.listeners.length) ||
-      datapoint.watchingOneShotResolvers ||
-      (datapoint.dependentDatapointsById && Object.keys(datapoint.dependentDatapointsById).length)
-    ) {
+      { cache, listeners, getterOneShotResolvers, dependentCount } = datapoint;
+    if (dependentCount || (listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length))
       return;
-    }
 
-    const { cache, datapointId } = datapoint,
-      { deletionList } = cache;
-    datapoint.inDeletionList = deletionList;
-    deletionList[datapointId] = this;
+    cache.forgetDatapoint(datapoint.datapointId);
   }
 
-  undelete() {
-    const datapoint = this,
-      { datapointId, inDeletionList } = datapoint;
-
-    if (!inDeletionList) return;
-
-    delete inDeletionList[datapointId];
-    delete datapoint.inDeletionList;
+  get deletionCallbacks() {
+    return this._deletionCallbacks || (this._deletionCallbacks = []);
   }
 
-  forget() {
-    log('dp', `forgetting datapoint ${this.datapointId}`);
+  ondeletion() {
     const datapoint = this,
-      { cache, datapointId } = datapoint;
-
-    if (datapoint.ownerDatapoint) {
-      datapoint.ownerDatapoint.stopWatching({
-        callbackKey: datapointId,
-      });
-    }
-
-    if (datapoint.dependenciesByDatapointId) {
-      for (const dependencyDatapointId of Object.keys(datapoint.dependenciesByDatapointId)) {
-        const dependencyDatapoint = cache.getExistingDatapoint({
-          datapointId: dependencyDatapointId,
-        }).__private;
-        delete dependencyDatapoint.dependentDatapointsById[datapoint.datapointId];
-        if (!Object.keys(dependencyDatapoint.dependentDatapointsById).length) {
-          delete dependencyDatapoint.dependentDatapointsById;
-          dependencyDatapoint.deleteIfUnwatched();
-        }
+      { _deletionCallbacks } = datapoint;
+    if (_deletionCallbacks) {
+      for (const callback of _deletionCallbacks) {
+        callback(datapoint);
       }
+      datapoint._deletionCallbacks = undefined;
     }
-
-    delete datapoint.dependenciesByDatapointId;
-    delete datapoint.dependencyDatapointCountsById;
-    delete datapoint.invalidDependencyDatapointCount;
-    delete datapoint.dependencies;
-
-    cache.forgetDatapoint(datapoint);
-  }
-
-  static valueFromGetter({ getter, dependencies, cache }) {
-    const dependencyValues = {};
-
-    if (dependencies) {
-      (function addDependencyValues(dependencies, to) {
-        for (let [name, dependency] of Object.entries(dependencies)) {
-          if (dependency.children) {
-            to[name] = {};
-            addDependencyValues(dependency.children, to[name]);
-          } else if (dependency.datapoint && !dependency.datapoint._invalid) {
-            to[name] = dependency.datapoint.valueIfAny;
-          }
-        }
-      })(dependencies, dependencyValues);
-    }
-
-    return getter.evaluate({ valuesByName: dependencyValues, cache });
-  }
-
-  static valueToSetter({ setter, value, dependencies, cache }) {
-    const dependencyValues = {},
-      rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined;
-
-    if (dependencies) {
-      (function addDependencyValues(dependencies, to) {
-        for (let [name, dependency] of Object.entries(dependencies)) {
-          if (dependency.children) {
-            if (rowChangeTrackers && dependency.datapoint) {
-              const rowId = dependency.datapoint.valueAsRowId(dependency.datapoint.valueIfAny);
-              if (rowId) {
-                to[name] = rowChangeTrackers.rowObject(rowId);
-                continue;
-              }
-            }
-            to[name] = {};
-            addDependencyValues(dependency.children, to[name]);
-          } else if (dependency.datapoint && !dependency.datapoint._invalid) {
-            to[name] = dependency.datapoint.valueIfAny;
-          }
-        }
-      })(dependencies, dependencyValues);
-    }
-
-    return setter.evaluate({ valuesByName: dependencyValues, cache, event: { value } });
+    datapoint.clearDependencies();
   }
 }
+
+addDependencyMethods(Datapoint);
 
 makeClassWatchable(Datapoint);
 
@@ -1833,7 +1163,429 @@ module.exports = PublicApi({
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
 
-},{"../general/clone":20,"../general/code-snippet":21,"../general/is-equal":23,"../general/log":25,"../general/map-values":26,"../general/public-api":29,"../general/watchable":34,"./convert-ids":7,"change-case":37}],10:[function(require,module,exports){
+},{"../../datapoints/convert-ids":8,"../../datapoints/datapoint/getters-setters/all.js":11,"../../general/is-equal":29,"../../general/public-api":35,"../../general/watchable":40,"./dependency-methods":10}],10:[function(require,module,exports){
+const { fieldNameRegex, rowRegex, recomposeId } = require('../../datapoints/convert-ids');
+const log = require('../../general/log');
+
+module.exports = addDependencyMethods;
+
+let nextStateIndex = 1;
+function addDependencyMethods(watchableClass) {
+  Object.assign(watchableClass.prototype, {
+    refreshDependencies: function(names, type) {
+      const datapoint = this,
+        { rowId } = datapoint;
+      const state =
+        datapoint[`${type}State`] ||
+        (datapoint[`${type}State`] = {
+          children: {},
+        });
+      datapoint._refreshDependencies(names, rowId, state, 'root');
+    },
+
+    clearDependencies() {
+      const datapoint = this,
+        { rowId } = datapoint,
+        state = datapoint[`${type}State`];
+      if (!state) return;
+      datapoint._refreshDependencies(undefined, rowId, state, 'root');
+    },
+
+    _refreshDependencies: function(names, parentRowId, parentState, myFieldName) {
+      const datapoint = this,
+        { cache } = datapoint;
+      let state = parentState.children['.state'];
+      if (!state) {
+        state = parentState.children['.state'] = {
+          index: nextStateIndex++,
+          fieldName: myFieldName,
+          parentState,
+          fields: {},
+          children: {},
+          sourceDatapointId: undefined,
+        };
+      }
+
+      if (!names || typeof names != 'object') names = {};
+
+      const sourceDatapointId = names['.datapointId'];
+      if (sourceDatapointId) {
+        const sourceDatapoint = cache.getOrCreateDatapoint(sourceDatapointId);
+        if (sourceDatapointId != state.sourceDatapointId) {
+          if (state.sourceDatapointId) {
+            datapoint._removeDependency({
+              dependencyDatapoint: cache.getOrCreateDatapoint(state.sourceDatapointId),
+              type: 'source',
+              state,
+            });
+          }
+          if ((state.sourceDatapointId = sourceDatapointId)) {
+            datapoint._addDependency({
+              dependencyDatapoint: sourceDatapoint,
+              type: 'source',
+              state,
+            });
+          }
+        }
+        parentRowId = sourceDatapoint._valueAsRowId;
+      }
+
+      for (const [fieldName, children] of Object.entries(names)) {
+        if (!fieldNameRegex.test(fieldName)) continue;
+
+        if (!((children && children['.datapointId']) || state.fields[fieldName])) {
+          state.fields[fieldName] = true;
+          const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
+            fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
+          datapoint._addDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
+        }
+
+        if (state.children[fieldName] || (children && typeof children == 'object')) {
+          datapoint._refreshDependencies(children, parentRowId, state, fieldName);
+        }
+      }
+
+      for (const fieldName of Object.keys(state.fields)) {
+        if (fieldName in names) continue;
+
+        delete state.fields[fieldName];
+        const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
+          fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
+        datapoint._removeDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
+
+        if (state.children[fieldName]) {
+          datapoint._refreshDependencies(undefined, parentRowId, state, fieldName);
+          delete state.children[fieldName];
+        }
+      }
+    },
+
+    _addDependency({ dependencyDatapoint, type, state }) {
+      const dependentDatapoint = this,
+        { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
+        { datapointId: dependentDatapointId } = dependentDatapoint,
+        dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
+        dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {});
+      let dependentInfo = dependencyDependents[dependentDatapointId],
+        dependencyInfo = dependentDependencies[dependencyDatapointId],
+        stateKey = `${type}:${state.index}`;
+
+      if (!dependentInfo) {
+        dependentInfo = dependencyDependents[dependentDatapointId] = {};
+        dependencyInfo = dependentDependencies[dependencyDatapointId] = {};
+
+        dependentDatapoint.dependencyCount = (dependentDatapoint.dependencyCount || 0) + 1;
+        if (!dependencyDatapoint.dependentCount) {
+          dependencyDatapoint.dependentCount = 1;
+          dependencyDatapoint.undeleteIfWatched();
+        } else {
+          dependencyDatapoint.dependentCount++;
+        }
+
+        if (!dependencyValid) {
+          if (!dependentDatapoint.invalidDependencyCount) {
+            dependentDatapoint.invalidDependencyCount = 1;
+            dependentDatapoint.invalidate();
+          } else dependentDatapoint.invalidDependencyCount++;
+        }
+      } else if (dependentInfo[stateKey]) return;
+
+      dependentInfo[stateKey] = dependencyInfo[stateKey] = { type, state };
+    },
+
+    _removeDependency({ dependencyDatapoint, type, state }) {
+      const dependentDatapoint = this,
+        { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
+        { datapointId: dependentDatapointId } = dependentDatapoint,
+        dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
+        dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {}),
+        dependentInfo = dependencyDependents[dependentDatapointId],
+        dependencyInfo = dependentDependencies[dependencyDatapointId],
+        stateKey = `${type}:${state.index}`;
+
+      if (!(dependentInfo && dependentInfo[stateKey])) {
+        log(
+          'err.dp',
+          `Expected to find a that ${dependentDatapointId}[${stateKey}] was dependent on ${dependencyDatapointId}[${stateKey}]. The system will by in an unstable state from here on out`
+        );
+        return;
+      }
+
+      delete dependentInfo[stateKey];
+      delete dependencyInfo[stateKey];
+
+      if (!Object.keys(dependentInfo).length) {
+        delete dependencyDependents[dependentDatapointId];
+        delete dependentDependencies[dependencyDatapointId];
+
+        dependentDatapoint.dependencyCount--;
+        if (!--dependencyDatapoint.dependentCount) {
+          dependencyDatapoint.deleteIfUnwatched();
+        }
+
+        if (!dependencyValid && !--dependentDatapoint.invalidDependencyCount) {
+          dependentDatapoint.validate();
+        }
+      }
+    },
+
+    get _valueAsRowId() {
+      const datapoint = this,
+        { valueIfAny: value } = datapoint;
+      if (!value) return;
+      if (typeof value == 'string' && rowRegex.test(value)) {
+        return value;
+      }
+      if (Array.isArray(value) && value.length == 1 && typeof value[0] == 'string' && rowRegex.test(value[0])) {
+        return value[0];
+      }
+    },
+
+    notifyDependentsOfMoveToInvalidState: function() {
+      const datapoint = this,
+        { dependents, cache } = datapoint;
+
+      if (!dependents) return;
+      for (const dependentDatapointId of Object.keys(dependents)) {
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+
+        if (!dependentDatapoint.invalidDependencyCount) {
+          dependentDatapoint.invalidDependencyCount = 1;
+          dependentDatapoint.invalidate();
+        } else dependentDatapoint.invalidDependencyCount++;
+      }
+    },
+    notifyDependentsOfMoveToValidState: function() {
+      const datapoint = this,
+        { dependents, cache } = datapoint;
+
+      if (!dependents) return;
+      for (const dependentDatapointId of Object.keys(dependents)) {
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+
+        if (!--dependentDatapoint.invalidDependencyCount) {
+          dependentDatapoint.validate();
+        }
+      }
+    },
+    notifyDependentsOfChangeOfValue: function() {
+      const datapoint = this,
+        { dependents, cache } = datapoint;
+
+      if (!dependents) return;
+      for (const dependentDatapointId of Object.keys(dependents)) {
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+
+        if (!dependentDatapoint.invalidDependencyCount) {
+          dependentDatapoint.validate();
+        }
+      }
+    },
+  });
+}
+
+},{"../../datapoints/convert-ids":8,"../../general/log":31}],11:[function(require,module,exports){
+const all = [
+  require('./page-state'),
+  require('./state'),
+  require('./template'),
+  require('./schema-code'),
+  require('./db'),
+];
+
+module.exports = function({ datapoint, cache, schema, datapointDbConnection, stateVar, templates }) {
+  const ret = {};
+  for (const one of all) {
+    const oneRet = one(arguments[0]);
+    if (oneRet) {
+      if (!ret.getter) ret.getter = oneRet.getter;
+      if (!ret.setter) ret.setter = oneRet.setter;
+      if (ret.getter && ret.setter) break;
+    }
+  }
+  return ret;
+};
+
+},{"./db":12,"./page-state":13,"./schema-code":14,"./state":15,"./template":16}],12:[function(require,module,exports){
+module.exports = function({ datapoint, schema, datapointDbConnection }) {
+  if (!datapointDbConnection) return;
+
+  const { typeName, dbRowId, fieldName } = datapoint,
+    type = schema.allTypes[typeName];
+
+  if (!type) return;
+
+  const field = type.getField(fieldName);
+  if (!field || !dbRowId) return;
+
+  const ret = {};
+  if (!field.get) {
+    ret.getter = {
+      fn: () =>
+        new Promise(resolve => {
+          datapointDbConnection.queueGet({ field, dbRowId, resolve });
+        }),
+    };
+  }
+  if (!field.set) {
+    ret.setter = {
+      fn: newValue =>
+        new Promise(resolve => {
+          datapointDbConnection.queueSet({ field, dbRowId, newValue, resolve });
+        }),
+    };
+  }
+  return ret;
+};
+
+},{}],13:[function(require,module,exports){
+const PageState = require('../../../client/page-state');
+
+module.exports = function({ datapoint }) {
+  const { fieldName, proxyKey, typeName } = datapoint;
+
+  if (typeName !== 'Page' || proxyKey !== 'default') return;
+
+  datapoint._isClient = true;
+  if (fieldName == 'items') {
+    return {
+      getter: {
+        fn: () => {
+          const state = PageState.currentWindowState;
+          return state && state.pageDatapointId ? [state.pageDatapointId] : [];
+        },
+      },
+      setter: {
+        fn: items => {
+          if (Array.isArray(items)) {
+            PageState.global.visit(items.length && typeof items[0] == 'string' ? items[0] : undefined);
+          }
+          return items;
+        },
+      },
+    };
+  }
+};
+
+},{"../../../client/page-state":5}],14:[function(require,module,exports){
+module.exports = function({ datapoint, schema }) {
+  const { typeName, fieldName } = datapoint,
+    type = schema.allTypes[typeName];
+
+  if (!type) return;
+
+  const field = type.getField(fieldName);
+  if (!field || !(field.get || field.set)) return;
+
+  const ret = {};
+  if (field.get) {
+    ret.getter = { codeSnippet: field.get };
+  }
+  if (field.set) {
+    ret.setter = { codeSnippet: field.set };
+  }
+  return ret;
+};
+
+},{}],15:[function(require,module,exports){
+const g_state = {};
+
+module.exports = function({ datapoint }) {
+  const { fieldName, typeName, proxyKey = 'default' } = datapoint;
+
+  if (typeName !== 'State') return;
+
+  datapoint._isClient = true;
+  const state = g_state[proxyKey] || (g_state[proxyKey] = {}),
+    datapointState = (state[fieldName] = {
+      value: undefined,
+    });
+  datapoint.deletionCallbacks.push(() => {
+    delete state[fieldName];
+  });
+  return {
+    getter: {
+      fn: () => datapointState.value,
+    },
+    setter: {
+      fn: newValue => (datapointState.value = newValue),
+    },
+  };
+};
+
+},{}],16:[function(require,module,exports){
+const ChangeCase = require('change-case');
+
+module.exports = function({ datapoint, templates }) {
+  const { fieldName, typeName, datapointId } = datapoint;
+
+  if (!templates) return;
+
+  let match = /^dom(\w*)$/.exec(fieldName);
+  if (match) {
+    const variant = ChangeCase.camelCase(match[1]),
+      names = {
+        template: {
+          '.datapointId': templates.getTemplateReferencingDatapoint({
+            variant,
+            classFilter: typeName,
+            ownerOnly: false,
+          }).datapointId,
+          dom: {},
+        },
+      };
+
+    return {
+      getter: {
+        names,
+        fn: ({ template }) => template.dom,
+      },
+      setter: {
+        names,
+        fn: ({ template, newValue }) => (template.dom = newValue),
+      },
+    };
+  }
+
+  match = /^template(\w*)$/.exec(fieldName);
+  if (match) {
+    const variant = ChangeCase.camelCase(match[1]),
+      names = {
+        template: {
+          '.datapointId': templates.getTemplateReferencingDatapoint({
+            variant,
+            classFilter: typeName,
+            ownerOnly: false,
+          }).datapointId,
+        },
+      };
+
+    return {
+      getter: {
+        names,
+        fn: ({ template }) => template.id,
+      },
+      setter: {
+        names,
+        fn: ({ template }) => template.id,
+      },
+    };
+  }
+
+  if (typeName == 'App' && fieldName.startsWith('useTemplate_')) {
+    return {
+      getter: {
+        names,
+        fn: () => {
+          const rowId = templates.referencedTemplateRowIdForTemplateDatapointId(datapointId);
+          return rowId ? [rowId] : [];
+        },
+      },
+    };
+  }
+};
+
+},{"change-case":43}],17:[function(require,module,exports){
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
@@ -1874,10 +1626,10 @@ class RequiredDatapoints {
     if (datapointInfo.then) {
       return datapointInfo.then(datapointInfo => {
         if (!datapointInfo) return;
-        return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
+        return this.cache.getOrCreateDatapoint( datapointInfo.datapointId );
       });
     }
-    return this.cache.getOrCreateDatapoint({ datapointId: datapointInfo.datapointId });
+    return this.cache.getOrCreateDatapoint( datapointInfo.datapointId );
   }
 
   _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId, stack: astack = [] }) {
@@ -2020,7 +1772,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/log":25,"../general/map-values":26,"../general/public-api":29,"./convert-ids":7}],11:[function(require,module,exports){
+},{"../general/log":31,"../general/map-values":32,"../general/public-api":35,"./convert-ids":8}],18:[function(require,module,exports){
 // row-change-trackers
 // © Will Smart 2018. Licence: MIT
 
@@ -2129,7 +1881,7 @@ class RowChangeTrackers {
     const rowChangeTrackers = this,
       { cache } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
-      datapoint = cache.getOrCreateDatapoint({ datapointId });
+      datapoint = cache.getOrCreateDatapoint( datapointId );
 
     if (datapoint) datapoint.setValue(value);
   }
@@ -2160,7 +1912,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/change-detector-object":19,"../general/public-api":29,"./convert-ids":7}],12:[function(require,module,exports){
+},{"../general/change-detector-object":26,"../general/public-api":35,"./convert-ids":8}],19:[function(require,module,exports){
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
@@ -2168,18 +1920,18 @@ const DomGenerator = require('../dom/dom-generator');
 
 // other implied dependencies
 
-//const DatapointCache = require('./datapoint-cache'); // via constructor arg: cache
-//    uses getOrCreateDatapoint, queueValidationJob
+//const DatapointCache = require('./cache/datapoint-cache'); // via constructor arg: cache
+//    uses getOrCreateDatapoint
 
 //const Datapoint = require('./datapoint'); // via cache.getOrCreateDatapoint
-//    uses watch, stopWatching, valueIfAny, invalidate, invalid, setVirtualField
+//    uses watch, stopWatching, valueIfAny, invalidate, valid
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class Templates {
   // public methods
   static publicMethods() {
-    return ['load', 'getTemplateReferencingDatapoint', 'template'];
+    return ['load', 'getTemplateReferencingDatapoint', 'template', 'referencedTemplateRowIdForTemplateDatapointId'];
   }
 
   constructor({ cache, htmlToElement, appDbRowId = 1 }) {
@@ -2199,11 +1951,8 @@ class Templates {
       },
     });
 
-    this.callbackKey = cache
-      .getOrCreateDatapoint({
-        datapointId: this.appTemplatesDatapointId,
-      })
-      .watch({
+    setTimeout(() => {
+      this.callbackKey = cache.getOrCreateDatapoint(this.appTemplatesDatapointId).watch({
         onchange: datapoint => {
           if (Array.isArray(datapoint.valueIfAny)) {
             templates.setTemplateRowIds({
@@ -2212,6 +1961,7 @@ class Templates {
           }
         },
       });
+    }, 0);
   }
 
   template({ rowId }) {
@@ -2230,10 +1980,27 @@ class Templates {
     return ConvertIds.recomposeId({
       typeName: 'App',
       dbRowId: this.appDbRowId,
-      fieldName: `useTemplate_${variant ? `V_${variant}_` : ''}${classFilter ? `C_${classFilter}_` : ''}${
+      fieldName: `useTemplate_${variant ? `v_${variant}_` : ''}${classFilter ? `c_${classFilter}_` : ''}${
         ownerOnly ? '_private' : ''
       }`,
     }).datapointId;
+  }
+
+  cvoForTemplateDatapointId(datapointId) {
+    const { typeName, dbRowId, fieldName } = ConvertIds.decomposeId({ datapointId });
+    if (typeName !== 'App' || dbRowId !== this.appDbRowId) return;
+    const match = /^useTemplate_(v_[a-z0-9]+(?:_[a-z0-9]+)*_|)(c_[a-z0-9]+(?:_[a-z0-9]+)*_|)(_private|)$/.exec(
+      fieldName
+    );
+    if (!match) return;
+    return { variant: match[1] || undefined, classFilter: match[2] || undefined, ownerOnly: Boolean(match[3]) };
+  }
+
+  referencedTemplateRowIdForTemplateDatapointId(datapointId) {
+    const cvo = this.cvoForTemplateDatapointId(datapointId);
+    if (!cvo) return;
+    const node = this.treeNode(cvo);
+    return node && node.template ? node.template.rowId : undefined;
   }
 
   setTemplateRowIds({ rowIds }) {
@@ -2319,21 +2086,13 @@ class Templates {
       const useParent = parents.find(parent => parent.template);
       node.template = useParent ? useParent.template : undefined;
 
-      node.datapoint = templates.cache.getOrCreateDatapoint({
-        datapointId: templates.appTemplateDatapointId({
+      node.datapoint = templates.cache.getOrCreateDatapoint(
+        templates.appTemplateDatapointId({
           variant,
           classFilter,
           ownerOnly,
-        }),
-      });
-      node.datapoint.setVirtualField({
-        isId: true,
-        isMultiple: false,
-        getterFunction: () => {
-          return node.template ? [node.template.rowId] : [];
-        },
-      });
-      node.datapoint.invalidate();
+        })
+      );
       node.callbackKey = node.datapoint.watch({});
       return node;
     }
@@ -2460,12 +2219,12 @@ class Template {
       });
     }
 
-    const datapoint = cache.getOrCreateDatapoint({
-      datapointId: ConvertIds.recomposeId({
+    const datapoint = cache.getOrCreateDatapoint(
+      ConvertIds.recomposeId({
         rowId,
         fieldName: 'dom',
-      }).datapointId,
-    });
+      }).datapointId
+    );
     datapoint.watch({
       callbackKey,
       onchange: datapoint => {
@@ -2578,11 +2337,10 @@ class Template {
     for (const fieldName of fieldNames) {
       const datapoint = template.datapoints[fieldName];
 
-      if (!datapoint || datapoint.invalid) hasInvalid = true;
+      if (!datapoint || !datapoint.valid) hasInvalid = true;
       else ret[fieldName] = datapoint.valueIfAny;
     }
     if (hasInvalid) {
-      template.templates.cache.queueValidationJob();
       if (allOrNothing) return;
     }
 
@@ -2610,7 +2368,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../dom/dom-generator":15,"../general/map-values":26,"../general/public-api":29,"./convert-ids":7}],13:[function(require,module,exports){
+},{"../dom/dom-generator":22,"../general/map-values":32,"../general/public-api":35,"./convert-ids":8}],20:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const { cloneShowingElementNames } = require('../general/name-for-element');
 const { rangeForElement, forEachInElementRange } = require('./dom-functions');
@@ -2692,7 +2450,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/name-for-element":27,"../general/public-api":29,"./dom-functions":14}],14:[function(require,module,exports){
+},{"../general/name-for-element":33,"../general/public-api":35,"./dom-functions":21}],21:[function(require,module,exports){
 const ChangeCase = require('change-case');
 const ConvertIds = require('../datapoints/convert-ids');
 const nameForElement = require('../general/name-for-element');
@@ -3097,7 +2855,7 @@ function elementWaitingChangeIds(element) {
   return value ? value.split(' ') : [];
 }
 
-},{"../datapoints/convert-ids":7,"../general/log":25,"../general/name-for-element":27,"change-case":37}],15:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/log":31,"../general/name-for-element":33,"change-case":43}],22:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 const TemplatedText = require('./templated-text');
@@ -3301,10 +3059,10 @@ class DomGenerator {
     const element = document.getElementById('page');
     domGenerator._prepChildrenPlaceholderAndCreateChildren({
       element,
-      datapointId: 'page__1__items',
+      datapointId: 'page__default__items',
       childDepth: 1,
     });
-    domGenerator.notifyListeners('onprepelement', { element, rowId: 'page__1' });
+    domGenerator.notifyListeners('onprepelement', { element, rowId: 'page__default' });
   }
 
   prepChildrenPlaceholderAndCreateChildren({ element, rowId, lidCounter, depth }) {
@@ -3474,7 +3232,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/public-api":29,"../general/watchable":34,"./dom-functions":14,"./templated-text":18}],16:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/public-api":35,"../general/watchable":40,"./dom-functions":21,"./templated-text":25}],23:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
@@ -3563,7 +3321,7 @@ class DomUpdater {
         }
 
         if (templateDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId: templateDatapointId });
+          const datapoint = cache.getOrCreateDatapoint( templateDatapointId );
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -3593,7 +3351,7 @@ class DomUpdater {
           });
         }
         if (domDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId: domDatapointId });
+          const datapoint = cache.getOrCreateDatapoint( domDatapointId );
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -3621,7 +3379,7 @@ class DomUpdater {
           });
         }
         if (childrenDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint({ datapointId: childrenDatapointId }),
+          const datapoint = cache.getOrCreateDatapoint( childrenDatapointId ),
             childDepth = element.getAttribute('nobo-child-depth');
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
@@ -3693,7 +3451,7 @@ class DomUpdater {
         }
         if (valueDatapointIds) {
           for (const datapointId of valueDatapointIds) {
-            const datapoint = cache.getOrCreateDatapoint({ datapointId });
+            const datapoint = cache.getOrCreateDatapoint(datapointId);
             if (!datapoint.initialized) {
               log(
                 'dom',
@@ -3875,7 +3633,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/diff":22,"../general/log":25,"../general/name-for-element":27,"../general/public-api":29,"./dom-functions":14,"./dom-waiting-change-queue":17,"./templated-text":18}],17:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/diff":28,"../general/log":31,"../general/name-for-element":33,"../general/public-api":35,"./dom-functions":21,"./dom-waiting-change-queue":24,"./templated-text":25}],24:[function(require,module,exports){
 const DomChangeQueue = require('./dom-change-queue');
 const PublicApi = require('../general/public-api');
 const { forEachInElementRange, findInElementRange, logChange } = require('./dom-functions');
@@ -4128,7 +3886,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/public-api":29,"./dom-change-queue":13,"./dom-functions":14}],18:[function(require,module,exports){
+},{"../general/public-api":35,"./dom-change-queue":20,"./dom-functions":21}],25:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const locateEnd = require('../general/locate-end');
 const CodeSnippet = require('../general/code-snippet');
@@ -4258,7 +4016,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/code-snippet":21,"../general/locate-end":24,"../general/public-api":29,"../general/state-var":31}],19:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/code-snippet":27,"../general/locate-end":30,"../general/public-api":35,"../general/state-var":37}],26:[function(require,module,exports){
 // change-detector-object
 // © Will Smart 2018. Licence: MIT
 
@@ -4350,46 +4108,7 @@ function changeDetectorObject(baseObject, setParentModified) {
   };
 }
 
-},{}],20:[function(require,module,exports){
-// clone
-// © Will Smart 2018. Licence: MIT
-
-// This is a stupidly simple cloning device for basic objects and arrays
-
-// API is the function. Use via
-//   const clone = require(pathToClone)
-
-module.exports = clone;
-
-function clone(val) {
-  if (Array.isArray(val)) return cloneArray(val);
-  if (val && typeof val == 'object') return cloneObject(val);
-  return val;
-}
-
-function cloneArray(array) {
-  const ret = [];
-  for (let index = 0; index < array.length; index++) {
-    const child = array[index];
-    ret.push(Array.isArray(child) ? cloneArray(child) : child && typeof child == 'object' ? cloneObject(child) : child);
-  }
-  return ret;
-}
-
-function cloneObject(obj) {
-  const ret = {},
-    keys = Object.keys(obj);
-  // I'm under the belief that this is ever so slightly quicker than had I used forEach
-  // I might well be wrong but it's my hill and I'm holding it
-  for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
-    const key = keys[keyIndex],
-      value = obj[key];
-    ret[key] = Array.isArray(value) ? cloneArray(value) : value && typeof value == 'object' ? cloneObject(value) : value;
-  }
-  return ret;
-}
-
-},{}],21:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 // code-snippet
 // © Will Smart 2018. Licence: MIT
 
@@ -4578,7 +4297,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../general/log":25,"./change-detector-object":19,"./public-api":29,"./wrap-function-locals":35}],22:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/log":31,"./change-detector-object":26,"./public-api":35,"./wrap-function-locals":41}],28:[function(require,module,exports){
 // diff
 // © Will Smart 2018. Licence: MIT
 
@@ -5011,7 +4730,7 @@ if (typeof window !== 'undefined') {
   };
 }
 
-},{"./is-equal":23,"./log":25,"random-seed":54}],23:[function(require,module,exports){
+},{"./is-equal":29,"./log":31,"random-seed":60}],29:[function(require,module,exports){
 // compare
 // © Will Smart 2018. Licence: MIT
 
@@ -5288,7 +5007,7 @@ function objectIsEqualOrSuperset(v1, v2, options) {
   return supersetMatch ? '>' : true;
 }
 
-},{}],24:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 // locate-end
 // © Will Smart 2018. Licence: MIT
 
@@ -5467,7 +5186,7 @@ function locateEnd(string, closeChar, openIndex = 0) {
   }
 }
 
-},{}],25:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports = log;
 
 const enabledLogs = { err: true, dom: true, ws: true };
@@ -5508,7 +5227,7 @@ if (typeof window !== 'undefined') {
   window.disableNoboLog = log.disableLog;
 }
 
-},{}],26:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 // map_values
 // © Will Smart 2018. Licence: MIT
 
@@ -5529,7 +5248,7 @@ function mapValues(object, fn) {
   return ret;
 }
 
-},{}],27:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 // clone
 // © Will Smart 2018. Licence: MIT
 
@@ -5581,7 +5300,7 @@ function _cloneShowingElementNames(value) {
   return { clone: value };
 }
 
-},{}],28:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 // names-from-code
 // © Will Smart 2018. Licence: MIT
 
@@ -5707,7 +5426,7 @@ function addNamesFromCodeString(codeString, names) {
   }
 }
 
-},{"./locate-end":24,"./unicode-categories":33}],29:[function(require,module,exports){
+},{"./locate-end":30,"./unicode-categories":39}],35:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -5824,7 +5543,7 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
   return PublicClass;
 }
 
-},{}],30:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 const strippedValues = require('./stripped-values');
 const ConvertIds = require('../datapoints/convert-ids');
 const PublicApi = require('./public-api');
@@ -6084,7 +5803,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"./code-snippet":21,"./public-api":29,"./stripped-values":32}],31:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"./code-snippet":27,"./public-api":35,"./stripped-values":38}],37:[function(require,module,exports){
 // state-var
 // © Will Smart 2018. Licence: MIT
 
@@ -6124,7 +5843,7 @@ class StateVar {
   }
 
   static datapointId(path) {
-    return ConvertIds.recomposeId({ rowId: 'state__1', fieldName: path.replace('.', '_') }).datapointId;
+    return ConvertIds.recomposeId({ rowId: 'state__default', fieldName: path.replace('.', '_') }).datapointId;
   }
 
   commitStateChange(path, cdo) {
@@ -6148,7 +5867,7 @@ class StateVar {
           value = value.modifiedObject;
         }
         const datapointId = StateVar.datapointId(`${path}.${key}`),
-          datapoint = cache.getOrCreateDatapoint({ datapointId });
+          datapoint = cache.getOrCreateDatapoint(datapointId);
         datapoint.setValue(value);
       }
     }
@@ -6161,7 +5880,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"./change-detector-object":19,"./public-api":29}],32:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"./change-detector-object":26,"./public-api":35}],38:[function(require,module,exports){
 const mapValues = require('../general/map-values');
 
 // API
@@ -6174,7 +5893,7 @@ function strippedValues(object) {
   );
 }
 
-},{"../general/map-values":26}],33:[function(require,module,exports){
+},{"../general/map-values":32}],39:[function(require,module,exports){
 // unicode-regex-categories
 // © Will Smart 2018. Licence: MIT
 // with thanks to http://inimino.org/~inimino/blog/javascript_cset also under MIT licence
@@ -6213,7 +5932,7 @@ module.exports = {
   varInnard,
 };
 
-},{}],34:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 // watchable
 // © Will Smart 2018. Licence: MIT
 
@@ -6289,7 +6008,7 @@ function makeClassWatchable(watchableClass) {
   });
 }
 
-},{}],35:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 // wrap-function-locals
 // © Will Smart 2018. Licence: MIT
 
@@ -6364,7 +6083,7 @@ function wrappedCodeString({ vars, codeString, isExpression }) {
   }
 }
 
-},{"../general/log":25,"./names-from-code-string":28}],36:[function(require,module,exports){
+},{"../general/log":31,"./names-from-code-string":34}],42:[function(require,module,exports){
 var upperCase = require('upper-case')
 var noCase = require('no-case')
 
@@ -6389,7 +6108,7 @@ module.exports = function (value, locale, mergeNumbers) {
   })
 }
 
-},{"no-case":47,"upper-case":60}],37:[function(require,module,exports){
+},{"no-case":53,"upper-case":66}],43:[function(require,module,exports){
 exports.no = exports.noCase = require('no-case')
 exports.dot = exports.dotCase = require('dot-case')
 exports.swap = exports.swapCase = require('swap-case')
@@ -6409,7 +6128,7 @@ exports.isLower = exports.isLowerCase = require('is-lower-case')
 exports.ucFirst = exports.upperCaseFirst = require('upper-case-first')
 exports.lcFirst = exports.lowerCaseFirst = require('lower-case-first')
 
-},{"camel-case":36,"constant-case":38,"dot-case":39,"header-case":40,"is-lower-case":41,"is-upper-case":42,"lower-case":46,"lower-case-first":45,"no-case":47,"param-case":51,"pascal-case":52,"path-case":53,"sentence-case":55,"snake-case":56,"swap-case":57,"title-case":58,"upper-case":60,"upper-case-first":59}],38:[function(require,module,exports){
+},{"camel-case":42,"constant-case":44,"dot-case":45,"header-case":46,"is-lower-case":47,"is-upper-case":48,"lower-case":52,"lower-case-first":51,"no-case":53,"param-case":57,"pascal-case":58,"path-case":59,"sentence-case":61,"snake-case":62,"swap-case":63,"title-case":64,"upper-case":66,"upper-case-first":65}],44:[function(require,module,exports){
 var upperCase = require('upper-case')
 var snakeCase = require('snake-case')
 
@@ -6424,7 +6143,7 @@ module.exports = function (value, locale) {
   return upperCase(snakeCase(value, locale), locale)
 }
 
-},{"snake-case":56,"upper-case":60}],39:[function(require,module,exports){
+},{"snake-case":62,"upper-case":66}],45:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6438,7 +6157,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '.')
 }
 
-},{"no-case":47}],40:[function(require,module,exports){
+},{"no-case":53}],46:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCase = require('upper-case')
 
@@ -6455,7 +6174,7 @@ module.exports = function (value, locale) {
   })
 }
 
-},{"no-case":47,"upper-case":60}],41:[function(require,module,exports){
+},{"no-case":53,"upper-case":66}],47:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 /**
@@ -6469,7 +6188,7 @@ module.exports = function (string, locale) {
   return lowerCase(string, locale) === string
 }
 
-},{"lower-case":46}],42:[function(require,module,exports){
+},{"lower-case":52}],48:[function(require,module,exports){
 var upperCase = require('upper-case')
 
 /**
@@ -6483,7 +6202,7 @@ module.exports = function (string, locale) {
   return upperCase(string, locale) === string
 }
 
-},{"upper-case":60}],43:[function(require,module,exports){
+},{"upper-case":66}],49:[function(require,module,exports){
 (function (global){
 // https://github.com/maxogden/websocket-stream/blob/48dc3ddf943e5ada668c31ccd94e9186f02fafbd/ws-fallback.js
 
@@ -6504,7 +6223,7 @@ if (typeof WebSocket !== 'undefined') {
 module.exports = ws
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],44:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 exports = module.exports = stringify
 exports.getSerialize = serializer
 
@@ -6533,7 +6252,7 @@ function serializer(replacer, cycleReplacer) {
   }
 }
 
-},{}],45:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 /**
@@ -6552,7 +6271,7 @@ module.exports = function (str, locale) {
   return lowerCase(str.charAt(0), locale) + str.substr(1)
 }
 
-},{"lower-case":46}],46:[function(require,module,exports){
+},{"lower-case":52}],52:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -6608,7 +6327,7 @@ module.exports = function (str, locale) {
   return str.toLowerCase()
 }
 
-},{}],47:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 var NON_WORD_REGEXP = require('./vendor/non-word-regexp')
@@ -6650,16 +6369,16 @@ module.exports = function (str, locale, replacement) {
   return lowerCase(str, locale)
 }
 
-},{"./vendor/camel-case-regexp":48,"./vendor/camel-case-upper-regexp":49,"./vendor/non-word-regexp":50,"lower-case":46}],48:[function(require,module,exports){
+},{"./vendor/camel-case-regexp":54,"./vendor/camel-case-upper-regexp":55,"./vendor/non-word-regexp":56,"lower-case":52}],54:[function(require,module,exports){
 module.exports = /([a-z\xB5\xDF-\xF6\xF8-\xFF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0529\u052B\u052D\u052F\u0561-\u0587\u13F8-\u13FD\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA699\uA69B\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793-\uA795\uA797\uA799\uA79B\uA79D\uA79F\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7B5\uA7B7\uA7FA\uAB30-\uAB5A\uAB60-\uAB65\uAB70-\uABBF\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A0-9\xB2\xB3\xB9\xBC-\xBE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A])/g
 
-},{}],49:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 module.exports = /([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A])([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A][a-z\xB5\xDF-\xF6\xF8-\xFF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0529\u052B\u052D\u052F\u0561-\u0587\u13F8-\u13FD\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA699\uA69B\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793-\uA795\uA797\uA799\uA79B\uA79D\uA79F\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7B5\uA7B7\uA7FA\uAB30-\uAB5A\uAB60-\uAB65\uAB70-\uABBF\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A])/g
 
-},{}],50:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 module.exports = /[^A-Za-z\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u08A0-\u08B4\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16F1-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2183\u2184\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005\u3006\u3031-\u3035\u303B\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312D\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FD5\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6E5\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AD\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC0-9\xB2\xB3\xB9\xBC-\xBE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19]+/g
 
-},{}],51:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6673,7 +6392,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '-')
 }
 
-},{"no-case":47}],52:[function(require,module,exports){
+},{"no-case":53}],58:[function(require,module,exports){
 var camelCase = require('camel-case')
 var upperCaseFirst = require('upper-case-first')
 
@@ -6689,7 +6408,7 @@ module.exports = function (value, locale, mergeNumbers) {
   return upperCaseFirst(camelCase(value, locale, mergeNumbers), locale)
 }
 
-},{"camel-case":36,"upper-case-first":59}],53:[function(require,module,exports){
+},{"camel-case":42,"upper-case-first":65}],59:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6703,7 +6422,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '/')
 }
 
-},{"no-case":47}],54:[function(require,module,exports){
+},{"no-case":53}],60:[function(require,module,exports){
 /*
  * random-seed
  * https://github.com/skratchdot/random-seed
@@ -6973,7 +6692,7 @@ uheprng.create = function (seed) {
 };
 module.exports = uheprng;
 
-},{"json-stringify-safe":44}],55:[function(require,module,exports){
+},{"json-stringify-safe":50}],61:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCaseFirst = require('upper-case-first')
 
@@ -6988,7 +6707,7 @@ module.exports = function (value, locale) {
   return upperCaseFirst(noCase(value, locale), locale)
 }
 
-},{"no-case":47,"upper-case-first":59}],56:[function(require,module,exports){
+},{"no-case":53,"upper-case-first":65}],62:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -7002,7 +6721,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '_')
 }
 
-},{"no-case":47}],57:[function(require,module,exports){
+},{"no-case":53}],63:[function(require,module,exports){
 var upperCase = require('upper-case')
 var lowerCase = require('lower-case')
 
@@ -7031,7 +6750,7 @@ module.exports = function (str, locale) {
   return result
 }
 
-},{"lower-case":46,"upper-case":60}],58:[function(require,module,exports){
+},{"lower-case":52,"upper-case":66}],64:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCase = require('upper-case')
 
@@ -7048,7 +6767,7 @@ module.exports = function (value, locale) {
   })
 }
 
-},{"no-case":47,"upper-case":60}],59:[function(require,module,exports){
+},{"no-case":53,"upper-case":66}],65:[function(require,module,exports){
 var upperCase = require('upper-case')
 
 /**
@@ -7067,7 +6786,7 @@ module.exports = function (str, locale) {
   return upperCase(str.charAt(0), locale) + str.substr(1)
 }
 
-},{"upper-case":60}],60:[function(require,module,exports){
+},{"upper-case":66}],66:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -7119,7 +6838,7 @@ module.exports = function (str, locale) {
   return str.toUpperCase()
 }
 
-},{}],61:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 const WebSocket = require('isomorphic-ws');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
@@ -7298,7 +7017,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../client/page-state":5,"../general/log":25,"../general/public-api":29,"../general/watchable":34,"isomorphic-ws":43}],62:[function(require,module,exports){
+},{"../client/page-state":5,"../general/log":31,"../general/public-api":35,"../general/watchable":40,"isomorphic-ws":49}],68:[function(require,module,exports){
 const { applyDiff, createDiff } = require('../general/diff');
 const PublicApi = require('../general/public-api');
 const isEqual = require('../general/is-equal');
@@ -7418,9 +7137,8 @@ class WebSocketConnection {
 
           function handleDatapointId(datapointId) {
             if (!datapointId) return;
-            const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+            const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
             if (!datapoint.initialized) {
-              datapoint.setAsInitializing();
               datapoint.setValue(undefined);
             }
           }
@@ -7524,7 +7242,7 @@ class WebSocketConnection {
           }
         }
         if (value !== undefined) {
-          const datapoint = wsp.cache.getOrCreateDatapoint({ datapointId });
+          const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
           wsp.addDatapointValue({
             datapointId,
             value,
@@ -7533,7 +7251,6 @@ class WebSocketConnection {
           if (wsp.isServer) {
             datapoint.updateValue({ newValue: value });
           } else {
-            datapoint.setAsInitializing();
             datapoint.setValue(value);
           }
         }
@@ -7678,28 +7395,26 @@ class WebSocketProtocol {
     if (!wsp.isServer) {
       cache.watch({
         callbackKey,
-        onvalid: ({ newlyValidDatapoints }) => {
-          for (const datapointId of newlyValidDatapoints) {
-            if (wsp.datapoints[datapointId]) continue;
-            const datapointInfo = ConvertIds.decomposeId({ datapointId });
-            if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
-              const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
-              cache.getOrCreateDatapoint({ datapointId: dbRowIdDatapointId });
-            }
-            const datapoint = cache.getExistingDatapoint({ datapointId });
-            if (!datapoint || datapoint.isClient) continue;
-            for (const wsc of Object.values(wsp.connections)) {
-              wsc.getOrCreateDatapoint(datapointId);
-            }
-            const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-            if (!datapoint.initialized) {
-              wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
-            } else {
-              wsp.addDatapointValue({
-                datapointId,
-                value: datapoint.valueIfAny,
-              });
-            }
+        oncreate: datapoint => {
+          const { datapointId } = datapoint;
+          if (wsp.datapoints[datapointId]) return;
+          const datapointInfo = ConvertIds.decomposeId({ datapointId });
+          if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
+            const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
+            cache.getOrCreateDatapoint(dbRowIdDatapointId);
+          }
+          if (datapoint.isClient) return;
+          for (const wsc of Object.values(wsp.connections)) {
+            wsc.getOrCreateDatapoint(datapointId);
+          }
+          const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
+          if (!datapoint.initialized) {
+            wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
+          } else {
+            wsp.addDatapointValue({
+              datapointId,
+              value: datapoint.valueIfAny,
+            });
           }
         },
       });
@@ -7717,7 +7432,7 @@ class WebSocketProtocol {
       connectionIndexes: {},
     };
 
-    const datapoint = cache.getOrCreateDatapoint({ datapointId });
+    const datapoint = cache.getOrCreateDatapoint(datapointId);
     datapoint.watch({
       callbackKey,
       onchange: datapoint => {
@@ -7739,7 +7454,7 @@ class WebSocketProtocol {
 
     const wsp = this;
     let pdatapoint = wsp.datapoints[datapointId];
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint({ datapointId });
+    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
     const { values } = pdatapoint;
 
     if (values.length && isEqual(value, values[values.length - 1].value)) {
@@ -7830,4 +7545,4 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":7,"../datapoints/required-datapoints":10,"../general/diff":22,"../general/is-equal":23,"../general/log":25,"../general/public-api":29}]},{},[3]);
+},{"../datapoints/convert-ids":8,"../datapoints/required-datapoints":17,"../general/diff":28,"../general/is-equal":29,"../general/log":31,"../general/public-api":35}]},{},[3]);

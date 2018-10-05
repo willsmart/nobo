@@ -1,14 +1,18 @@
+const ChangeCase = require('change-case');
+
 module.exports = function({ datapoint, templates }) {
-  const { fieldName } = datapoint;
+  const { fieldName, typeName, datapointId } = datapoint;
+
+  if (!templates) return;
 
   let match = /^dom(\w*)$/.exec(fieldName);
-  if (templates && match) {
+  if (match) {
     const variant = ChangeCase.camelCase(match[1]),
       names = {
         template: {
           '.datapointId': templates.getTemplateReferencingDatapoint({
             variant,
-            classFilter: datapoint.typeName,
+            classFilter: typeName,
             ownerOnly: false,
           }).datapointId,
           dom: {},
@@ -27,14 +31,14 @@ module.exports = function({ datapoint, templates }) {
     };
   }
 
-  match = /^template(\w*)$/.exec(datapoint.fieldName);
-  if (templates && match) {
+  match = /^template(\w*)$/.exec(fieldName);
+  if (match) {
     const variant = ChangeCase.camelCase(match[1]),
       names = {
         template: {
           '.datapointId': templates.getTemplateReferencingDatapoint({
             variant,
-            classFilter: datapoint.typeName,
+            classFilter: typeName,
             ownerOnly: false,
           }).datapointId,
         },
@@ -48,6 +52,18 @@ module.exports = function({ datapoint, templates }) {
       setter: {
         names,
         fn: ({ template }) => template.id,
+      },
+    };
+  }
+
+  if (typeName == 'App' && fieldName.startsWith('useTemplate_')) {
+    return {
+      getter: {
+        names,
+        fn: () => {
+          const rowId = templates.referencedTemplateRowIdForTemplateDatapointId(datapointId);
+          return rowId ? [rowId] : [];
+        },
       },
     };
   }

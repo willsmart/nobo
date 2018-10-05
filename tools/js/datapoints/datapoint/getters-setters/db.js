@@ -7,7 +7,7 @@ module.exports = function({ datapoint, schema, datapointDbConnection }) {
   if (!type) return;
 
   const field = type.getField(fieldName);
-  if (!field || !dbRowId || !(field.get || field.set)) return;
+  if (!field || !dbRowId) return;
 
   const ret = {};
   if (!field.get) {

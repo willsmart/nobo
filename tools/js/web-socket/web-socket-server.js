@@ -79,7 +79,7 @@ class WebSocketServer {
         typeName: 'app',
         dbRowId: 1,
         fieldName: 'cookiePrefix',
-      })
+      }).datapointId
     ).value;
 
     if (pageServer) {

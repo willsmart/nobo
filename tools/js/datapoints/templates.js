@@ -5,18 +5,18 @@ const DomGenerator = require('../dom/dom-generator');
 
 // other implied dependencies
 
-//const DatapointCache = require('./datapoint-cache'); // via constructor arg: cache
-//    uses getOrCreateDatapoint, queueValidationJob
+//const DatapointCache = require('./cache/datapoint-cache'); // via constructor arg: cache
+//    uses getOrCreateDatapoint
 
 //const Datapoint = require('./datapoint'); // via cache.getOrCreateDatapoint
-//    uses watch, stopWatching, valueIfAny, invalidate, invalid, setVirtualField
+//    uses watch, stopWatching, valueIfAny, invalidate, valid
 
 // API is auto-generated at the bottom from the public interface of this class
 
 class Templates {
   // public methods
   static publicMethods() {
-    return ['load', 'getTemplateReferencingDatapoint', 'template'];
+    return ['load', 'getTemplateReferencingDatapoint', 'template', 'referencedTemplateRowIdForTemplateDatapointId'];
   }
 
   constructor({ cache, htmlToElement, appDbRowId = 1 }) {
@@ -36,15 +36,17 @@ class Templates {
       },
     });
 
-    this.callbackKey = cache.getOrCreateDatapoint(this.appTemplatesDatapointId).watch({
-      onchange: datapoint => {
-        if (Array.isArray(datapoint.valueIfAny)) {
-          templates.setTemplateRowIds({
-            rowIds: datapoint.valueIfAny,
-          });
-        }
-      },
-    });
+    setTimeout(() => {
+      this.callbackKey = cache.getOrCreateDatapoint(this.appTemplatesDatapointId).watch({
+        onchange: datapoint => {
+          if (Array.isArray(datapoint.valueIfAny)) {
+            templates.setTemplateRowIds({
+              rowIds: datapoint.valueIfAny,
+            });
+          }
+        },
+      });
+    }, 0);
   }
 
   template({ rowId }) {
@@ -63,10 +65,27 @@ class Templates {
     return ConvertIds.recomposeId({
       typeName: 'App',
       dbRowId: this.appDbRowId,
-      fieldName: `useTemplate_${variant ? `V_${variant}_` : ''}${classFilter ? `C_${classFilter}_` : ''}${
+      fieldName: `useTemplate_${variant ? `v_${variant}_` : ''}${classFilter ? `c_${classFilter}_` : ''}${
         ownerOnly ? '_private' : ''
       }`,
     }).datapointId;
+  }
+
+  cvoForTemplateDatapointId(datapointId) {
+    const { typeName, dbRowId, fieldName } = ConvertIds.decomposeId({ datapointId });
+    if (typeName !== 'App' || dbRowId !== this.appDbRowId) return;
+    const match = /^useTemplate_(v_[a-z0-9]+(?:_[a-z0-9]+)*_|)(c_[a-z0-9]+(?:_[a-z0-9]+)*_|)(_private|)$/.exec(
+      fieldName
+    );
+    if (!match) return;
+    return { variant: match[1] || undefined, classFilter: match[2] || undefined, ownerOnly: Boolean(match[3]) };
+  }
+
+  referencedTemplateRowIdForTemplateDatapointId(datapointId) {
+    const cvo = this.cvoForTemplateDatapointId(datapointId);
+    if (!cvo) return;
+    const node = this.treeNode(cvo);
+    return node && node.template ? node.template.rowId : undefined;
   }
 
   setTemplateRowIds({ rowIds }) {
@@ -159,14 +178,6 @@ class Templates {
           ownerOnly,
         })
       );
-      node.datapoint.setVirtualField({
-        isId: true,
-        isMultiple: false,
-        getterFunction: () => {
-          return node.template ? [node.template.rowId] : [];
-        },
-      });
-      node.datapoint.invalidate();
       node.callbackKey = node.datapoint.watch({});
       return node;
     }
@@ -411,11 +422,10 @@ class Template {
     for (const fieldName of fieldNames) {
       const datapoint = template.datapoints[fieldName];
 
-      if (!datapoint || datapoint.invalid) hasInvalid = true;
+      if (!datapoint || !datapoint.valid) hasInvalid = true;
       else ret[fieldName] = datapoint.valueIfAny;
     }
     if (hasInvalid) {
-      template.templates.cache.queueValidationJob();
       if (allOrNothing) return;
     }
 

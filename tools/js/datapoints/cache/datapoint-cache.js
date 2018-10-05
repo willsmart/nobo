@@ -1,24 +1,59 @@
-const requirePath = path => require(`../../${path}`);
-const makeClassWatchable = requirePath('general/watchable');
-const Datapoint = requirePath('datapoints/cache/datapoint-cache');
+const makeClassWatchable = require('../../general/watchable');
+const Datapoint = require('../../datapoints/datapoint/datapoint');
+const PublicApi = require('../../general/public-api');
+const StateVar = require('../../general/state-var');
+const RowChangeTrackers = require('../../datapoints/row-change-trackers');
+const Templates = require('../../datapoints/templates');
 
-class Datapoint {
+class DatapointCache {
   static publicMethods() {
-    return ['getExistingDatapoint', 'getOrCreateDatapoint', 'forgetDatapoint', 'unforgetDatapoint'];
+    return [
+      'templates',
+      'schema',
+      'isClient',
+      'datapointDbConnection',
+      'getExistingDatapoint',
+      'getOrCreateDatapoint',
+      'forgetDatapoint',
+      'unforgetDatapoint',
+      'datapoints',
+      'uninitedDatapoints',
+
+      'watch',
+      'stopWatching',
+    ];
   }
 
-  constructor({ schema, datapointDbConnection, templates }) {
+  constructor({ schema, htmlToElement, datapointDbConnection, appDbRowId = 1, isClient = false }) {
     const cache = this;
 
     Object.assign(cache, {
       _datapointDbConnection: datapointDbConnection,
       _schema: schema,
-      _templates: templates,
       datapointsById: {},
       deletionLists: [undefined],
       deletionListByDatapointId: {},
       deletionDelaySeconds: 30,
+      _stateVar: new StateVar({ cache }),
+      _rowChangeTrackers: new RowChangeTrackers({ cache }),
+      _isClient: isClient,
     });
+
+    if (!isClient) {
+      cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
+    }
+  }
+
+  get rowChangeTrackers() {
+    return this._rowChangeTrackers;
+  }
+
+  get stateVar() {
+    return this._stateVar;
+  }
+
+  get isClient() {
+    return this._isClient;
   }
 
   get datapointDbConnection() {
@@ -33,6 +68,20 @@ class Datapoint {
     return this._templates;
   }
 
+  get datapoints() {
+    return Object.values(this.datapointsById);
+  }
+
+  get uninitedDatapoints() {
+    const ret = {};
+    for (const [datapointId, datapoint] of Object.entries(this.datapointsById)) {
+      if (!datapoint.initialized) {
+        ret[datapointId] = datapoint;
+      }
+    }
+    return ret;
+  }
+
   getExistingDatapoint(datapointId) {
     return this.datapointsById[datapointId];
   }
@@ -43,14 +92,17 @@ class Datapoint {
       existingDatapoint = datapointsById[datapointId];
     if (existingDatapoint) return existingDatapoint;
 
-    const { schema, datapointDbConnection, templates } = cache;
-    return (datapointsById[datapointId] = new Datapoint({
+    const { schema, datapointDbConnection, templates, stateVar } = cache;
+    const datapoint = (datapointsById[datapointId] = new Datapoint({
       cache,
       schema,
       datapointDbConnection,
       templates,
+      stateVar,
       datapointId,
     }));
+    cache.notifyListeners('oncreate', datapoint);
+    return datapoint;
   }
 
   forgetDatapoint(datapointId) {
@@ -83,7 +135,7 @@ class Datapoint {
     const deletionList = deletionLists.pop();
     if (!deletionList) return;
     for (const datapointId of Object.keys(deletionList)) {
-      datapointsById[datapointId].clearDependencies();
+      datapointsById[datapointId].ondeletion();
       delete deletionListByDatapointId[datapointId];
       delete datapointsById[datapointId];
     }
@@ -93,10 +145,10 @@ class Datapoint {
   }
 }
 
-makeClassWatchable(Datapoint);
+makeClassWatchable(DatapointCache);
 
 // API is the public facing class
 module.exports = PublicApi({
-  fromClass: Datapoint,
+  fromClass: DatapointCache,
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
