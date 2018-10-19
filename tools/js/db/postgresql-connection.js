@@ -64,11 +64,11 @@ class PostgresqlConnection {
       5432}/${database}`;
   }
 
-  newConnectedClient() {
+  async newConnectedClient() {
     const client = new Client({
       connectionString: this.connectionString,
     });
-    client.connect();
+    await client.connect();
     return client;
   }
 
@@ -112,11 +112,19 @@ class PostgresqlConnection {
   }
 
   async query(sql, argArray) {
-    //console.log(sql);
-    return this.pool.query(sql, argArray).catch(err => {
-      console.log(`Failed query ${sql}\nStack: ${err.stack}`);
-      throw err;
-    });
+    return this.pool
+      .query(sql, argArray)
+      .catch(err => {
+        console.log(`Failed query ${sql}\nStack: ${err.stack}`);
+        throw err;
+      })
+      .then(obj => {
+        log(
+          'db.query',
+          () => `SQL: ${sql}${obj.rows ? ` -> ${obj.rows.length} rows:\n${JSON.stringify(obj.rows)}` : 'no rows'}`
+        );
+        return obj;
+      });
   }
 
   async allocateDbRowId({ typeName }) {

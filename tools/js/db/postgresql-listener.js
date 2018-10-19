@@ -16,10 +16,9 @@ class PostgresqlListener {
     return ['listenForDatapointChanges', 'startDBChangeNotificationPrompter', 'listen', 'connection'];
   }
 
-  constructor({ connection, verbose }) {
+  constructor({ connection }) {
     Object.assign(this, {
       _connection: connection,
-      verbose,
       listeningChannels: {},
     });
   }
@@ -35,19 +34,18 @@ class PostgresqlListener {
       callback: changes => {
         try {
           changes = JSON.parse(changes);
+          log('db.changes', () => `DB has model changes: ${JSON.stringify(changes)}`);
           if (Array.isArray(changes)) {
             changes.forEach(datapointId => {
               if (datapointId.endsWith('_id')) datapointId = datapointId.substring(0, datapointId.length - 3);
               if (datapointId.endsWith('__+') || datapointId.endsWith('__-')) return;
 
-              const datapoint = cache.getExistingDatapoint({
-                datapointId,
-              });
+              const datapoint = cache.getExistingDatapoint(datapointId);
               if (datapoint) datapoint.invalidate();
             });
           }
         } catch (error) {
-          console.log(`Error while handling db model change: ${error.message}`);
+          log('err.db.changes', `Error while handling db model change: ${error.message}`);
         }
       },
     });
@@ -68,26 +66,27 @@ class PostgresqlListener {
     await pgListener.listen({
       channel: 'prompterscript',
       callbackKey: 'startDBChangeNotificationPrompter',
-      callback: changes => {
+      callback: () => {
         if (pgListener.dbcnpTimeout !== undefined) return;
         pgListener.dbcnpTimeout = setTimeout(() => {
           delete pgListener.dbcnpTimeout;
-          console.log('Telling the db to notify others of the outstanding change');
+          log('db.changes', 'Telling the db to notify others of the outstanding change');
           connection.query("UPDATE model_change_notify_request SET model_change_id = 0 WHERE name = 'modelchanges';");
         }, delay);
       },
     });
   }
 
-  get listeningClient() {
+  async listeningClient() {
     const pgListener = this,
       connection = pgListener.connection;
 
     if (pgListener._listeningClient) return pgListener._listeningClient;
 
-    pgListener._listeningClient = connection.newConnectedClient();
+    pgListener._listeningClient = await connection.newConnectedClient();
+
     pgListener._listeningClient.on('notification', msg => {
-      if (pgListener.verbose) console.log(`Received message from db on ${msg.channel}: "${msg.payload}"`);
+      log('db.verbose.changes', `Received message from db on ${msg.channel}: "${msg.payload}"`);
       const callbacks = pgListener.listeningChannels[msg.channel];
       if (callbacks)
         Object.keys(callbacks).forEach(key => {
@@ -109,8 +108,9 @@ class PostgresqlListener {
       pgListener.listeningChannels[channel] = {};
 
       const sql = `LISTEN ${channel};`;
-      if (pgListener.verbose) console.log(sql);
-      await pgListener.listeningClient.query(sql);
+      log('db.verbose.changes', sql);
+      const client = await pgListener.listeningClient();
+      await client.query(sql);
     }
 
     pgListener.listeningChannels[channel][callbackKey] = callback;

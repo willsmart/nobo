@@ -1,9 +1,9 @@
 const PageState = require('../../../client/page-state');
 
-module.exports = function({ datapoint }) {
+module.exports = function({ datapoint, cache }) {
   const { fieldName, proxyKey, typeName } = datapoint;
 
-  if (typeName !== 'Page' || proxyKey !== 'default') return;
+  if (!cache.isClient || typeName !== 'Page' || proxyKey !== 'default') return;
 
   datapoint._isClient = true;
   if (fieldName == 'items') {

@@ -58,19 +58,19 @@ module.exports = async function(rig) {
 
   await rig.assert(
     `that the dom updater creates template datapoints as required`,
-    cache.getExistingDatapoint({ datapointId: 'user__1__template' })
+    cache.getExistingDatapoint('user__1__template'})
   );
   await rig.assert(
     `that the dom updater creates dom datapoints as required`,
-    cache.getExistingDatapoint({ datapointId: 'template__1__dom' })
+    cache.getExistingDatapoint('template__1__dom')
   );
   await rig.assert(
     `that the dom updater creates attribute datapoints as required`,
-    cache.getExistingDatapoint({ datapointId: 'user__1__name' })
+    cache.getExistingDatapoint('user__1__name')
   );
   await rig.assert(
     `that the dom updater creates text node datapoints as required`,
-    cache.getExistingDatapoint({ datapointId: 'user__1__bio' })
+    cache.getExistingDatapoint('user__1__bio')
   );
 
   await rig.assert(`that a simple dom tree is generated correctly`, domTree(element), {

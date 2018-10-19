@@ -2,6 +2,7 @@ const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
 const DomGenerator = require('../dom/dom-generator');
+const ChangeCase = require('change-case');
 
 // other implied dependencies
 
@@ -65,20 +66,24 @@ class Templates {
     return ConvertIds.recomposeId({
       typeName: 'App',
       dbRowId: this.appDbRowId,
-      fieldName: `useTemplate_${variant ? `v_${variant}_` : ''}${classFilter ? `c_${classFilter}_` : ''}${
-        ownerOnly ? '_private' : ''
-      }`,
+      fieldName: `useTemplate${variant ? `_v${ChangeCase.snakeCase(variant).replace('_', '_v')}` : ''}${
+        classFilter ? `_c${ChangeCase.snakeCase(classFilter).replace('_', '_c')}` : ''
+      }${ownerOnly ? '_private' : ''}`,
     }).datapointId;
   }
 
   cvoForTemplateDatapointId(datapointId) {
     const { typeName, dbRowId, fieldName } = ConvertIds.decomposeId({ datapointId });
     if (typeName !== 'App' || dbRowId !== this.appDbRowId) return;
-    const match = /^useTemplate_(v_[a-z0-9]+(?:_[a-z0-9]+)*_|)(c_[a-z0-9]+(?:_[a-z0-9]+)*_|)(_private|)$/.exec(
-      fieldName
-    );
+    const match = /^use_template((?:_v\w+)*)((?:_c\w+)*)(_private|)$/.exec(ChangeCase.snakeCase(fieldName));
     if (!match) return;
-    return { variant: match[1] || undefined, classFilter: match[2] || undefined, ownerOnly: Boolean(match[3]) };
+    const variant = match[1] ? ChangeCase.camelCase(match[1].substring(2).replace('_v', '_')) : undefined,
+      classFilter = match[2] ? ChangeCase.pascalCase(match[2].substring(2).replace('_c', '_')) : undefined;
+    return {
+      variant,
+      classFilter,
+      ownerOnly: Boolean(match[3]),
+    };
   }
 
   referencedTemplateRowIdForTemplateDatapointId(datapointId) {
@@ -291,7 +296,7 @@ class Template {
       const datapoint = (template.datapoints[fieldName] = cache.getOrCreateDatapoint(
         ConvertIds.recomposeId(template, {
           fieldName,
-        })
+        }).datapointId
       ));
       datapoint.watch({
         callbackKey,

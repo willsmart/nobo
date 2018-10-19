@@ -733,9 +733,7 @@ class Datapoint {
 
     if (datapoint.dependenciesByDatapointId) {
       for (const dependencyDatapointId of Object.keys(datapoint.dependenciesByDatapointId)) {
-        const dependencyDatapoint = cache.getExistingDatapoint({
-          datapointId: dependencyDatapointId,
-        }).__private;
+        const dependencyDatapoint = cache.getExistingDatapoint(dependencyDatapointId).__private;
         delete dependencyDatapoint.dependentDatapointsById[datapoint.datapointId];
         if (!Object.keys(dependencyDatapoint.dependentDatapointsById).length) {
           delete dependencyDatapoint.dependentDatapointsById;

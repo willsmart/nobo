@@ -43,7 +43,7 @@ class DomGenerator {
 
     if (!datapointId) return;
 
-    const datapoint = domGenerator.cache.getExistingDatapoint({ datapointId });
+    const datapoint = domGenerator.cache.getExistingDatapoint(datapointId);
     if (!datapoint) return;
 
     const value = datapoint.valueIfAny;
@@ -102,13 +102,15 @@ class DomGenerator {
     }
 
     if (domDatapointId) {
-      const domDatapoint = domGenerator.cache.getExistingDatapoint({ datapointId: domDatapointId });
+      const domDatapoint = domGenerator.cache.getExistingDatapoint(domDatapointId);
       if (domDatapoint && typeof domDatapoint.valueIfAny == 'string') {
         domString = domDatapoint.valueIfAny;
       }
     }
     if (domString) element = (domGenerator.htmlToElement || htmlToElement)(domString);
     if (!element) element = (domGenerator.htmlToElement || htmlToElement)('<div></div>');
+
+    element.setAttribute('nobo-depth', depth);
 
     let usesByDatapointId;
     if (variantBackup) {
@@ -199,6 +201,9 @@ class DomGenerator {
     const domGenerator = this;
 
     const element = document.getElementById('page');
+
+    element.setAttribute('nobo-depth', 1);
+
     domGenerator._prepChildrenPlaceholderAndCreateChildren({
       element,
       datapointId: 'page__default__items',
@@ -255,7 +260,7 @@ class DomGenerator {
 
   createChildElements({ datapointId, rowOrDatapointIds, variant, depth }) {
     const domGenerator = this,
-      datapoint = datapointId ? domGenerator.cache.getExistingDatapoint({ datapointId }) : undefined;
+      datapoint = datapointId ? domGenerator.cache.getExistingDatapoint(datapointId) : undefined;
 
     if (datapoint) rowOrDatapointIds = datapoint.valueIfAny;
 

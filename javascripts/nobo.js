@@ -72,14 +72,14 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../dom/dom-functions":21,"../general/public-api":35,"./page-state":5}],3:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../dom/dom-functions":20,"../general/public-api":34,"./page-state":5}],3:[function(require,module,exports){
 const PageState = require('./page-state'),
   WebSocketClient = require('../web-socket/web-socket-client'),
-  WebSocketProtocol = require('../web-socket/web-socket-protocol'),
+  WebSocketProtocol = require('../web-socket/web-socket-protocol-client'),
   DomGenerator = require('../dom/dom-generator'),
   DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
-  { htmlToElement } = require('../dom/dom-functions'),
+  { htmlToElement, describeRange } = require('../dom/dom-functions'),
   ClientActions = require('./client-actions'),
   DatapointCache = require('../datapoints/cache/datapoint-cache'),
   Schema = require('../general/schema'),
@@ -185,7 +185,7 @@ const appDbRowId = 1,
     appDbRowId,
     isClient: true,
   }),
-  wsprotocol = new WebSocketProtocol({ cache, ws: wsclient, isServer: false }),
+  wsprotocol = new WebSocketProtocol({ cache, ws: wsclient }),
   domGenerator = new DomGenerator({
     htmlToElement,
     cache,
@@ -202,6 +202,11 @@ const appDbRowId = 1,
 domGenerator.prepPage();
 
 pageState.visit();
+
+window.logDOM = element => {
+  console.log(`tree:\n${describeRange(element || document.getElementById('page'), 't     ')}`);
+  console.log(`changes:\n${domUpdater.domWaitingChangeQueue.changeDescriptions('c     ').join('\n')}`);
+};
 
 window.nobo = {
   PageState,
@@ -225,7 +230,7 @@ window.nobo = {
   log,
 };
 
-},{"../datapoints/cache/datapoint-cache":7,"../dom/dom-functions":21,"../dom/dom-generator":22,"../dom/dom-updater":23,"../general/log":31,"../general/schema":36,"../web-socket/web-socket-client":67,"../web-socket/web-socket-protocol":68,"./app-client":1,"./client-actions":2,"./datapoint-util":4,"./page-state":5,"./page-util":6}],4:[function(require,module,exports){
+},{"../datapoints/cache/datapoint-cache":7,"../dom/dom-functions":20,"../dom/dom-generator":21,"../dom/dom-updater":22,"../general/log":30,"../general/schema":35,"../web-socket/web-socket-client":66,"../web-socket/web-socket-protocol-client":67,"./app-client":1,"./client-actions":2,"./datapoint-util":4,"./page-state":5,"./page-util":6}],4:[function(require,module,exports){
 const ConvertIds = require('../datapoints/convert-ids');
 
 let nextLocalId = 1;
@@ -395,7 +400,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/public-api":35}],6:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/public-api":34}],6:[function(require,module,exports){
 window.forEachLocal = (el, cb) => {
   while (el && !el.hasAttribute('sourcetemplate')) el = el.parentElement;
   if (!el) return;
@@ -450,6 +455,7 @@ const PublicApi = require('../../general/public-api');
 const StateVar = require('../../general/state-var');
 const RowChangeTrackers = require('../../datapoints/row-change-trackers');
 const Templates = require('../../datapoints/templates');
+const { finders, findGetterSetter } = require('../../datapoints/datapoint/getters-setters/all.js');
 
 class DatapointCache {
   static publicMethods() {
@@ -465,6 +471,10 @@ class DatapointCache {
       'datapoints',
       'uninitedDatapoints',
 
+      'getterSetterInfo',
+
+      'rowChangeTrackers',
+
       'watch',
       'stopWatching',
     ];
@@ -476,12 +486,16 @@ class DatapointCache {
     Object.assign(cache, {
       _datapointDbConnection: datapointDbConnection,
       _schema: schema,
+      _getterSetterInfo: {
+        finders,
+        findGetterSetter,
+      },
       datapointsById: {},
       deletionLists: [undefined],
       deletionListByDatapointId: {},
       deletionDelaySeconds: 30,
       _stateVar: new StateVar({ cache }),
-      _rowChangeTrackers: new RowChangeTrackers({ cache }),
+      _rowChangeTrackers: new RowChangeTrackers({ cache, schema }),
       _isClient: isClient,
     });
 
@@ -500,6 +514,10 @@ class DatapointCache {
 
   get isClient() {
     return this._isClient;
+  }
+
+  get getterSetterInfo() {
+    return this._getterSetterInfo;
   }
 
   get datapointDbConnection() {
@@ -538,13 +556,14 @@ class DatapointCache {
       existingDatapoint = datapointsById[datapointId];
     if (existingDatapoint) return existingDatapoint;
 
-    const { schema, datapointDbConnection, templates, stateVar } = cache;
+    const { schema, datapointDbConnection, templates, stateVar, getterSetterInfo } = cache;
     const datapoint = (datapointsById[datapointId] = new Datapoint({
       cache,
       schema,
       datapointDbConnection,
       templates,
       stateVar,
+      findGetterSetter: getterSetterInfo.findGetterSetter,
       datapointId,
     }));
     cache.notifyListeners('oncreate', datapoint);
@@ -599,7 +618,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
 
-},{"../../datapoints/datapoint/datapoint":9,"../../datapoints/row-change-trackers":18,"../../datapoints/templates":19,"../../general/public-api":35,"../../general/state-var":37,"../../general/watchable":40}],8:[function(require,module,exports){
+},{"../../datapoints/datapoint/datapoint":9,"../../datapoints/datapoint/getters-setters/all.js":11,"../../datapoints/row-change-trackers":17,"../../datapoints/templates":18,"../../general/public-api":34,"../../general/state-var":36,"../../general/watchable":39}],8:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -867,24 +886,29 @@ function stringToDatapoint(datapointId, permissive) {
   );
 }
 
-},{"change-case":43}],9:[function(require,module,exports){
+},{"change-case":42}],9:[function(require,module,exports){
 const { decomposeId } = require('../../datapoints/convert-ids');
 const makeClassWatchable = require('../../general/watchable');
 const isEqual = require('../../general/is-equal');
-const findGetterSetter = require('../../datapoints/datapoint/getters-setters/all.js');
 const addDependencyMethods = require('./dependency-methods');
 const PublicApi = require('../../general/public-api');
+const log = require('../../general/log');
 
+class DatapointProxy {}
 class Datapoint {
   static publicMethods() {
     return [
       'typeName',
       'type',
+      'field',
       'dbRowId',
       'fieldName',
       'proxyKey',
       'rowId',
       'datapointId',
+
+      'isId',
+      'isMultiple',
 
       'invalidate',
       'validate',
@@ -903,17 +927,25 @@ class Datapoint {
       'ondeletion',
 
       'ondeletion',
+      'deletionCallbacks',
     ];
   }
 
-  constructor({ cache, schema, datapointDbConnection, templates, stateVar, datapointId }) {
+  constructor({ cache, schema, datapointDbConnection, templates, stateVar, findGetterSetter, datapointId }) {
     const datapoint = this,
       datapointInfo = decomposeId({ datapointId }),
       isAnyFieldPlaceholder = datapointInfo.fieldName == '*';
 
+    datapointInfo.type = schema.allTypes[datapointInfo.typeName];
+    if (datapointInfo.type) {
+      datapointInfo.field = datapointInfo.type.fields[datapointInfo.fieldName];
+    }
+
     Object.assign(datapoint, {
       cache,
       datapointInfo,
+      _isId: datapointInfo.field ? datapointInfo.field.isId : false,
+      _isMultiple: datapointInfo.field ? datapointInfo.field.isMultiple : false,
       state: 'uninitialized',
       cachedValue: isAnyFieldPlaceholder ? true : undefined,
     });
@@ -928,11 +960,13 @@ class Datapoint {
     });
     if (getter) {
       datapoint.getter = getter;
-      if (getter.names) datapoint.refreshDependencies(getter.names);
     }
     if (setter) {
       datapoint.setter = setter;
-      if (setter.names) datapoint.refreshDependencies(setter.names);
+    }
+
+    if (datapoint._isId && datapoint._isMultiple) {
+      datapoint.cachedValue = [];
     }
 
     datapoint.deleteIfUnwatched();
@@ -943,6 +977,9 @@ class Datapoint {
   }
   get type() {
     return this.datapointInfo.type;
+  }
+  get field() {
+    return this.datapointInfo.field;
   }
   get dbRowId() {
     return this.datapointInfo.dbRowId;
@@ -960,6 +997,13 @@ class Datapoint {
     return this.datapointInfo.datapointId;
   }
 
+  get isId() {
+    return this._isId;
+  }
+  get isMultiple() {
+    return this._isMultiple;
+  }
+
   get valid() {
     return this.state == 'valid';
   }
@@ -971,7 +1015,8 @@ class Datapoint {
   // marks the datapoint as having a possibly incorrect cachedValue
   // i.e. the value that would be obtained from the getter may be different to the cachedValue
   invalidate() {
-    const datapoint = this;
+    const datapoint = this,
+      { listeners, getterOneShotResolvers } = datapoint;
     switch (datapoint.state) {
       case 'valid':
         datapoint.state = 'invalid';
@@ -980,6 +1025,10 @@ class Datapoint {
       case 'invalid':
       case 'uninitialized':
         datapoint.rerunGetter = true;
+    }
+
+    if ((listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length)) {
+      datapoint.validate();
     }
   }
 
@@ -999,13 +1048,16 @@ class Datapoint {
     const datapoint = this,
       { valueIfAny, state, cache } = datapoint;
 
+    if (datapoint.isId) {
+      // TODO id regex
+      if (datapoint.isMultiple) {
+        if (!Array.isArray(value)) value = [];
+      }
+    }
+
     datapoint.cachedValue = value;
 
-    if (!isEqual(valueIfAny, value, { exact: true })) {
-      datapoint.notifyDependentsOfChangeOfValue();
-      datapoint.notifyListeners('onchange', datapoint);
-      cache.notifyListeners('onchange', datapoint);
-    }
+    log('dp', () => `Datapoint ${datapoint.datapointId} -> ${JSON.stringify(value)}`);
 
     switch (state) {
       case 'invalid':
@@ -1015,6 +1067,12 @@ class Datapoint {
         cache.notifyListeners('onvalid', datapoint);
         datapoint.notifyDependentsOfMoveToValidState();
         break;
+    }
+
+    if (!isEqual(valueIfAny, value, { exact: true })) {
+      datapoint.notifyDependentsOfChangeOfValue();
+      datapoint.notifyListeners('onchange', datapoint);
+      cache.notifyListeners('onchange', datapoint);
     }
 
     if (state == 'uninitialized') {
@@ -1036,23 +1094,19 @@ class Datapoint {
         return Promise.resolve(datapoint.valueIfAny);
       case 'invalid':
       case 'uninitialized':
-        return datapoint._valueFromGetter.then(value => {
-          datapoint._setCachedValue(value);
-          return datapoint.valueIfAny;
-        });
+        return datapoint._valueFromGetter;
     }
   }
 
   // gets the _actual_ value of the datapoints via the getter method
   get _valueFromGetter() {
     const datapoint = this,
-      { getter, getterOneShotResolvers } = datapoint;
+      { getter, getterOneShotResolvers, cache, rowId } = datapoint,
+      { rowChangeTrackers } = cache;
 
     if (getterOneShotResolvers) {
       return new Promise(resolve => {
-        getterOneShotResolvers.push(() => {
-          resolve(datapoint.valueIfAny);
-        });
+        getterOneShotResolvers.push(resolve);
         datapoint.undeleteIfWatched();
       });
     }
@@ -1060,6 +1114,8 @@ class Datapoint {
     if (!getter || typeof getter != 'object' || !getter.fn) {
       // TODO codesnippet
       // if the datapoint has no getter method, then the cached value is correct by default
+      log('err.dp', `Datapoint ${datapoint.datapointId} has no associated getter`);
+      datapoint._setCachedValue(datapoint.valueIfAny);
       return Promise.resolve(datapoint.valueIfAny);
     }
 
@@ -1071,15 +1127,19 @@ class Datapoint {
 
       function runGetter() {
         datapoint.rerunGetter = false;
-        Promise.resolve(getter.fn.call(datapoint)).then(value => {
-          if (datapoint.rerunGetter) runGetter();
-          else {
+        rowChangeTrackers.executeAfterValidatingDatapoints(rowId, getter.fn).then(({ result, usesDatapoints }) => {
+          datapoint.setDependenciesOfType('getter', usesDatapoints);
+          if (datapoint.rerunGetter) return runGetter();
+
+          Promise.resolve(result).then(value => {
+            datapoint._setCachedValue(value);
+
             datapoint.getterOneShotResolvers = undefined;
             datapoint.deleteIfUnwatched();
             for (const resolve of getterOneShotResolvers) {
               resolve(value);
             }
-          }
+          });
         });
       }
     });
@@ -1091,6 +1151,8 @@ class Datapoint {
       { setter, valueIfAny } = datapoint,
       changed = !isEqual(valueIfAny, newValue, { exact: true });
 
+    if (!changed) return;
+
     if (!setter || typeof setter != 'object' || !setter.fn) {
       // if the datapoint has no setter method, then just set the cached value directly
       datapoint._setCachedValue(newValue);
@@ -1100,9 +1162,18 @@ class Datapoint {
       // the datapoint is revalidated using the value returned from the setter
       // This value should be the same as would be obtained from the getter.
       datapoint.invalidate();
-      Promise.resolve(setter.fn.call(datapoint, newValue)).then(value => {
-        datapoint._setCachedValue(value);
-      });
+
+      rowChangeTrackers
+        .executeAfterValidatingDatapoints(rowId, getter.fn, newValue)
+        .then(({ result, usesDatapoints, commit }) => {
+          datapoint.setDependenciesOfType('setter', usesDatapoints);
+
+          if (commit) commit();
+
+          Promise.resolve(result).then(value => {
+            datapoint._setCachedValue(value);
+          });
+        });
     }
   }
 
@@ -1112,6 +1183,7 @@ class Datapoint {
 
   firstListenerAdded() {
     this.undeleteIfWatched();
+    this.validate();
   }
 
   undeleteIfWatched() {
@@ -1163,117 +1235,68 @@ module.exports = PublicApi({
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
 
-},{"../../datapoints/convert-ids":8,"../../datapoints/datapoint/getters-setters/all.js":11,"../../general/is-equal":29,"../../general/public-api":35,"../../general/watchable":40,"./dependency-methods":10}],10:[function(require,module,exports){
-const { fieldNameRegex, rowRegex, recomposeId } = require('../../datapoints/convert-ids');
+},{"../../datapoints/convert-ids":8,"../../general/is-equal":28,"../../general/log":30,"../../general/public-api":34,"../../general/watchable":39,"./dependency-methods":10}],10:[function(require,module,exports){
 const log = require('../../general/log');
 
 module.exports = addDependencyMethods;
 
-let nextStateIndex = 1;
 function addDependencyMethods(watchableClass) {
   Object.assign(watchableClass.prototype, {
-    refreshDependencies: function(names, type) {
-      const datapoint = this,
-        { rowId } = datapoint;
-      const state =
-        datapoint[`${type}State`] ||
-        (datapoint[`${type}State`] = {
-          children: {},
-        });
-      datapoint._refreshDependencies(names, rowId, state, 'root');
-    },
-
     clearDependencies() {
-      const datapoint = this,
-        { rowId } = datapoint,
-        state = datapoint[`${type}State`];
-      if (!state) return;
-      datapoint._refreshDependencies(undefined, rowId, state, 'root');
+      this.setDependencies();
     },
 
-    _refreshDependencies: function(names, parentRowId, parentState, myFieldName) {
+    dependenciesOfType(type) {
+      const datapoint = this;
+      const dependenciesByType = datapoint.dependenciesByType || (datapoint.dependenciesByType = {});
+      return dependenciesByType[type] || (dependenciesByType[type] = {});
+    },
+
+    dependentsOfType(type) {
+      const datapoint = this;
+      const dependentsByType = datapoint.dependentsByType || (datapoint.dependentsByType = {});
+      return dependentsByType[type] || (dependentsByType[type] = {});
+    },
+
+    setDependenciesOfType(type, newDependencies) {
       const datapoint = this,
-        { cache } = datapoint;
-      let state = parentState.children['.state'];
-      if (!state) {
-        state = parentState.children['.state'] = {
-          index: nextStateIndex++,
-          fieldName: myFieldName,
-          parentState,
-          fields: {},
-          children: {},
-          sourceDatapointId: undefined,
-        };
+        { cache } = datapoint,
+        dependencies = datapoint.dependenciesOfType(type);
+
+      let changed;
+      for (const dependencyDatapointId of Object.keys(dependencies)) {
+        if (!(newDependencies && newDependencies[dependencyDatapointId])) {
+          const dependencyDatapoint = cache.getExistingDatapoint(dependencyDatapointId);
+          datapoint._removeDependency(dependencyDatapoint, type);
+          changed = true;
+        }
       }
-
-      if (!names || typeof names != 'object') names = {};
-
-      const sourceDatapointId = names['.datapointId'];
-      if (sourceDatapointId) {
-        const sourceDatapoint = cache.getOrCreateDatapoint(sourceDatapointId);
-        if (sourceDatapointId != state.sourceDatapointId) {
-          if (state.sourceDatapointId) {
-            datapoint._removeDependency({
-              dependencyDatapoint: cache.getOrCreateDatapoint(state.sourceDatapointId),
-              type: 'source',
-              state,
-            });
-          }
-          if ((state.sourceDatapointId = sourceDatapointId)) {
-            datapoint._addDependency({
-              dependencyDatapoint: sourceDatapoint,
-              type: 'source',
-              state,
-            });
+      if (newDependencies) {
+        for (const dependencyDatapointId of Object.keys(newDependencies)) {
+          if (!dependencies[dependencyDatapointId]) {
+            const dependencyDatapoint = cache.getOrCreateDatapoint(dependencyDatapointId);
+            datapoint._addDependency(dependencyDatapoint, type);
+            changed = true;
           }
         }
-        parentRowId = sourceDatapoint._valueAsRowId;
       }
-
-      for (const [fieldName, children] of Object.entries(names)) {
-        if (!fieldNameRegex.test(fieldName)) continue;
-
-        if (!((children && children['.datapointId']) || state.fields[fieldName])) {
-          state.fields[fieldName] = true;
-          const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
-            fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
-          datapoint._addDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
-        }
-
-        if (state.children[fieldName] || (children && typeof children == 'object')) {
-          datapoint._refreshDependencies(children, parentRowId, state, fieldName);
-        }
-      }
-
-      for (const fieldName of Object.keys(state.fields)) {
-        if (fieldName in names) continue;
-
-        delete state.fields[fieldName];
-        const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
-          fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
-        datapoint._removeDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
-
-        if (state.children[fieldName]) {
-          datapoint._refreshDependencies(undefined, parentRowId, state, fieldName);
-          delete state.children[fieldName];
-        }
+      if (changed) {
+        datapoint.dependenciesByType[type] = newDependencies ? Object.assign({}, newDependencies) : {};
       }
     },
 
-    _addDependency({ dependencyDatapoint, type, state }) {
+    _addDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
-        dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {});
-      let dependentInfo = dependencyDependents[dependentDatapointId],
-        dependencyInfo = dependentDependencies[dependencyDatapointId],
-        stateKey = `${type}:${state.index}`;
+        dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {}),
+        dependencyDependentInfo =
+          dependencyDependents[dependentDatapointId] || (dependencyDependents[dependentDatapointId] = {}),
+        dependentDependencyInfo =
+          dependentDependencies[dependencyDatapointId] || (dependentDependencies[dependencyDatapointId] = {});
 
-      if (!dependentInfo) {
-        dependentInfo = dependencyDependents[dependentDatapointId] = {};
-        dependencyInfo = dependentDependencies[dependencyDatapointId] = {};
-
+      if (!Object.keys(dependencyDependentInfo).length) {
         dependentDatapoint.dependencyCount = (dependentDatapoint.dependencyCount || 0) + 1;
         if (!dependencyDatapoint.dependentCount) {
           dependencyDatapoint.dependentCount = 1;
@@ -1288,56 +1311,43 @@ function addDependencyMethods(watchableClass) {
             dependentDatapoint.invalidate();
           } else dependentDatapoint.invalidDependencyCount++;
         }
-      } else if (dependentInfo[stateKey]) return;
+      }
 
-      dependentInfo[stateKey] = dependencyInfo[stateKey] = { type, state };
+      dependentDependencyInfo[type] = dependencyDependentInfo[type] = type;
     },
 
-    _removeDependency({ dependencyDatapoint, type, state }) {
+    _removeDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
         dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {}),
-        dependentInfo = dependencyDependents[dependentDatapointId],
-        dependencyInfo = dependentDependencies[dependencyDatapointId],
-        stateKey = `${type}:${state.index}`;
+        dependencyDependentInfo = dependencyDependents[dependentDatapointId],
+        dependentDependencyInfo = dependentDependencies[dependencyDatapointId];
 
-      if (!(dependentInfo && dependentInfo[stateKey])) {
+      if (!(dependencyDependentInfo && dependencyDependentInfo[type])) {
         log(
           'err.dp',
-          `Expected to find a that ${dependentDatapointId}[${stateKey}] was dependent on ${dependencyDatapointId}[${stateKey}]. The system will by in an unstable state from here on out`
+          `Expected to find a that ${dependentDatapointId}[${type}] was dependent on ${dependencyDatapointId}[${type}]. The system will by in an unstable state from here on out`
         );
         return;
       }
 
-      delete dependentInfo[stateKey];
-      delete dependencyInfo[stateKey];
+      delete dependencyDependentInfo[type];
+      delete dependentDependencyInfo[type];
 
-      if (!Object.keys(dependentInfo).length) {
-        delete dependencyDependents[dependentDatapointId];
-        delete dependentDependencies[dependencyDatapointId];
+      if (Object.keys(dependencyDependentInfo).length) return;
 
-        dependentDatapoint.dependencyCount--;
-        if (!--dependencyDatapoint.dependentCount) {
-          dependencyDatapoint.deleteIfUnwatched();
-        }
+      delete dependencyDependents[dependentDatapointId];
+      delete dependentDependencies[dependencyDatapointId];
 
-        if (!dependencyValid && !--dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate();
-        }
+      dependentDatapoint.dependencyCount--;
+      if (!--dependencyDatapoint.dependentCount) {
+        dependencyDatapoint.deleteIfUnwatched();
       }
-    },
 
-    get _valueAsRowId() {
-      const datapoint = this,
-        { valueIfAny: value } = datapoint;
-      if (!value) return;
-      if (typeof value == 'string' && rowRegex.test(value)) {
-        return value;
-      }
-      if (Array.isArray(value) && value.length == 1 && typeof value[0] == 'string' && rowRegex.test(value[0])) {
-        return value[0];
+      if (!dependencyValid && !--dependentDatapoint.invalidDependencyCount) {
+        dependentDatapoint.validate();
       }
     },
 
@@ -1384,26 +1394,29 @@ function addDependencyMethods(watchableClass) {
   });
 }
 
-},{"../../datapoints/convert-ids":8,"../../general/log":31}],11:[function(require,module,exports){
-const all = [
+},{"../../general/log":30}],11:[function(require,module,exports){
+const finders = [
   require('./page-state'),
   require('./state'),
-  require('./template'),
   require('./schema-code'),
   require('./db'),
+  require('./template'),
 ];
 
-module.exports = function({ datapoint, cache, schema, datapointDbConnection, stateVar, templates }) {
-  const ret = {};
-  for (const one of all) {
-    const oneRet = one(arguments[0]);
-    if (oneRet) {
-      if (!ret.getter) ret.getter = oneRet.getter;
-      if (!ret.setter) ret.setter = oneRet.setter;
-      if (ret.getter && ret.setter) break;
+module.exports = {
+  finders,
+  findGetterSetter: function({ datapoint, cache, schema, datapointDbConnection, stateVar, templates }) {
+    const ret = {};
+    for (const one of finders) {
+      const oneRet = one(arguments[0]);
+      if (oneRet) {
+        if (!ret.getter) ret.getter = oneRet.getter;
+        if (!ret.setter) ret.setter = oneRet.setter;
+        if (ret.getter && ret.setter) break;
+      }
     }
-  }
-  return ret;
+    return ret;
+  },
 };
 
 },{"./db":12,"./page-state":13,"./schema-code":14,"./state":15,"./template":16}],12:[function(require,module,exports){
@@ -1415,7 +1428,7 @@ module.exports = function({ datapoint, schema, datapointDbConnection }) {
 
   if (!type) return;
 
-  const field = type.getField(fieldName);
+  const field = type.fields[fieldName];
   if (!field || !dbRowId) return;
 
   const ret = {};
@@ -1441,10 +1454,10 @@ module.exports = function({ datapoint, schema, datapointDbConnection }) {
 },{}],13:[function(require,module,exports){
 const PageState = require('../../../client/page-state');
 
-module.exports = function({ datapoint }) {
+module.exports = function({ datapoint, cache }) {
   const { fieldName, proxyKey, typeName } = datapoint;
 
-  if (typeName !== 'Page' || proxyKey !== 'default') return;
+  if (!cache.isClient || typeName !== 'Page' || proxyKey !== 'default') return;
 
   datapoint._isClient = true;
   if (fieldName == 'items') {
@@ -1474,7 +1487,7 @@ module.exports = function({ datapoint, schema }) {
 
   if (!type) return;
 
-  const field = type.getField(fieldName);
+  const field = type.fields[fieldName];
   if (!field || !(field.get || field.set)) return;
 
   const ret = {};
@@ -1521,61 +1534,59 @@ module.exports = function({ datapoint, templates }) {
 
   if (!templates) return;
 
-  let match = /^dom(\w*)$/.exec(fieldName);
+  let match = /^dom((?:[A-Z]\w*)?)$/.exec(fieldName);
   if (match) {
     const variant = ChangeCase.camelCase(match[1]),
-      names = {
-        template: {
-          '.datapointId': templates.getTemplateReferencingDatapoint({
-            variant,
-            classFilter: typeName,
-            ownerOnly: false,
-          }).datapointId,
-          dom: {},
-        },
-      };
+      templateRefDatapointId = templates.getTemplateReferencingDatapoint({
+        variant,
+        classFilter: typeName,
+        ownerOnly: false,
+      }).datapointId;
 
     return {
       getter: {
-        names,
-        fn: ({ template }) => template.dom,
+        fn: ({ getDatapointValue }) => {
+          const templateRow = getDatapointValue(templateRefDatapointId);
+          return templateRow ? templateRow.dom : undefined;
+        },
       },
       setter: {
-        names,
-        fn: ({ template, newValue }) => (template.dom = newValue),
+        fn: (newValue, { getDatapointValue }) => {
+          const templateRow = getDatapointValue(templateRefDatapointId);
+          return templateRow ? (templateRow.dom = newValue) : undefined;
+        },
       },
     };
   }
 
-  match = /^template(\w*)$/.exec(fieldName);
+  match = /^template((?:[A-Z]\w*)?)$/.exec(fieldName);
   if (match) {
     const variant = ChangeCase.camelCase(match[1]),
-      names = {
-        template: {
-          '.datapointId': templates.getTemplateReferencingDatapoint({
-            variant,
-            classFilter: typeName,
-            ownerOnly: false,
-          }).datapointId,
-        },
-      };
+      templateRefDatapointId = templates.getTemplateReferencingDatapoint({
+        variant,
+        classFilter: typeName,
+        ownerOnly: false,
+      }).datapointId;
+
+    datapoint._isId = true;
 
     return {
       getter: {
-        names,
-        fn: ({ template }) => template.id,
+        fn: ({ getDatapointValue }) => {
+          return getDatapointValue(templateRefDatapointId);
+        }, // TODO make this an id
       },
       setter: {
-        names,
-        fn: ({ template }) => template.id,
+        fn: (_newValue, { getDatapointValue }) => getDatapointValue(templateRefDatapointId),
       },
     };
   }
 
-  if (typeName == 'App' && fieldName.startsWith('useTemplate_')) {
+  if (typeName == 'App' && fieldName.startsWith('useTemplate')) {
+    datapoint._isId = true;
+
     return {
       getter: {
-        names,
         fn: () => {
           const rowId = templates.referencedTemplateRowIdForTemplateDatapointId(datapointId);
           return rowId ? [rowId] : [];
@@ -1585,223 +1596,88 @@ module.exports = function({ datapoint, templates }) {
   }
 };
 
-},{"change-case":43}],17:[function(require,module,exports){
-const ConvertIds = require('./convert-ids');
-const PublicApi = require('../general/public-api');
-const mapValues = require('../general/map-values');
-const log = require('../general/log');
-
-// API is auto-generated at the bottom from the public interface of this class
-
-class RequiredDatapoints {
-  // public methods
-  static publicMethods() {
-    return ['forView'];
-  }
-
-  constructor({ cache }) {
-    const requiredDatapoints = this;
-
-    requiredDatapoints.cache = cache;
-    requiredDatapoints.templates = cache.templates;
-  }
-
-  async forView({ rowId, variant, rowProxy, userId }) {
-    const requiredDatapoints = this,
-      ret = {},
-      promises = [];
-    requiredDatapoints._forView({ rowId, variant, ret, promises, rowProxy, userId });
-    while (promises.length) {
-      const promisesCopy = promises.slice();
-      promises.splice(0, promises.length);
-      await Promise.all(promisesCopy);
-    }
-    return ret;
-  }
-
-  // semi-async
-  getOrCreateDatapoint({ datapointId, rowProxy }) {
-    const datapointInfo = rowProxy.makeConcrete({ datapointId });
-    if (!datapointInfo) return;
-    if (datapointInfo.then) {
-      return datapointInfo.then(datapointInfo => {
-        if (!datapointInfo) return;
-        return this.cache.getOrCreateDatapoint( datapointInfo.datapointId );
-      });
-    }
-    return this.cache.getOrCreateDatapoint( datapointInfo.datapointId );
-  }
-
-  _forView({ rowId, variant, ret = {}, promises = [], rowProxy, userId, stack: astack = [] }) {
-    const requiredDatapoints = this,
-      { templates } = requiredDatapoints;
-
-    const stack = astack.slice();
-    stack.push({ rowId, variant });
-    if (astack.find(({ rowId: rowId2, variant: variant2 }) => rowId === rowId2 && variant === variant2)) {
-      log('err', 'Recursive required datapoints. Stack: ', stack);
-      return;
-    }
-    if (stack.length > 50) {
-      log('err', 'Required datapoints recursed too many times. Stack: ', stack);
-      return;
-    }
-
-    const templateDatapointId = ConvertIds.recomposeId({ rowId, fieldName: `template_${variant || ''}` }).datapointId,
-      templateDatapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId: templateDatapointId, rowProxy });
-    if (!templateDatapoint) return;
-
-    if (templateDatapoint.then) {
-      promises.push(templateDatapoint.then(handleTemplateDatapoint));
-    } else handleTemplateDatapoint(templateDatapoint);
-
-    function handleTemplateDatapoint(templateDatapoint) {
-      ret[templateDatapointId] = { datapoint: templateDatapoint, callbackKey: templateDatapoint.watch({}) };
-
-      if (templateDatapoint.invalid) {
-        promises.push(templateDatapoint.value.then(templateValue => handleTemplateValue(templateValue)));
-      } else {
-        handleTemplateValue(templateDatapoint.valueIfAny);
-      }
-
-      function handleTemplateValue(templateValue) {
-        if (!templateValue || typeof templateValue != 'object') return;
-        const templateRowIds =
-          templateValue[templateValue.ownerId && templateValue.ownerId == userId ? 'private' : 'public'];
-
-        if (!(Array.isArray(templateRowIds) && templateRowIds.length == 1)) return;
-        const templateRowId = templateRowIds[0],
-          template = templates.template({ rowId: templateRowId });
-        if (!template) return;
-
-        const domDatapointId = ConvertIds.recomposeId({ rowId: templateRowId, fieldName: 'dom' }).datapointId,
-          domDatapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId: domDatapointId, rowProxy });
-        if (domDatapoint) {
-          if (domDatapoint.then) promises.push(domDatapoint.then(handleDomDatapoint));
-          else handleDomDatapoint(domDatapoint);
-
-          function handleDomDatapoint(domDatapoint) {
-            ret[domDatapointId] = { datapoint: domDatapoint, callbackKey: domDatapoint.watch({}) };
-            if (domDatapoint.invalid) {
-              promises.push(domDatapoint.value);
-            }
-          }
-        }
-
-        for (const fieldName of template.displayedFields) {
-          const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-          const datapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId, rowProxy });
-          if (!datapoint || datapoint.isClient) continue;
-
-          if (datapoint.then) promises.push(datapoint.then(handleDatapoint));
-          else handleDatapoint(datapoint);
-
-          function handleDatapoint(datapoint) {
-            ret[datapointId] = { datapoint, callbackKey: datapoint.watch({}) };
-            if (datapoint.invalid) {
-              promises.push(datapoint.value);
-            }
-          }
-        }
-        for (let { rowId: embedRowId, variant: embedVariant } of template.embedded) {
-          if (!embedRowId) embedRowId = rowId;
-          if (embedVariant === undefined) embedVariant = variant;
-          requiredDatapoints._forView({
-            rowId: embedRowId,
-            variant: embedVariant,
-            ret,
-            promises,
-            rowProxy,
-            userId,
-            stack,
-          });
-        }
-        for (const { fieldName, variants } of template.children) {
-          const datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-          const datapoint = requiredDatapoints.getOrCreateDatapoint({ datapointId, rowProxy });
-          if (!datapoint) continue;
-
-          if (datapoint.then) promises.push(datapoint.then(handleDatapoint));
-          else handleDatapoint(datapoint);
-
-          function handleDatapoint(datapoint) {
-            ret[datapointId] = { datapoint, callbackKey: datapoint.watch({}) };
-            if (datapoint.invalid) {
-              promises.push(datapoint.value.then(children => handleChildren(children)));
-            } else {
-              handleChildren(datapoint.valueIfAny);
-            }
-
-            function handleChildren(children) {
-              if (!Array.isArray(children)) return;
-              for (const variant of variants) {
-                for (const childRowOrDatapointId of children) {
-                  let childRowId,
-                    childVariant = variant;
-                  if (ConvertIds.rowRegex.test(childRowOrDatapointId)) {
-                    childRowId = childRowOrDatapointId;
-                    childVariant = variant;
-                  } else {
-                    const datapointInfo = ConvertIds.decomposeId({ datapointId: childRowOrDatapointId });
-                    if (!(datapointInfo.rowId && datapointInfo.fieldName)) continue;
-                    childRowId = datapointInfo.rowId;
-                    childVariant = datapointInfo.fieldName;
-                  }
-                  requiredDatapoints._forView({
-                    rowId: childRowId,
-                    variant: childVariant,
-                    ret,
-                    promises,
-                    rowProxy,
-                    userId,
-                    stack,
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: RequiredDatapoints,
-  hasExposedBackDoor: true,
-});
-
-},{"../general/log":31,"../general/map-values":32,"../general/public-api":35,"./convert-ids":8}],18:[function(require,module,exports){
+},{"change-case":42}],17:[function(require,module,exports){
 // row-change-trackers
 // © Will Smart 2018. Licence: MIT
 
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('./convert-ids');
 const changeDetectorObject = require('../general/change-detector-object');
+const mapValues = require('../general/map-values');
 
 class RowChangeTrackers {
   // public methods
   static publicMethods() {
-    return ['rowObject', 'commit'];
+    return ['rowObject', 'commit', 'execute', 'executeAfterValidatingDatapoints'];
   }
 
-  constructor({ cache, schema }) {
+  constructor({ cache, schema, readOnly = true }) {
     const rowChangeTrackers = this;
     Object.assign(rowChangeTrackers, {
       cache,
       schema,
+      readOnly,
+      _executor: undefined,
       rowProxies: {},
       rowCDOs: {},
     });
   }
 
+  async executeAfterValidatingDatapoints(thisArg, fn, ...args) {
+    const rowChangeTrackers = this;
+    while (true) {
+      const ret = await rowChangeTrackers.execute(thisArg, fn, ...args);
+      if (!ret.retryAfterPromises.length) return ret;
+      await Promise.all(ret.retryAfterPromises);
+    }
+  }
+
+  async execute(thisArg, fn, ...args) {
+    const rowChangeTrackers = this,
+      executor = {
+        rowChangeTrackers,
+        retryAfterPromises: [],
+        usesDatapoints: {},
+      };
+
+    args.push({
+      rowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
+      getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
+    });
+
+    try {
+      const executorWas = rowChangeTrackers._executor;
+      rowChangeTrackers._executor = executor;
+      const result = fn.apply(thisArg, args);
+      rowChangeTrackers._executor = executorWas;
+      executor.result = RowChangeTrackers.sanitizeCDOs(await result);
+    } catch (error) {
+      if (error.message == 'Cannot mutate in non-mutating CDO') {
+        // TODO type check instead
+        const { cache, schema } = rowChangeTrackers,
+          mutatingRowChangeTrackers = new RowChangeTrackers({ cache, schema, readOnly: false });
+        return mutatingRowChangeTrackers.execute(thisArg, fn, ...args);
+      }
+      executor.error = error;
+    }
+
+    executor.modified = rowChangeTrackers.modifiedRowIds.length > 0;
+    if (executor.modified) {
+      executor.commit = rowChangeTrackers.commit.bind(rowChangeTrackers);
+      executor.queueCommitJob = rowChangeTrackers.queueCommitJob.bind(rowChangeTrackers);
+    }
+    return executor;
+  }
+
+  get executor() {
+    return this._executor;
+  }
+
   rowObject(rowId) {
     const rowChangeTrackers = this,
-      { rowCDOs } = rowChangeTrackers;
+      { rowCDOs, readOnly } = rowChangeTrackers;
     if (rowCDOs[rowId]) return rowCDOs[rowId].useObject;
-    rowChangeTrackers.queueCommitJob();
-    return (rowCDOs[rowId] = changeDetectorObject(rowChangeTrackers.rowProxy(rowId))).useObject;
+    return (rowCDOs[rowId] = changeDetectorObject(rowChangeTrackers.rowProxy(rowId), readOnly)).useObject;
   }
 
   rowProxy(rowId) {
@@ -1845,6 +1721,17 @@ class RowChangeTrackers {
     }, delay);
   }
 
+  get modifiedRowIds() {
+    const rowChangeTrackers = this,
+      ret = [];
+    for (const [rowId, cdo] of Object.entries(rowChangeTrackers.rowCDOs)) {
+      if (cdo.modified[0]) {
+        ret.push(rowId);
+      }
+    }
+    return ret;
+  }
+
   commit() {
     const rowChangeTrackers = this;
 
@@ -1875,25 +1762,84 @@ class RowChangeTrackers {
     }
   }
 
+  static sanitizeCDOs(value) {
+    if (changeDetectorObject.isCDO(value)) {
+      return value.id;
+    }
+    if (Array.isArray(value)) {
+      return value.map(item => RowChangeTrackers.sanitizeCDOs(item));
+    }
+    if (value && typeof value == 'object') {
+      return mapValues(value, item => RowChangeTrackers.sanitizeCDOs(item));
+    }
+    return value;
+  }
+
   setDatapointValue(rowId, fieldName, value) {
     if (fieldName == 'id') return;
 
     const rowChangeTrackers = this,
       { cache } = rowChangeTrackers,
+      { typeName } = ConvertIds.decomposeId({ rowId }),
       datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
-      datapoint = cache.getOrCreateDatapoint( datapointId );
+      datapoint = cache.getOrCreateDatapoint(datapointId);
+
+    if (datapoint.isId) {
+      if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {
+        value = [value];
+      } else if (Array.isArray(value)) {
+        value = value
+          .map(item => {
+            if (typeof item == 'string' && ConvertIds.rowRegex.test(item)) {
+              return item;
+            }
+            if (item && typeof item == 'object') item = item.id;
+            if (typeof item == 'string' && ConvertIds.rowRegex.test(item)) {
+              return item;
+            }
+          })
+          .filter(item => item);
+        if (!datapoint.isMultiple && value.length > 1) value = [];
+      } else value = undefined;
+    }
 
     if (datapoint) datapoint.setValue(value);
   }
 
   getDatapointValue(rowId, fieldName) {
+    if (ConvertIds.datapointRegex.test(rowId)) {
+      ({ rowId, fieldName } = ConvertIds.decomposeId({ datapointId: rowId }));
+    }
+
     if (fieldName == 'id') return rowId;
 
     const rowChangeTrackers = this,
-      { cache } = rowChangeTrackers,
-      datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId;
-    const datapoint = cache.getExistingDatapoint({ datapointId });
-    return datapoint && datapoint.valueIfAny;
+      { cache, schema, executor } = rowChangeTrackers,
+      { typeName } = ConvertIds.decomposeId({ rowId }),
+      datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
+      datapoint = cache.getOrCreateDatapoint(datapointId);
+
+    if (executor) executor.usesDatapoints[datapointId] = true;
+
+    let value = datapoint && datapoint.valueIfAny;
+    if (!datapoint.valid) {
+      const promise = datapoint.value;
+      if (executor) executor.retryAfterPromises.push(promise);
+    }
+    if (datapoint.isId) {
+      if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {
+        value = [rowChangeTrackers.rowObject(value)];
+      } else if (Array.isArray(value) && (datapoint.isMultiple || value.length <= 1)) {
+        value = value
+          .map(item => {
+            if (typeof item == 'string' && ConvertIds.rowRegex.test(item)) {
+              return rowChangeTrackers.rowObject(item);
+            }
+          })
+          .filter(item => item);
+      } else value = undefined;
+    }
+    return value;
   }
 
   getRowFieldNames(rowId) {
@@ -1902,7 +1848,8 @@ class RowChangeTrackers {
       typeName = ConvertIds.decomposeId({ rowId }).typeName,
       type = schema.allTypes[typeName],
       fieldNames = Object.keys(type.fields);
-    return fieldNames.filter(fieldName => rowChangeTrackers(rowId, fieldName) !== undefined);
+    fieldNames.push('id');
+    return fieldNames;
   }
 }
 
@@ -1912,11 +1859,12 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/change-detector-object":26,"../general/public-api":35,"./convert-ids":8}],19:[function(require,module,exports){
+},{"../general/change-detector-object":25,"../general/map-values":31,"../general/public-api":34,"./convert-ids":8}],18:[function(require,module,exports){
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
 const DomGenerator = require('../dom/dom-generator');
+const ChangeCase = require('change-case');
 
 // other implied dependencies
 
@@ -1980,20 +1928,24 @@ class Templates {
     return ConvertIds.recomposeId({
       typeName: 'App',
       dbRowId: this.appDbRowId,
-      fieldName: `useTemplate_${variant ? `v_${variant}_` : ''}${classFilter ? `c_${classFilter}_` : ''}${
-        ownerOnly ? '_private' : ''
-      }`,
+      fieldName: `useTemplate${variant ? `_v${ChangeCase.snakeCase(variant).replace('_', '_v')}` : ''}${
+        classFilter ? `_c${ChangeCase.snakeCase(classFilter).replace('_', '_c')}` : ''
+      }${ownerOnly ? '_private' : ''}`,
     }).datapointId;
   }
 
   cvoForTemplateDatapointId(datapointId) {
     const { typeName, dbRowId, fieldName } = ConvertIds.decomposeId({ datapointId });
     if (typeName !== 'App' || dbRowId !== this.appDbRowId) return;
-    const match = /^useTemplate_(v_[a-z0-9]+(?:_[a-z0-9]+)*_|)(c_[a-z0-9]+(?:_[a-z0-9]+)*_|)(_private|)$/.exec(
-      fieldName
-    );
+    const match = /^use_template((?:_v\w+)*)((?:_c\w+)*)(_private|)$/.exec(ChangeCase.snakeCase(fieldName));
     if (!match) return;
-    return { variant: match[1] || undefined, classFilter: match[2] || undefined, ownerOnly: Boolean(match[3]) };
+    const variant = match[1] ? ChangeCase.camelCase(match[1].substring(2).replace('_v', '_')) : undefined,
+      classFilter = match[2] ? ChangeCase.pascalCase(match[2].substring(2).replace('_c', '_')) : undefined;
+    return {
+      variant,
+      classFilter,
+      ownerOnly: Boolean(match[3]),
+    };
   }
 
   referencedTemplateRowIdForTemplateDatapointId(datapointId) {
@@ -2206,7 +2158,7 @@ class Template {
       const datapoint = (template.datapoints[fieldName] = cache.getOrCreateDatapoint(
         ConvertIds.recomposeId(template, {
           fieldName,
-        })
+        }).datapointId
       ));
       datapoint.watch({
         callbackKey,
@@ -2368,7 +2320,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../dom/dom-generator":22,"../general/map-values":32,"../general/public-api":35,"./convert-ids":8}],20:[function(require,module,exports){
+},{"../dom/dom-generator":21,"../general/map-values":31,"../general/public-api":34,"./convert-ids":8,"change-case":42}],19:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const { cloneShowingElementNames } = require('../general/name-for-element');
 const { rangeForElement, forEachInElementRange } = require('./dom-functions');
@@ -2450,7 +2402,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/name-for-element":33,"../general/public-api":35,"./dom-functions":21}],21:[function(require,module,exports){
+},{"../general/name-for-element":32,"../general/public-api":34,"./dom-functions":20}],20:[function(require,module,exports){
 const ChangeCase = require('change-case');
 const ConvertIds = require('../datapoints/convert-ids');
 const nameForElement = require('../general/name-for-element');
@@ -2487,9 +2439,9 @@ module.exports = {
   mapInElementRange,
   findInElementRange,
   logChange,
-  _describeRange,
-  _describeTree,
-  _describeChange,
+  describeRange,
+  describeTree,
+  describeChange,
   logRange,
   logTree,
 };
@@ -2770,48 +2722,48 @@ function findInElementRange(element, fn) {
 }
 
 function logRange(module, prompt, element) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeRange(element)}`);
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeRange(element)}`);
 }
 
 function logTree(module, prompt, element) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeTree(element)}`);
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeTree(element)}`);
 }
 
 function logChange(module, prompt, change) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeChange(change)}`);
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeChange(change)}`);
 }
 
-function _describeChange(change) {
+function describeChange(change, indent = '') {
   let ret = '';
   if (change.firstElement) {
-    ret += ` Change${change.id ? ` #${change.id}` : ''} has new elements:\n${_describeRange(
+    ret += `${indent} Change${change.id ? ` #${change.id}` : ''} has new elements:\n${describeRange(
       change.firstElement,
-      '    + '
+      indent + '    + '
     )}`;
   } else {
-    ret += ` Change${change.id ? ` #${change.id}` : ''} has no new elements:\n`;
+    ret += `${indent} Change${change.id ? ` #${change.id}` : ''} has no new elements:\n`;
   }
   if (change.replace) {
-    ret += ` ... it replaces elements:\n${_describeRange(change.replace, '    x ')}`;
+    ret += `${indent} ... it replaces elements:\n${describeRange(change.replace, indent + '    x ')}`;
   } else if (change.insertAfter) {
-    ret += ` ... it inserts new elements after:\n${_describeRange(change.insertAfter, '    > ')}`;
+    ret += `${indent} ... it inserts new elements after:\n${describeRange(change.insertAfter, indent + '    > ')}`;
   } else if (change.parent) {
-    ret += ` ... it} inserts new elements as first under:\n${_describeRange(change.parent, '    v ')}`;
+    ret += `${indent} ... it} inserts new elements as first under:\n${describeRange(change.parent, indent + '    v ')}`;
   }
   return ret;
 }
 
-function _describeRange(element, indent = '') {
+function describeRange(element, indent = '') {
   let ret = '';
   let isFirst = true;
   forEachInElementRange(element, el => {
-    ret += _describeTree(el, indent + (isFirst ? '- ' : '  '));
+    ret += describeTree(el, indent + (isFirst ? '- ' : '  '));
     isFirst = false;
   });
   return ret;
 }
 
-function _describeTree(element, indent = '') {
+function describeTree(element, indent = '') {
   let ret = '';
   const templateDatapointId = element.getAttribute('nobo-template-dpid'),
     variant = templateDatapointId ? variantForTemplateDatapointId(templateDatapointId) : undefined,
@@ -2831,7 +2783,7 @@ function _describeTree(element, indent = '') {
   ret += `${indent}${desc}\n`;
   indent += '. ';
   for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    ret += _describeRange(child, indent);
+    ret += describeRange(child, indent);
     child = rangeForElement(child)[1];
   }
   return ret;
@@ -2855,7 +2807,7 @@ function elementWaitingChangeIds(element) {
   return value ? value.split(' ') : [];
 }
 
-},{"../datapoints/convert-ids":8,"../general/log":31,"../general/name-for-element":33,"change-case":43}],22:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/log":30,"../general/name-for-element":32,"change-case":42}],21:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 const TemplatedText = require('./templated-text');
@@ -2901,7 +2853,7 @@ class DomGenerator {
 
     if (!datapointId) return;
 
-    const datapoint = domGenerator.cache.getExistingDatapoint({ datapointId });
+    const datapoint = domGenerator.cache.getExistingDatapoint(datapointId);
     if (!datapoint) return;
 
     const value = datapoint.valueIfAny;
@@ -2960,13 +2912,15 @@ class DomGenerator {
     }
 
     if (domDatapointId) {
-      const domDatapoint = domGenerator.cache.getExistingDatapoint({ datapointId: domDatapointId });
+      const domDatapoint = domGenerator.cache.getExistingDatapoint(domDatapointId);
       if (domDatapoint && typeof domDatapoint.valueIfAny == 'string') {
         domString = domDatapoint.valueIfAny;
       }
     }
     if (domString) element = (domGenerator.htmlToElement || htmlToElement)(domString);
     if (!element) element = (domGenerator.htmlToElement || htmlToElement)('<div></div>');
+
+    element.setAttribute('nobo-depth', depth);
 
     let usesByDatapointId;
     if (variantBackup) {
@@ -3057,6 +3011,9 @@ class DomGenerator {
     const domGenerator = this;
 
     const element = document.getElementById('page');
+
+    element.setAttribute('nobo-depth', 1);
+
     domGenerator._prepChildrenPlaceholderAndCreateChildren({
       element,
       datapointId: 'page__default__items',
@@ -3113,7 +3070,7 @@ class DomGenerator {
 
   createChildElements({ datapointId, rowOrDatapointIds, variant, depth }) {
     const domGenerator = this,
-      datapoint = datapointId ? domGenerator.cache.getExistingDatapoint({ datapointId }) : undefined;
+      datapoint = datapointId ? domGenerator.cache.getExistingDatapoint(datapointId) : undefined;
 
     if (datapoint) rowOrDatapointIds = datapoint.valueIfAny;
 
@@ -3232,7 +3189,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/public-api":35,"../general/watchable":40,"./dom-functions":21,"./templated-text":25}],23:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/public-api":34,"../general/watchable":39,"./dom-functions":20,"./templated-text":24}],22:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const TemplatedText = require('./templated-text');
 const diffAny = require('../general/diff');
@@ -3294,7 +3251,11 @@ function callbackKeyOnElement(element, type) {
 class DomUpdater {
   // public methods
   static publicMethods() {
-    return ['datapointUpdated'];
+    return ['datapointUpdated', 'domWaitingChangeQueue'];
+  }
+
+  get domWaitingChangeQueue() {
+    return this._domWaitingChangeQueue;
   }
 
   constructor({ cache, domGenerator }) {
@@ -3304,7 +3265,7 @@ class DomUpdater {
       cloneShowingElementNames,
       cache,
       domGenerator: domGenerator,
-      domWaitingChangeQueue: new DomWaitingChangeQueue(),
+      _domWaitingChangeQueue: new DomWaitingChangeQueue(),
     });
 
     domUpdater.dg_callbackKey = domGenerator.watch({
@@ -3321,7 +3282,7 @@ class DomUpdater {
         }
 
         if (templateDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint( templateDatapointId );
+          const datapoint = cache.getOrCreateDatapoint(templateDatapointId);
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -3351,7 +3312,7 @@ class DomUpdater {
           });
         }
         if (domDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint( domDatapointId );
+          const datapoint = cache.getOrCreateDatapoint(domDatapointId);
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -3379,8 +3340,8 @@ class DomUpdater {
           });
         }
         if (childrenDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint( childrenDatapointId ),
-            childDepth = element.getAttribute('nobo-child-depth');
+          const datapoint = cache.getOrCreateDatapoint(childrenDatapointId),
+            childDepth = element.getAttribute('nobo-child-depth') || 1;
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
           if (!datapoint.initialized) {
@@ -3599,26 +3560,26 @@ class DomUpdater {
     }
 
     if (templateDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: templateDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint(templateDatapointId);
       datapoint.stopWatching({
         callbackKey: callbackKeyOnElement(element, 'template'),
       });
     }
     if (domDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: domDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint(domDatapointId);
       datapoint.stopWatching({
         callbackKey: callbackKeyOnElement(element, 'dom'),
       });
     }
     if (childrenDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: childrenDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint(childrenDatapointId);
       datapoint.stopWatching({
         callbackKey: callbackKeyOnElement(element, 'children'),
       });
     }
     if (valueDatapointIds) {
       for (const datapointId of valueDatapointIds) {
-        const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId });
+        const datapoint = domUpdater.cache.getExistingDatapoint(datapointId);
         datapoint.stopWatching({
           callbackKey: callbackKeyOnElement(element, 'value'),
         });
@@ -3633,10 +3594,10 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/diff":28,"../general/log":31,"../general/name-for-element":33,"../general/public-api":35,"./dom-functions":21,"./dom-waiting-change-queue":24,"./templated-text":25}],24:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/diff":27,"../general/log":30,"../general/name-for-element":32,"../general/public-api":34,"./dom-functions":20,"./dom-waiting-change-queue":23,"./templated-text":24}],23:[function(require,module,exports){
 const DomChangeQueue = require('./dom-change-queue');
 const PublicApi = require('../general/public-api');
-const { forEachInElementRange, findInElementRange, logChange } = require('./dom-functions');
+const { forEachInElementRange, findInElementRange, logChange, describeChange } = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of the DomChangeQueue class
 
@@ -3725,7 +3686,7 @@ function addChangeIdToWaitingElementsInTree(element, changeId, checkForExisting)
 class DomWaitingChangeQueue {
   // public methods
   static publicMethods() {
-    return ['push', 'elementIsDoneWaiting'];
+    return ['push', 'elementIsDoneWaiting', 'changeDescriptions'];
   }
 
   constructor() {
@@ -3737,6 +3698,10 @@ class DomWaitingChangeQueue {
       queue: [],
       nextChangeId: 1,
     });
+  }
+
+  changeDescriptions(indent = '') {
+    return this.queue.map(change => describeChange(change, indent));
   }
 
   push(change) {
@@ -3886,7 +3851,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/public-api":35,"./dom-change-queue":20,"./dom-functions":21}],25:[function(require,module,exports){
+},{"../general/public-api":34,"./dom-change-queue":19,"./dom-functions":20}],24:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const locateEnd = require('../general/locate-end');
 const CodeSnippet = require('../general/code-snippet');
@@ -4016,20 +3981,23 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/code-snippet":27,"../general/locate-end":30,"../general/public-api":35,"../general/state-var":37}],26:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/code-snippet":26,"../general/locate-end":29,"../general/public-api":34,"../general/state-var":36}],25:[function(require,module,exports){
 // change-detector-object
 // © Will Smart 2018. Licence: MIT
 
 module.exports = changeDetectorObject;
 
-changeDetectorObject.isCDO = object => '__cdo__' in object;
+changeDetectorObject.isCDO = object => {
+  return object && typeof object == 'object' && '__cdo__' in object;
+};
 
-function changeDetectorObject(baseObject, setParentModified) {
+function changeDetectorObject(baseObject, readOnly, setParentModified) {
   if (!baseObject || typeof baseObject != 'object') return baseObject;
   const changeObject = {},
     deletionsObject = {},
     modified = [false];
   function setModified() {
+    if (readOnly) throw new Exception('Cannot mutate in non-mutating CDO');
     if (setParentModified) setParentModified();
     modified[0] = true;
   }
@@ -4078,7 +4046,7 @@ function changeDetectorObject(baseObject, setParentModified) {
           }
           const ret = baseObject[key];
           if (ret && typeof ret == 'object') {
-            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
+            return (changeObject[key] = changeDetectorObject(ret, readOnly, setModified)).useObject;
           }
           return ret;
         },
@@ -4086,7 +4054,7 @@ function changeDetectorObject(baseObject, setParentModified) {
           setModified();
           delete deletionsObject[key];
           if (value && typeof value == 'object') {
-            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
+            return (changeObject[key] = changeDetectorObject(ret, readOnly, setModified)).useObject;
           }
           changeObject[key] = value;
           return true;
@@ -4108,7 +4076,7 @@ function changeDetectorObject(baseObject, setParentModified) {
   };
 }
 
-},{}],27:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 // code-snippet
 // © Will Smart 2018. Licence: MIT
 
@@ -4297,7 +4265,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/log":31,"./change-detector-object":26,"./public-api":35,"./wrap-function-locals":41}],28:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"../general/log":30,"./change-detector-object":25,"./public-api":34,"./wrap-function-locals":40}],27:[function(require,module,exports){
 // diff
 // © Will Smart 2018. Licence: MIT
 
@@ -4730,7 +4698,7 @@ if (typeof window !== 'undefined') {
   };
 }
 
-},{"./is-equal":29,"./log":31,"random-seed":60}],29:[function(require,module,exports){
+},{"./is-equal":28,"./log":30,"random-seed":59}],28:[function(require,module,exports){
 // compare
 // © Will Smart 2018. Licence: MIT
 
@@ -5007,7 +4975,7 @@ function objectIsEqualOrSuperset(v1, v2, options) {
   return supersetMatch ? '>' : true;
 }
 
-},{}],30:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 // locate-end
 // © Will Smart 2018. Licence: MIT
 
@@ -5186,16 +5154,17 @@ function locateEnd(string, closeChar, openIndex = 0) {
   }
 }
 
-},{}],31:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 module.exports = log;
 
-const enabledLogs = { err: true, dom: true, ws: true };
+const enabledLogs = { err: true, diff: false, verbose: false, other: { verbose: false, other: true } };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;
   for (const part of module.split('.')) {
     let val = parent[part];
     if (!val) {
+      if (val === false) return false;
       val = parent.other;
       if (!val) return false;
     }
@@ -5227,7 +5196,7 @@ if (typeof window !== 'undefined') {
   window.disableNoboLog = log.disableLog;
 }
 
-},{}],32:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 // map_values
 // © Will Smart 2018. Licence: MIT
 
@@ -5248,7 +5217,7 @@ function mapValues(object, fn) {
   return ret;
 }
 
-},{}],33:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 // clone
 // © Will Smart 2018. Licence: MIT
 
@@ -5300,7 +5269,7 @@ function _cloneShowingElementNames(value) {
   return { clone: value };
 }
 
-},{}],34:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 // names-from-code
 // © Will Smart 2018. Licence: MIT
 
@@ -5426,7 +5395,7 @@ function addNamesFromCodeString(codeString, names) {
   }
 }
 
-},{"./locate-end":30,"./unicode-categories":39}],35:[function(require,module,exports){
+},{"./locate-end":29,"./unicode-categories":38}],34:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -5543,7 +5512,7 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
   return PublicClass;
 }
 
-},{}],36:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 const strippedValues = require('./stripped-values');
 const ConvertIds = require('../datapoints/convert-ids');
 const PublicApi = require('./public-api');
@@ -5803,7 +5772,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"./code-snippet":27,"./public-api":35,"./stripped-values":38}],37:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"./code-snippet":26,"./public-api":34,"./stripped-values":37}],36:[function(require,module,exports){
 // state-var
 // © Will Smart 2018. Licence: MIT
 
@@ -5854,7 +5823,7 @@ class StateVar {
     if (deletionsObject) {
       for (const key of Object.keys(deletionsObject)) {
         const datapointId = StateVar.datapointId(`${path}.${key}`),
-          datapoint = cache.getExistingDatapoint({ datapointId });
+          datapoint = cache.getExistingDatapoint(datapointId);
         if (datapoint) {
           datapoint.setValue(undefined);
         }
@@ -5880,7 +5849,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"./change-detector-object":26,"./public-api":35}],38:[function(require,module,exports){
+},{"../datapoints/convert-ids":8,"./change-detector-object":25,"./public-api":34}],37:[function(require,module,exports){
 const mapValues = require('../general/map-values');
 
 // API
@@ -5893,7 +5862,7 @@ function strippedValues(object) {
   );
 }
 
-},{"../general/map-values":32}],39:[function(require,module,exports){
+},{"../general/map-values":31}],38:[function(require,module,exports){
 // unicode-regex-categories
 // © Will Smart 2018. Licence: MIT
 // with thanks to http://inimino.org/~inimino/blog/javascript_cset also under MIT licence
@@ -5932,7 +5901,7 @@ module.exports = {
   varInnard,
 };
 
-},{}],40:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 // watchable
 // © Will Smart 2018. Licence: MIT
 
@@ -6008,7 +5977,7 @@ function makeClassWatchable(watchableClass) {
   });
 }
 
-},{}],41:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 // wrap-function-locals
 // © Will Smart 2018. Licence: MIT
 
@@ -6083,7 +6052,7 @@ function wrappedCodeString({ vars, codeString, isExpression }) {
   }
 }
 
-},{"../general/log":31,"./names-from-code-string":34}],42:[function(require,module,exports){
+},{"../general/log":30,"./names-from-code-string":33}],41:[function(require,module,exports){
 var upperCase = require('upper-case')
 var noCase = require('no-case')
 
@@ -6108,7 +6077,7 @@ module.exports = function (value, locale, mergeNumbers) {
   })
 }
 
-},{"no-case":53,"upper-case":66}],43:[function(require,module,exports){
+},{"no-case":52,"upper-case":65}],42:[function(require,module,exports){
 exports.no = exports.noCase = require('no-case')
 exports.dot = exports.dotCase = require('dot-case')
 exports.swap = exports.swapCase = require('swap-case')
@@ -6128,7 +6097,7 @@ exports.isLower = exports.isLowerCase = require('is-lower-case')
 exports.ucFirst = exports.upperCaseFirst = require('upper-case-first')
 exports.lcFirst = exports.lowerCaseFirst = require('lower-case-first')
 
-},{"camel-case":42,"constant-case":44,"dot-case":45,"header-case":46,"is-lower-case":47,"is-upper-case":48,"lower-case":52,"lower-case-first":51,"no-case":53,"param-case":57,"pascal-case":58,"path-case":59,"sentence-case":61,"snake-case":62,"swap-case":63,"title-case":64,"upper-case":66,"upper-case-first":65}],44:[function(require,module,exports){
+},{"camel-case":41,"constant-case":43,"dot-case":44,"header-case":45,"is-lower-case":46,"is-upper-case":47,"lower-case":51,"lower-case-first":50,"no-case":52,"param-case":56,"pascal-case":57,"path-case":58,"sentence-case":60,"snake-case":61,"swap-case":62,"title-case":63,"upper-case":65,"upper-case-first":64}],43:[function(require,module,exports){
 var upperCase = require('upper-case')
 var snakeCase = require('snake-case')
 
@@ -6143,7 +6112,7 @@ module.exports = function (value, locale) {
   return upperCase(snakeCase(value, locale), locale)
 }
 
-},{"snake-case":62,"upper-case":66}],45:[function(require,module,exports){
+},{"snake-case":61,"upper-case":65}],44:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6157,7 +6126,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '.')
 }
 
-},{"no-case":53}],46:[function(require,module,exports){
+},{"no-case":52}],45:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCase = require('upper-case')
 
@@ -6174,7 +6143,7 @@ module.exports = function (value, locale) {
   })
 }
 
-},{"no-case":53,"upper-case":66}],47:[function(require,module,exports){
+},{"no-case":52,"upper-case":65}],46:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 /**
@@ -6188,7 +6157,7 @@ module.exports = function (string, locale) {
   return lowerCase(string, locale) === string
 }
 
-},{"lower-case":52}],48:[function(require,module,exports){
+},{"lower-case":51}],47:[function(require,module,exports){
 var upperCase = require('upper-case')
 
 /**
@@ -6202,7 +6171,7 @@ module.exports = function (string, locale) {
   return upperCase(string, locale) === string
 }
 
-},{"upper-case":66}],49:[function(require,module,exports){
+},{"upper-case":65}],48:[function(require,module,exports){
 (function (global){
 // https://github.com/maxogden/websocket-stream/blob/48dc3ddf943e5ada668c31ccd94e9186f02fafbd/ws-fallback.js
 
@@ -6223,7 +6192,7 @@ if (typeof WebSocket !== 'undefined') {
 module.exports = ws
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],50:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 exports = module.exports = stringify
 exports.getSerialize = serializer
 
@@ -6252,7 +6221,7 @@ function serializer(replacer, cycleReplacer) {
   }
 }
 
-},{}],51:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 /**
@@ -6271,7 +6240,7 @@ module.exports = function (str, locale) {
   return lowerCase(str.charAt(0), locale) + str.substr(1)
 }
 
-},{"lower-case":52}],52:[function(require,module,exports){
+},{"lower-case":51}],51:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -6327,7 +6296,7 @@ module.exports = function (str, locale) {
   return str.toLowerCase()
 }
 
-},{}],53:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 var NON_WORD_REGEXP = require('./vendor/non-word-regexp')
@@ -6369,16 +6338,16 @@ module.exports = function (str, locale, replacement) {
   return lowerCase(str, locale)
 }
 
-},{"./vendor/camel-case-regexp":54,"./vendor/camel-case-upper-regexp":55,"./vendor/non-word-regexp":56,"lower-case":52}],54:[function(require,module,exports){
+},{"./vendor/camel-case-regexp":53,"./vendor/camel-case-upper-regexp":54,"./vendor/non-word-regexp":55,"lower-case":51}],53:[function(require,module,exports){
 module.exports = /([a-z\xB5\xDF-\xF6\xF8-\xFF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0529\u052B\u052D\u052F\u0561-\u0587\u13F8-\u13FD\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA699\uA69B\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793-\uA795\uA797\uA799\uA79B\uA79D\uA79F\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7B5\uA7B7\uA7FA\uAB30-\uAB5A\uAB60-\uAB65\uAB70-\uABBF\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A0-9\xB2\xB3\xB9\xBC-\xBE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A])/g
 
-},{}],55:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 module.exports = /([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A])([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A][a-z\xB5\xDF-\xF6\xF8-\xFF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0529\u052B\u052D\u052F\u0561-\u0587\u13F8-\u13FD\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA699\uA69B\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793-\uA795\uA797\uA799\uA79B\uA79D\uA79F\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7B5\uA7B7\uA7FA\uAB30-\uAB5A\uAB60-\uAB65\uAB70-\uABBF\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A])/g
 
-},{}],56:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 module.exports = /[^A-Za-z\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u08A0-\u08B4\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16F1-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2183\u2184\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005\u3006\u3031-\u3035\u303B\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312D\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FD5\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6E5\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AD\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC0-9\xB2\xB3\xB9\xBC-\xBE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19]+/g
 
-},{}],57:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6392,7 +6361,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '-')
 }
 
-},{"no-case":53}],58:[function(require,module,exports){
+},{"no-case":52}],57:[function(require,module,exports){
 var camelCase = require('camel-case')
 var upperCaseFirst = require('upper-case-first')
 
@@ -6408,7 +6377,7 @@ module.exports = function (value, locale, mergeNumbers) {
   return upperCaseFirst(camelCase(value, locale, mergeNumbers), locale)
 }
 
-},{"camel-case":42,"upper-case-first":65}],59:[function(require,module,exports){
+},{"camel-case":41,"upper-case-first":64}],58:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6422,7 +6391,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '/')
 }
 
-},{"no-case":53}],60:[function(require,module,exports){
+},{"no-case":52}],59:[function(require,module,exports){
 /*
  * random-seed
  * https://github.com/skratchdot/random-seed
@@ -6692,7 +6661,7 @@ uheprng.create = function (seed) {
 };
 module.exports = uheprng;
 
-},{"json-stringify-safe":50}],61:[function(require,module,exports){
+},{"json-stringify-safe":49}],60:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCaseFirst = require('upper-case-first')
 
@@ -6707,7 +6676,7 @@ module.exports = function (value, locale) {
   return upperCaseFirst(noCase(value, locale), locale)
 }
 
-},{"no-case":53,"upper-case-first":65}],62:[function(require,module,exports){
+},{"no-case":52,"upper-case-first":64}],61:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6721,7 +6690,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '_')
 }
 
-},{"no-case":53}],63:[function(require,module,exports){
+},{"no-case":52}],62:[function(require,module,exports){
 var upperCase = require('upper-case')
 var lowerCase = require('lower-case')
 
@@ -6750,7 +6719,7 @@ module.exports = function (str, locale) {
   return result
 }
 
-},{"lower-case":52,"upper-case":66}],64:[function(require,module,exports){
+},{"lower-case":51,"upper-case":65}],63:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCase = require('upper-case')
 
@@ -6767,7 +6736,7 @@ module.exports = function (value, locale) {
   })
 }
 
-},{"no-case":53,"upper-case":66}],65:[function(require,module,exports){
+},{"no-case":52,"upper-case":65}],64:[function(require,module,exports){
 var upperCase = require('upper-case')
 
 /**
@@ -6786,7 +6755,7 @@ module.exports = function (str, locale) {
   return upperCase(str.charAt(0), locale) + str.substr(1)
 }
 
-},{"upper-case":66}],66:[function(require,module,exports){
+},{"upper-case":65}],65:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -6838,7 +6807,7 @@ module.exports = function (str, locale) {
   return str.toUpperCase()
 }
 
-},{}],67:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 const WebSocket = require('isomorphic-ws');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
@@ -7017,347 +6986,61 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../client/page-state":5,"../general/log":31,"../general/public-api":35,"../general/watchable":40,"isomorphic-ws":49}],68:[function(require,module,exports){
-const { applyDiff, createDiff } = require('../general/diff');
+},{"../client/page-state":5,"../general/log":30,"../general/public-api":34,"../general/watchable":39,"isomorphic-ws":48}],67:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
-const isEqual = require('../general/is-equal');
-const ConvertIds = require('../datapoints/convert-ids');
-const RequiredDatapoints = require('../datapoints/required-datapoints');
 const log = require('../general/log');
-
-const ValueHistoryLength = 1;
+const isEqual = require('../general/is-equal');
 
 // API is auto-generated at the bottom from the public interface of the WebSocketProtocol class
 
-class WebSocketConnection {
-  constructor({ ws, wsp }) {
-    const wsc = this,
-      index = wsp.nextConnectionIndex++;
+class WebSocketDatapoint {
+  constructor({ datapointId, wsp }) {
+    const wsd = this,
+      { cache } = wsp;
 
-    Object.assign(wsc, {
+    const datapoint = cache.getOrCreateDatapoint(datapointId);
+
+    Object.assign(wsd, {
+      datapointId,
+      datapoint,
       wsp,
-      ws,
-      index,
-      datapoints: {},
-      callbackKey: `wsc-${index}`,
-      localDBRowIds: {},
+      myVersion: 1,
+      theirVersion: 1,
+      myValue: undefined,
+      resolvers: [],
     });
 
-    ws.watch({
-      callbackKey: wsc.callbackKey,
-      onclose: () => {
-        wsc.close();
-      },
-      onpayload: ({ messageType, payloadObject }) => {
-        if (messageType == 'datapoints') {
-          wsc.handleDatapointPayload(payloadObject);
-        }
-      },
+    datapoint.deletionCallbacks.push(() => wsp.deleteDatapoint(datapointId));
+
+    wsp.queueSendDatapoint(datapointId);
+  }
+
+  get valueIfAny() {
+    return this.myValue;
+  }
+
+  get value() {
+    const wsd = this,
+      { myVersion, theirVersion } = wsd;
+    if (theirVersion > 1 && myVersion >= theirVersion) return wsd.myValue;
+    return new Promise(resolve => {
+      wsd.resolvers.push(resolve);
     });
+  }
 
-    wsp.connections[index] = wsc;
+  setValue(newValue) {
+    const wsd = this,
+      { myVersion, theirVersion, datapointId, resolvers } = wsd;
+    wsd.myVersion = Math.floor((Math.max(myVersion, theirVersion) + 1) / 2) * 2 + 1;
+    wsd.myValue = newValue;
 
-    if (!wsp.isServer) {
-      for (const datapoint of wsp.cache.datapoints) {
-        if (datapoint.isClient) continue;
-        wsp.queueSendDatapoint({
-          theirDatapointId: datapoint.datapointId,
-          datapointId: datapoint.datapointId,
-          index,
-        });
+    if (resolvers.length) {
+      wsd.resolvers = [];
+      for (const resolver of resolvers) {
+        resolver(newValue);
       }
     }
-  }
-
-  close() {
-    const wsc = this,
-      { callbackKey, wsp, index, ws, datapoints } = wsc;
-
-    ws.stopWatching({ callbackKey });
-
-    for (const datapointId of Object.keys(datapoints)) wsc.deleteDatapoint(datapointId);
-
-    delete wsp.connections[index];
-
-    wsc.datapoints = {};
-  }
-
-  handleDatapointPayload(payloadObject) {
-    const wsc = this,
-      { ws } = wsc;
-
-    if (!payloadObject || Array.isArray(payloadObject) || typeof payloadObject != 'object') return;
-
-    for (const [theirDatapointId, msgData] of Object.entries(payloadObject)) {
-      if (typeof msgData == 'number') {
-        wsc.handleVersionNumber({ theirDatapointId, version: msgData });
-      } else if (typeof msgData == 'object') {
-        let { version, value, diff, baseVersion } = msgData;
-        if (!version || !(value !== undefined || (diff !== undefined && baseVersion))) {
-          log('err', `Bad msg data for datapoint ${theirDatapointId} ${JSON.stringify(msgData)}`);
-          continue;
-        }
-        wsc.handleVersionValue({ theirDatapointId, version, value, diff, baseVersion });
-      }
-    }
-  }
-
-  // semi-async
-  makeConcreteDatapointId(theirDatapointId) {
-    const { rowProxy } = this.ws;
-    if (!rowProxy) return theirDatapointId;
-    const datapointInfo = rowProxy.makeConcrete({ datapointId: theirDatapointId });
-    if (!datapointInfo) return 'unknown__1__';
-    if (datapointInfo.then) return datapointInfo.then(datapointInfo => datapointInfo.datapointId);
-    return datapointInfo.datapointId;
-  }
-
-  // other side is saying "I've got this version"
-  // reply options are:
-  // (A)  "I know" (no reply)
-  // (B)  "Oh, that's higher that I mine" (reply with my version number)
-  // (C)  "Well, I've got this higher version, which I haven't told you about" (reply with the diff to the newer version)
-  // (D)  "Well, I've got this higher version, which I've already told you about" (reply with the value of the newer version)
-  // the server also has to deal with:
-  // (E)  "Oh, I didn't think you knew about that datapoint" (subscribe the client to datapoint changes)
-  // (F)  "Version 0 eh, ok you're unsubscribed" (version 0 is the client's way of unsubscribing to updates for a datapoint)
-  handleVersionNumber({ theirDatapointId, version }) {
-    const wsc = this,
-      { wsp, index, ws } = wsc;
-    let cdatapoint = wsc.datapoints[theirDatapointId];
-
-    if (!cdatapoint) {
-      if (version == 0) return;
-
-      if (!wsp.isServer) {
-        if (version == 1) {
-          const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
-          if (datapointId.then) datapointId.then(handleDatapointId);
-          else handleDatapointId(datapointId);
-
-          function handleDatapointId(datapointId) {
-            if (!datapointId) return;
-            const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
-            if (!datapoint.initialized) {
-              datapoint.setValue(undefined);
-            }
-          }
-        }
-        return;
-      }
-
-      cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-
-      if (wsp.isServer && ws.rowProxy) {
-        const { rowId, fieldName } = ConvertIds.decomposeId({ datapointId: theirDatapointId });
-        const match = /^template_?(.*)$/.exec(fieldName);
-        if (match) {
-          const variant = match[1];
-          wsp.requiredDatapoints
-            .forView({ rowId, variant, rowProxy: ws.rowProxy, userId: ws.userId })
-            .then(datapoints => {
-              for (const [theirDatapointId, { datapoint, callbackKey }] of Object.entries(datapoints)) {
-                const cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-                if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
-                else handleCDatapoint(cdatapoint);
-
-                function handleCDatapoint(cdatapoint) {
-                  const datapointId = cdatapoint.datapointId || theirDatapointId;
-                  wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-                  datapoint.stopWatching({ callbackKey });
-                }
-              }
-            });
-        }
-      }
-    }
-
-    if (!version) {
-      wsc.deleteDatapoint(theirDatapointId);
-      return;
-    }
-
-    if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
-    else handleCDatapoint(cdatapoint);
-
-    function handleCDatapoint(cdatapoint) {
-      cdatapoint.theirVersion = version;
-      if (cdatapoint.theirVersion == cdatapoint.myVersion) return;
-
-      const datapointId = cdatapoint.datapointId || theirDatapointId;
-
-      wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-    }
-  }
-
-  // other side is saying "Version msgData.version has value msgData.value"
-  //   or "Version msgData.version is the result of applying msgData.diff to version msgData.baseVersion"
-  // reply options are:
-  // A  "Snap! I've got that too" (reply with my version number)
-  // B  "Cool, that's higher that I mine and I've got the new value" (reply with my version number)
-  // C  "Well, I've got this higher version" (reply with the value of the newer version)
-  // D  "Um, I don't have that baseVersion you speak of" (reply with my version number)
-  // E  "Eek, I tried that diff and it didn't fit" (reply with my version number)
-  // the server also has to deal with:
-  // F  "Oh, I didn't think you knew about that datapoint" (subscribe the client to datapoint changes)
-  handleVersionValue({ theirDatapointId, version, value, diff, baseVersion }) {
-    const wsc = this,
-      { wsp, index } = wsc;
-    let cdatapoint = wsc.datapoints[theirDatapointId];
-
-    if (version <= 1) return;
-
-    if (!cdatapoint) {
-      // todo client should start a timer
-      cdatapoint = wsc.getOrCreateDatapoint(theirDatapointId);
-    }
-
-    if (cdatapoint.then) cdatapoint.then(handleCDatapoint);
-    else handleCDatapoint(cdatapoint);
-
-    function handleCDatapoint(cdatapoint) {
-      const datapointId = cdatapoint.datapointId || theirDatapointId;
-
-      cdatapoint.theirVersion = version;
-
-      if (cdatapoint.theirVersion > cdatapoint.myVersion) {
-        if (baseVersion) {
-          const pdatapoint = wsp.datapoints[datapointId];
-          let base;
-          for (const valueInfo of pdatapoint.values) {
-            if (valueInfo.versionByConnectionIndex[index] == baseVersion) {
-              base = valueInfo.value;
-            }
-          }
-          if (base !== undefined) {
-            value = applyDiff({ diff, base });
-            if (value === undefined) {
-              log(
-                'err',
-                `Couldn't apply diff for datapoint ${theirDatapointId}\n   Base: ${JSON.stringify(
-                  base
-                )}\n   Diff: ${JSON.stringify(diff)}`
-              );
-            }
-          }
-        }
-        if (value !== undefined) {
-          const datapoint = wsp.cache.getOrCreateDatapoint(datapointId);
-          wsp.addDatapointValue({
-            datapointId,
-            value,
-            versionByConnectionIndex: { [index]: cdatapoint.theirVersion },
-          });
-          if (wsp.isServer) {
-            datapoint.updateValue({ newValue: value });
-          } else {
-            datapoint.setValue(value);
-          }
-        }
-      }
-
-      wsp.queueSendDatapoint({ theirDatapointId, datapointId, index });
-    }
-  }
-
-  deleteDatapoint(theirDatapointId) {
-    const wsc = this,
-      { wsp, index } = wsc,
-      cdatapoint = wsc.datapoints[theirDatapointId];
-    if (!cdatapoint) return;
-    delete wsc.datapoints[theirDatapointId];
-
-    const datapointId = cdatapoint.datapointId || theirDatapointId,
-      pdatapoint = wsp.datapoints[datapointId];
-
-    if (pdatapoint) {
-      for (const valueInfo of pdatapoint.values) {
-        delete valueInfo.versionByConnectionIndex[index];
-      }
-      delete pdatapoint.connectionIndexes[index][theirDatapointId];
-      if (!Object.keys(pdatapoint.connectionIndexes[index]).length) {
-        delete pdatapoint.connectionIndexes[index];
-
-        if (!Object.keys(pdatapoint.connectionIndexes).length) {
-          wsp.deleteDatapoint(datapointId);
-        }
-      }
-    }
-  }
-
-  // semi-async
-  getOrCreateDatapoint(theirDatapointId) {
-    const wsc = this,
-      { wsp, index } = wsc;
-    let cdatapoint = wsc.datapoints[theirDatapointId];
-    if (cdatapoint) return cdatapoint;
-
-    const datapointId = wsc.makeConcreteDatapointId(theirDatapointId);
-    if (datapointId.then) return datapointId.then(handleDatapointId);
-    else return handleDatapointId(datapointId);
-
-    function handleDatapointId(datapointId) {
-      let pdatapoint = wsp.datapoints[datapointId];
-
-      cdatapoint = wsc.datapoints[theirDatapointId] = {
-        myVersion: 1,
-        theirVersion: 0,
-        datapointId: datapointId == theirDatapointId ? undefined : datapointId,
-      };
-
-      if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-
-      (pdatapoint.connectionIndexes[index] = pdatapoint.connectionIndexes[index] || {})[theirDatapointId] = true;
-
-      if (pdatapoint.values.length) {
-        cdatapoint.myVersion = 2 + (wsp.isServer ? 1 : 0);
-      }
-      return cdatapoint;
-    }
-  }
-
-  payload({ theirDatapointId, datapointId, values }) {
-    const wsc = this,
-      { index, datapoints, wsp, ws } = wsc,
-      cdatapoint = datapoints[theirDatapointId];
-
-    if (!cdatapoint) return 1;
-
-    if (!values.length) {
-      cdatapoint.myVersion = 1;
-      return 1;
-    }
-
-    const valueInfo = values[values.length - 1];
-
-    let myVersion = valueInfo.versionByConnectionIndex[index];
-    if (myVersion === undefined) {
-      const maxVersion = Math.max(cdatapoint.theirVersion, cdatapoint.myVersion),
-        nextEvenVersion = Math.floor(maxVersion / 2 + 1) * 2;
-      myVersion = valueInfo.versionByConnectionIndex[index] = nextEvenVersion + (wsp.isServer ? 1 : 0);
-    }
-    cdatapoint.myVersion = myVersion;
-
-    if (myVersion <= 1 || myVersion <= cdatapoint.theirVersion) return myVersion;
-
-    const prevValueInfo = values.find(
-      valueInfo => valueInfo.versionByConnectionIndex[index] === cdatapoint.theirVersion
-    );
-    if (prevValueInfo) {
-      // TODO do a diff
-    }
-
-    let { value } = valueInfo;
-    if (value && typeof value == 'object' && value.public !== undefined) {
-      const { public: publicValue, private: privateValue, ownerId } = value,
-        userId = ws.userId;
-      value = (ownerId ? ownerId == userId : !userId) ? privateValue || publicValue : publicValue;
-    }
-    return { version: myVersion, value };
-  }
-
-  sendPayload({ payloadObject }) {
-    this.ws.sendPayload({ messageType: 'datapoints', payloadObject });
+    wsp.queueSendDatapoint(datapointId);
   }
 }
 
@@ -7367,175 +7050,156 @@ class WebSocketProtocol {
     return [];
   }
 
-  constructor({ cache, dbConnection, ws, isServer }) {
+  constructor({ cache, ws }) {
     const wsp = this;
 
-    wsp.isServer = isServer;
-    wsp.dbConnection = dbConnection;
-    wsp.cache = cache;
-    wsp.requiredDatapoints = new RequiredDatapoints({ cache });
-    wsp.queuedDatapoints = {};
-    wsp.queueTimer = undefined;
-    wsp.queueDelay = 1;
-    wsp.datapoints = {};
-    wsp.nextConnectionIndex = 1; //owned by WebSocketConnection
-    wsp.connections = {}; //owned by WebSocketConnection
-
-    const callbackKey = (wsp.callbackKey = 'wsp');
-    ws.watch({
-      callbackKey,
-      onclientConnected: client => {
-        new WebSocketConnection({ ws: client, wsp });
-      },
-      onopen: () => {
-        new WebSocketConnection({ ws, wsp });
-      },
+    Object.assign(wsp, {
+      cache,
+      ws,
+      datapoints: {},
+      sendDelay: 10,
+      queueTimeout: undefined,
+      queuedDatapoints: {},
+      client: undefined,
     });
 
-    if (!wsp.isServer) {
-      cache.watch({
-        callbackKey,
-        oncreate: datapoint => {
-          const { datapointId } = datapoint;
-          if (wsp.datapoints[datapointId]) return;
-          const datapointInfo = ConvertIds.decomposeId({ datapointId });
-          if (datapointInfo.proxyKey && datapointInfo.fieldName != 'id' && /^l\d+$/.test(datapointInfo.proxyKey)) {
-            const dbRowIdDatapointId = ConvertIds.recomposeId(datapointInfo, { fieldName: 'id' }).datapointId;
-            cache.getOrCreateDatapoint(dbRowIdDatapointId);
-          }
-          if (datapoint.isClient) return;
-          for (const wsc of Object.values(wsp.connections)) {
-            wsc.getOrCreateDatapoint(datapointId);
-          }
-          const pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-          if (!datapoint.initialized) {
-            wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
-          } else {
-            wsp.addDatapointValue({
-              datapointId,
-              value: datapoint.valueIfAny,
-            });
-          }
+    cache.getterSetterInfo.finders.push(function({ datapoint, cache, schema }) {
+      const { typeName, datapointId } = datapoint,
+        type = schema.allTypes[typeName];
+
+      if (!type || datapoint.isClient) return;
+
+      return {
+        getter: {
+          fn: () => wsp.getOrCreateDatapoint(datapointId).value,
         },
-      });
-    }
+        setter: {
+          fn: newValue => {
+            wsp.getOrCreateDatapoint(datapointId).setValue(newValue);
+            return newValue;
+          },
+        },
+      };
+    });
+
+    ws.watch({
+      callbackKey: 'wsp',
+      onclose: () => {
+        wsp.client = undefined;
+
+        for (const wsd of Object.values(wsp.datapoints)) {
+          wsd.myVersion = wsd.myVersion > wsd.theirVersion ? 3 : 1;
+          wsd.theirVersion = 2;
+        }
+      },
+      onopen: client => {
+        wsp.client = ws;
+        wsp.queueSendDatapoint();
+      },
+      onpayload: ({ messageType, payloadObject }) => {
+        if (messageType == 'datapoints' || !payloadObject || typeof payloadObject != 'object') {
+          for (const [datapointId, payloadValue] of Object.entries(payloadObject)) {
+            const wsd = wsp.getOrCreateDatapoint(datapointId);
+            if (typeof payloadValue == 'number') {
+              const version = payloadValue;
+              if (wsd.theirVersion == version) continue;
+              wsd.theirVersion = version;
+              if (wsd.myVersion != version) {
+                wsp.queueSendDatapoint(datapointId);
+              }
+            } else if (payloadValue && typeof payloadValue == 'object' && payloadValue.version) {
+              const { version, value } = payloadValue;
+              if (wsd.theirVersion == version) continue;
+              wsd.theirVersion = version;
+              if (wsd.myVersion != version) {
+                if (wsd.myVersion > version) {
+                  wsp.queueSendDatapoint(datapointId);
+                }
+                if (wsd.myVersion < version) {
+                  wsd.myVersion = version;
+                  if (!isEqual(value, wsd.myValue, { exact: true })) {
+                    wsd.myValue = value;
+                    wsd.datapoint.invalidate();
+                  }
+                  const { resolvers } = wsd;
+                  if (resolvers.length) {
+                    wsd.resolvers = [];
+                    for (const resolver of resolvers) {
+                      resolver(value);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+    });
+  }
+
+  getExistingDatapoint(datapointId) {
+    const wsp = this,
+      { datapoints } = wsp;
+    return datapoints[datapointId];
   }
 
   getOrCreateDatapoint(datapointId) {
     const wsp = this,
-      { cache, callbackKey } = wsp;
-    let pdatapoint = wsp.datapoints[datapointId];
-
-    if (pdatapoint) return pdatapoint;
-    pdatapoint = wsp.datapoints[datapointId] = {
-      values: [],
-      connectionIndexes: {},
-    };
-
-    const datapoint = cache.getOrCreateDatapoint(datapointId);
-    datapoint.watch({
-      callbackKey,
-      onchange: datapoint => {
-        const { valueIfAny: value, datapointId } = datapoint;
-        wsp.addDatapointValue({
-          datapointId,
-          value,
-        });
-      },
-    });
-    if (datapoint.initialized && datapoint.valueIfAny != null)
-      wsp.addDatapointValue({ datapointId, value: datapoint.valueIfAny });
-
-    return pdatapoint;
-  }
-
-  addDatapointValue({ datapointId, value, versionByConnectionIndex = {} }) {
-    if (value === undefined) value = null;
-
-    const wsp = this;
-    let pdatapoint = wsp.datapoints[datapointId];
-    if (!pdatapoint) pdatapoint = wsp.getOrCreateDatapoint(datapointId);
-    const { values } = pdatapoint;
-
-    if (values.length && isEqual(value, values[values.length - 1].value)) {
-      if (versionByConnectionIndex) {
-        Object.assign(values[values.length - 1].versionByConnectionIndex, versionByConnectionIndex);
-      }
-      return;
-    }
-
-    values.push({
-      value,
-      versionByConnectionIndex,
-    });
-
-    if (values.length > ValueHistoryLength) values.shift();
-
-    wsp.queueSendDatapoint({ datapointId, connectionIndexes: pdatapoint.connectionIndexes });
+      { datapoints } = wsp,
+      existingDatapoint = datapoints[datapointId];
+    if (existingDatapoint) return existingDatapoint;
+    return (datapoints[datapointId] = new WebSocketDatapoint({ datapointId, wsp }));
   }
 
   deleteDatapoint(datapointId) {
     const wsp = this,
-      { cache, callbackKey } = wsp,
-      pdatapoint = wsp.datapoints[datapointId];
-
-    if (!pdatapoint || Object.keys(pdatapoint.connectionIndexes).length) return;
-
-    const datapoint = cache.getExistingDatapoint({ datapointId });
-    if (datapoint) datapoint.stopWatching({ callbackKey });
-
-    delete wsp.datapoints[datapointId];
+      { datapoints } = wsp;
+    delete datapoints[datapointId];
+    wsp.queueSendDatapoint(datapointId);
   }
 
-  queueSendDatapoint({ theirDatapointId, datapointId, index, connectionIndexes }) {
+  queueSendDatapoint(datapointId) {
     const wsp = this,
-      indexes = (wsp.queuedDatapoints[datapointId] = wsp.queuedDatapoints[datapointId] || {});
-    if (index && theirDatapointId) {
-      const theirDatapointIds = (indexes[index] = Object.assign({}, indexes[index]) || {});
-      theirDatapointIds[theirDatapointId] = true;
-    }
-    if (connectionIndexes) Object.assign(indexes, connectionIndexes);
+      { queuedDatapoints, sendDelay } = wsp;
 
-    if (wsp.queueTimer === undefined) {
-      wsp.queueTimer = setTimeout(() => {
-        const queuedDatapoints = wsp.queuedDatapoints;
-        wsp.queuedDatapoints = {};
-        wsp.sendDatapoints(queuedDatapoints);
-      }, wsp.queueDelay);
-    }
+    if (datapointId) queuedDatapoints[datapointId] = true;
+
+    if (!wsp.queueTimeout)
+      wsp.queueTimeout = setTimeout(() => {
+        wsp.queueTimeout = undefined;
+        wsp.goSendDatapoints();
+      }, sendDelay);
   }
 
-  sendDatapoints(datapoints) {
+  goSendDatapoints() {
     const wsp = this,
-      { cache } = wsp;
+      { queuedDatapoints, datapoints, client } = wsp,
+      datapointIds = Object.keys(queuedDatapoints);
 
-    if (wsp.queueTimer !== undefined) {
-      clearTimeout(wsp.queueTimer);
-      wsp.queueTimer = undefined;
-    }
+    if (!client) return;
 
-    const payloadObjects = {};
+    wsp.queuedDatapoints = {};
 
-    for (const [datapointId, theirDatapointIdsByIndex] of Object.entries(datapoints)) {
-      const pdatapoint = wsp.datapoints[datapointId];
-      if (!pdatapoint) continue;
+    const payloadObject = {};
 
-      const { values } = pdatapoint;
+    for (const datapointId of datapointIds) {
+      const wsd = datapoints[datapointId];
 
-      for (const [index, theirDatapointIds] of Object.entries(theirDatapointIdsByIndex)) {
-        const wsc = wsp.connections[index];
-        if (!wsc) continue;
-        //if (wsp.isServer && (wsc.msgCount = (wsc.msgCount || 0) + 1) > 20) continue;
-
-        const payloadObject = (payloadObjects[index] = payloadObjects[index] || {});
-        for (const theirDatapointId of Object.keys(theirDatapointIds)) {
-          payloadObject[theirDatapointId] = wsc.payload({ theirDatapointId, datapointId, values, pdatapoint });
-        }
+      if (!wsd) {
+        payloadObject[datapointId] = false;
+      } else if (wsd.myVersion == wsd.theirVersion) {
+        payloadObject[datapointId] = wsd.myVersion;
+      } else if (wsd.myVersion > wsd.theirVersion) {
+        payloadObject[datapointId] = {
+          version: wsd.myVersion,
+          value: wsd.myValue,
+        };
       }
     }
-    for (const [index, payloadObject] of Object.entries(payloadObjects)) {
-      wsp.connections[index].sendPayload({ payloadObject });
-    }
+
+    if (!Object.keys(payloadObject).length) return;
+
+    client.sendPayload({ messageType: 'datapoints', payloadObject });
   }
 }
 
@@ -7545,4 +7209,4 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../datapoints/required-datapoints":17,"../general/diff":28,"../general/is-equal":29,"../general/log":31,"../general/public-api":35}]},{},[3]);
+},{"../general/is-equal":28,"../general/log":30,"../general/public-api":34}]},{},[3]);

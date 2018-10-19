@@ -1,113 +1,64 @@
-const { fieldNameRegex, rowRegex, recomposeId } = require('../../datapoints/convert-ids');
 const log = require('../../general/log');
 
 module.exports = addDependencyMethods;
 
-let nextStateIndex = 1;
 function addDependencyMethods(watchableClass) {
   Object.assign(watchableClass.prototype, {
-    refreshDependencies: function(names, type) {
-      const datapoint = this,
-        { rowId } = datapoint;
-      const state =
-        datapoint[`${type}State`] ||
-        (datapoint[`${type}State`] = {
-          children: {},
-        });
-      datapoint._refreshDependencies(names, rowId, state, 'root');
-    },
-
     clearDependencies() {
-      const datapoint = this,
-        { rowId } = datapoint,
-        state = datapoint[`${type}State`];
-      if (!state) return;
-      datapoint._refreshDependencies(undefined, rowId, state, 'root');
+      this.setDependencies();
     },
 
-    _refreshDependencies: function(names, parentRowId, parentState, myFieldName) {
+    dependenciesOfType(type) {
+      const datapoint = this;
+      const dependenciesByType = datapoint.dependenciesByType || (datapoint.dependenciesByType = {});
+      return dependenciesByType[type] || (dependenciesByType[type] = {});
+    },
+
+    dependentsOfType(type) {
+      const datapoint = this;
+      const dependentsByType = datapoint.dependentsByType || (datapoint.dependentsByType = {});
+      return dependentsByType[type] || (dependentsByType[type] = {});
+    },
+
+    setDependenciesOfType(type, newDependencies) {
       const datapoint = this,
-        { cache } = datapoint;
-      let state = parentState.children['.state'];
-      if (!state) {
-        state = parentState.children['.state'] = {
-          index: nextStateIndex++,
-          fieldName: myFieldName,
-          parentState,
-          fields: {},
-          children: {},
-          sourceDatapointId: undefined,
-        };
+        { cache } = datapoint,
+        dependencies = datapoint.dependenciesOfType(type);
+
+      let changed;
+      for (const dependencyDatapointId of Object.keys(dependencies)) {
+        if (!(newDependencies && newDependencies[dependencyDatapointId])) {
+          const dependencyDatapoint = cache.getExistingDatapoint(dependencyDatapointId);
+          datapoint._removeDependency(dependencyDatapoint, type);
+          changed = true;
+        }
       }
-
-      if (!names || typeof names != 'object') names = {};
-
-      const sourceDatapointId = names['.datapointId'];
-      if (sourceDatapointId) {
-        const sourceDatapoint = cache.getOrCreateDatapoint(sourceDatapointId);
-        if (sourceDatapointId != state.sourceDatapointId) {
-          if (state.sourceDatapointId) {
-            datapoint._removeDependency({
-              dependencyDatapoint: cache.getOrCreateDatapoint(state.sourceDatapointId),
-              type: 'source',
-              state,
-            });
-          }
-          if ((state.sourceDatapointId = sourceDatapointId)) {
-            datapoint._addDependency({
-              dependencyDatapoint: sourceDatapoint,
-              type: 'source',
-              state,
-            });
+      if (newDependencies) {
+        for (const dependencyDatapointId of Object.keys(newDependencies)) {
+          if (!dependencies[dependencyDatapointId]) {
+            const dependencyDatapoint = cache.getOrCreateDatapoint(dependencyDatapointId);
+            datapoint._addDependency(dependencyDatapoint, type);
+            changed = true;
           }
         }
-        parentRowId = sourceDatapoint._valueAsRowId;
       }
-
-      for (const [fieldName, children] of Object.entries(names)) {
-        if (!fieldNameRegex.test(fieldName)) continue;
-
-        if (!((children && children['.datapointId']) || state.fields[fieldName])) {
-          state.fields[fieldName] = true;
-          const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
-            fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
-          datapoint._addDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
-        }
-
-        if (state.children[fieldName] || (children && typeof children == 'object')) {
-          datapoint._refreshDependencies(children, parentRowId, state, fieldName);
-        }
-      }
-
-      for (const fieldName of Object.keys(state.fields)) {
-        if (fieldName in names) continue;
-
-        delete state.fields[fieldName];
-        const fieldDatapointId = recomposeId({ rowId: parentRowId, fieldName }).datapointId,
-          fieldDatapoint = cache.getOrCreateDatapoint(fieldDatapointId);
-        datapoint._removeDependency({ dependencyDatapoint: fieldDatapoint, type: 'field', state });
-
-        if (state.children[fieldName]) {
-          datapoint._refreshDependencies(undefined, parentRowId, state, fieldName);
-          delete state.children[fieldName];
-        }
+      if (changed) {
+        datapoint.dependenciesByType[type] = newDependencies ? Object.assign({}, newDependencies) : {};
       }
     },
 
-    _addDependency({ dependencyDatapoint, type, state }) {
+    _addDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
-        dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {});
-      let dependentInfo = dependencyDependents[dependentDatapointId],
-        dependencyInfo = dependentDependencies[dependencyDatapointId],
-        stateKey = `${type}:${state.index}`;
+        dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {}),
+        dependencyDependentInfo =
+          dependencyDependents[dependentDatapointId] || (dependencyDependents[dependentDatapointId] = {}),
+        dependentDependencyInfo =
+          dependentDependencies[dependencyDatapointId] || (dependentDependencies[dependencyDatapointId] = {});
 
-      if (!dependentInfo) {
-        dependentInfo = dependencyDependents[dependentDatapointId] = {};
-        dependencyInfo = dependentDependencies[dependencyDatapointId] = {};
-
+      if (!Object.keys(dependencyDependentInfo).length) {
         dependentDatapoint.dependencyCount = (dependentDatapoint.dependencyCount || 0) + 1;
         if (!dependencyDatapoint.dependentCount) {
           dependencyDatapoint.dependentCount = 1;
@@ -122,56 +73,43 @@ function addDependencyMethods(watchableClass) {
             dependentDatapoint.invalidate();
           } else dependentDatapoint.invalidDependencyCount++;
         }
-      } else if (dependentInfo[stateKey]) return;
+      }
 
-      dependentInfo[stateKey] = dependencyInfo[stateKey] = { type, state };
+      dependentDependencyInfo[type] = dependencyDependentInfo[type] = type;
     },
 
-    _removeDependency({ dependencyDatapoint, type, state }) {
+    _removeDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
         dependentDependencies = dependentDatapoint.dependencies || (dependentDatapoint.dependencies = {}),
-        dependentInfo = dependencyDependents[dependentDatapointId],
-        dependencyInfo = dependentDependencies[dependencyDatapointId],
-        stateKey = `${type}:${state.index}`;
+        dependencyDependentInfo = dependencyDependents[dependentDatapointId],
+        dependentDependencyInfo = dependentDependencies[dependencyDatapointId];
 
-      if (!(dependentInfo && dependentInfo[stateKey])) {
+      if (!(dependencyDependentInfo && dependencyDependentInfo[type])) {
         log(
           'err.dp',
-          `Expected to find a that ${dependentDatapointId}[${stateKey}] was dependent on ${dependencyDatapointId}[${stateKey}]. The system will by in an unstable state from here on out`
+          `Expected to find a that ${dependentDatapointId}[${type}] was dependent on ${dependencyDatapointId}[${type}]. The system will by in an unstable state from here on out`
         );
         return;
       }
 
-      delete dependentInfo[stateKey];
-      delete dependencyInfo[stateKey];
+      delete dependencyDependentInfo[type];
+      delete dependentDependencyInfo[type];
 
-      if (!Object.keys(dependentInfo).length) {
-        delete dependencyDependents[dependentDatapointId];
-        delete dependentDependencies[dependencyDatapointId];
+      if (Object.keys(dependencyDependentInfo).length) return;
 
-        dependentDatapoint.dependencyCount--;
-        if (!--dependencyDatapoint.dependentCount) {
-          dependencyDatapoint.deleteIfUnwatched();
-        }
+      delete dependencyDependents[dependentDatapointId];
+      delete dependentDependencies[dependencyDatapointId];
 
-        if (!dependencyValid && !--dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate();
-        }
+      dependentDatapoint.dependencyCount--;
+      if (!--dependencyDatapoint.dependentCount) {
+        dependencyDatapoint.deleteIfUnwatched();
       }
-    },
 
-    get _valueAsRowId() {
-      const datapoint = this,
-        { valueIfAny: value } = datapoint;
-      if (!value) return;
-      if (typeof value == 'string' && rowRegex.test(value)) {
-        return value;
-      }
-      if (Array.isArray(value) && value.length == 1 && typeof value[0] == 'string' && rowRegex.test(value[0])) {
-        return value[0];
+      if (!dependencyValid && !--dependentDatapoint.invalidDependencyCount) {
+        dependentDatapoint.validate();
       }
     },
 

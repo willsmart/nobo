@@ -48,7 +48,7 @@ class StateVar {
     if (deletionsObject) {
       for (const key of Object.keys(deletionsObject)) {
         const datapointId = StateVar.datapointId(`${path}.${key}`),
-          datapoint = cache.getExistingDatapoint({ datapointId });
+          datapoint = cache.getExistingDatapoint(datapointId);
         if (datapoint) {
           datapoint.setValue(undefined);
         }

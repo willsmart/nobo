@@ -59,7 +59,11 @@ function callbackKeyOnElement(element, type) {
 class DomUpdater {
   // public methods
   static publicMethods() {
-    return ['datapointUpdated'];
+    return ['datapointUpdated', 'domWaitingChangeQueue'];
+  }
+
+  get domWaitingChangeQueue() {
+    return this._domWaitingChangeQueue;
   }
 
   constructor({ cache, domGenerator }) {
@@ -69,7 +73,7 @@ class DomUpdater {
       cloneShowingElementNames,
       cache,
       domGenerator: domGenerator,
-      domWaitingChangeQueue: new DomWaitingChangeQueue(),
+      _domWaitingChangeQueue: new DomWaitingChangeQueue(),
     });
 
     domUpdater.dg_callbackKey = domGenerator.watch({
@@ -86,7 +90,7 @@ class DomUpdater {
         }
 
         if (templateDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint( templateDatapointId );
+          const datapoint = cache.getOrCreateDatapoint(templateDatapointId);
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -116,7 +120,7 @@ class DomUpdater {
           });
         }
         if (domDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint( domDatapointId );
+          const datapoint = cache.getOrCreateDatapoint(domDatapointId);
           if (!datapoint.initialized) {
             log(
               'dom',
@@ -144,8 +148,8 @@ class DomUpdater {
           });
         }
         if (childrenDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint( childrenDatapointId ),
-            childDepth = element.getAttribute('nobo-child-depth');
+          const datapoint = cache.getOrCreateDatapoint(childrenDatapointId),
+            childDepth = element.getAttribute('nobo-child-depth') || 1;
           let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
 
           if (!datapoint.initialized) {
@@ -364,26 +368,26 @@ class DomUpdater {
     }
 
     if (templateDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: templateDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint(templateDatapointId);
       datapoint.stopWatching({
         callbackKey: callbackKeyOnElement(element, 'template'),
       });
     }
     if (domDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: domDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint(domDatapointId);
       datapoint.stopWatching({
         callbackKey: callbackKeyOnElement(element, 'dom'),
       });
     }
     if (childrenDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId: childrenDatapointId });
+      const datapoint = domUpdater.cache.getExistingDatapoint(childrenDatapointId);
       datapoint.stopWatching({
         callbackKey: callbackKeyOnElement(element, 'children'),
       });
     }
     if (valueDatapointIds) {
       for (const datapointId of valueDatapointIds) {
-        const datapoint = domUpdater.cache.getExistingDatapoint({ datapointId });
+        const datapoint = domUpdater.cache.getExistingDatapoint(datapointId);
         datapoint.stopWatching({
           callbackKey: callbackKeyOnElement(element, 'value'),
         });

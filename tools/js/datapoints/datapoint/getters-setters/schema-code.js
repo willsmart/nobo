@@ -4,7 +4,7 @@ module.exports = function({ datapoint, schema }) {
 
   if (!type) return;
 
-  const field = type.getField(fieldName);
+  const field = type.fields[fieldName];
   if (!field || !(field.get || field.set)) return;
 
   const ret = {};

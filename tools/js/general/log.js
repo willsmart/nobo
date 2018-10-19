@@ -1,12 +1,13 @@
 module.exports = log;
 
-const enabledLogs = { err: true, dom: true, ws: true };
+const enabledLogs = { err: true, diff: false, verbose: false, other: { verbose: false, other: true } };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;
   for (const part of module.split('.')) {
     let val = parent[part];
     if (!val) {
+      if (val === false) return false;
       val = parent.other;
       if (!val) return false;
     }

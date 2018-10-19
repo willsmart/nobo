@@ -6,7 +6,7 @@ module.exports = function({ datapoint, schema, datapointDbConnection }) {
 
   if (!type) return;
 
-  const field = type.getField(fieldName);
+  const field = type.fields[fieldName];
   if (!field || !dbRowId) return;
 
   const ret = {};

@@ -3,14 +3,17 @@
 
 module.exports = changeDetectorObject;
 
-changeDetectorObject.isCDO = object => '__cdo__' in object;
+changeDetectorObject.isCDO = object => {
+  return object && typeof object == 'object' && '__cdo__' in object;
+};
 
-function changeDetectorObject(baseObject, setParentModified) {
+function changeDetectorObject(baseObject, readOnly, setParentModified) {
   if (!baseObject || typeof baseObject != 'object') return baseObject;
   const changeObject = {},
     deletionsObject = {},
     modified = [false];
   function setModified() {
+    if (readOnly) throw new Exception('Cannot mutate in non-mutating CDO');
     if (setParentModified) setParentModified();
     modified[0] = true;
   }
@@ -59,7 +62,7 @@ function changeDetectorObject(baseObject, setParentModified) {
           }
           const ret = baseObject[key];
           if (ret && typeof ret == 'object') {
-            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
+            return (changeObject[key] = changeDetectorObject(ret, readOnly, setModified)).useObject;
           }
           return ret;
         },
@@ -67,7 +70,7 @@ function changeDetectorObject(baseObject, setParentModified) {
           setModified();
           delete deletionsObject[key];
           if (value && typeof value == 'object') {
-            return (changeObject[key] = changeDetectorObject(ret, setModified)).useObject;
+            return (changeObject[key] = changeDetectorObject(ret, readOnly, setModified)).useObject;
           }
           changeObject[key] = value;
           return true;

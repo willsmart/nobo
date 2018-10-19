@@ -1,6 +1,6 @@
 const DomChangeQueue = require('./dom-change-queue');
 const PublicApi = require('../general/public-api');
-const { forEachInElementRange, findInElementRange, logChange } = require('./dom-functions');
+const { forEachInElementRange, findInElementRange, logChange, describeChange } = require('./dom-functions');
 
 // API is auto-generated at the bottom from the public interface of the DomChangeQueue class
 
@@ -89,7 +89,7 @@ function addChangeIdToWaitingElementsInTree(element, changeId, checkForExisting)
 class DomWaitingChangeQueue {
   // public methods
   static publicMethods() {
-    return ['push', 'elementIsDoneWaiting'];
+    return ['push', 'elementIsDoneWaiting', 'changeDescriptions'];
   }
 
   constructor() {
@@ -101,6 +101,10 @@ class DomWaitingChangeQueue {
       queue: [],
       nextChangeId: 1,
     });
+  }
+
+  changeDescriptions(indent = '') {
+    return this.queue.map(change => describeChange(change, indent));
   }
 
   push(change) {

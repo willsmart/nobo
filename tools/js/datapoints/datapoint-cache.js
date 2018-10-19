@@ -81,7 +81,7 @@ class DatapointCache {
     cache.newlyUpdatedDatapointIds = [];
     cache.newlyValidDatapoints = [];
     cache._stateVar = new StateVar({ cache });
-    cache._rowChangeTrackers = new RowChangeTrackers({ cache });
+    cache._rowChangeTrackers = new RowChangeTrackers({ cache, schema });
 
     if (!isClient) {
       cache._templates = new Templates({ cache, htmlToElement, appDbRowId });
@@ -234,7 +234,7 @@ class DatapointCache {
     return promise;
   }
 
-  getExistingDatapoint({ datapointId }) {
+  getExistingDatapoint(datapointId) {
     return this.datapointsById[datapointId];
   }
 

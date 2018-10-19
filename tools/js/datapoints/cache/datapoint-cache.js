@@ -4,6 +4,7 @@ const PublicApi = require('../../general/public-api');
 const StateVar = require('../../general/state-var');
 const RowChangeTrackers = require('../../datapoints/row-change-trackers');
 const Templates = require('../../datapoints/templates');
+const { finders, findGetterSetter } = require('../../datapoints/datapoint/getters-setters/all.js');
 
 class DatapointCache {
   static publicMethods() {
@@ -19,6 +20,10 @@ class DatapointCache {
       'datapoints',
       'uninitedDatapoints',
 
+      'getterSetterInfo',
+
+      'rowChangeTrackers',
+
       'watch',
       'stopWatching',
     ];
@@ -30,12 +35,16 @@ class DatapointCache {
     Object.assign(cache, {
       _datapointDbConnection: datapointDbConnection,
       _schema: schema,
+      _getterSetterInfo: {
+        finders,
+        findGetterSetter,
+      },
       datapointsById: {},
       deletionLists: [undefined],
       deletionListByDatapointId: {},
       deletionDelaySeconds: 30,
       _stateVar: new StateVar({ cache }),
-      _rowChangeTrackers: new RowChangeTrackers({ cache }),
+      _rowChangeTrackers: new RowChangeTrackers({ cache, schema }),
       _isClient: isClient,
     });
 
@@ -54,6 +63,10 @@ class DatapointCache {
 
   get isClient() {
     return this._isClient;
+  }
+
+  get getterSetterInfo() {
+    return this._getterSetterInfo;
   }
 
   get datapointDbConnection() {
@@ -92,13 +105,14 @@ class DatapointCache {
       existingDatapoint = datapointsById[datapointId];
     if (existingDatapoint) return existingDatapoint;
 
-    const { schema, datapointDbConnection, templates, stateVar } = cache;
+    const { schema, datapointDbConnection, templates, stateVar, getterSetterInfo } = cache;
     const datapoint = (datapointsById[datapointId] = new Datapoint({
       cache,
       schema,
       datapointDbConnection,
       templates,
       stateVar,
+      findGetterSetter: getterSetterInfo.findGetterSetter,
       datapointId,
     }));
     cache.notifyListeners('oncreate', datapoint);

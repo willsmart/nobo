@@ -34,9 +34,9 @@ module.exports = {
   mapInElementRange,
   findInElementRange,
   logChange,
-  _describeRange,
-  _describeTree,
-  _describeChange,
+  describeRange,
+  describeTree,
+  describeChange,
   logRange,
   logTree,
 };
@@ -317,48 +317,48 @@ function findInElementRange(element, fn) {
 }
 
 function logRange(module, prompt, element) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeRange(element)}`);
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeRange(element)}`);
 }
 
 function logTree(module, prompt, element) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeTree(element)}`);
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeTree(element)}`);
 }
 
 function logChange(module, prompt, change) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${_describeChange(change)}`);
+  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeChange(change)}`);
 }
 
-function _describeChange(change) {
+function describeChange(change, indent = '') {
   let ret = '';
   if (change.firstElement) {
-    ret += ` Change${change.id ? ` #${change.id}` : ''} has new elements:\n${_describeRange(
+    ret += `${indent} Change${change.id ? ` #${change.id}` : ''} has new elements:\n${describeRange(
       change.firstElement,
-      '    + '
+      indent + '    + '
     )}`;
   } else {
-    ret += ` Change${change.id ? ` #${change.id}` : ''} has no new elements:\n`;
+    ret += `${indent} Change${change.id ? ` #${change.id}` : ''} has no new elements:\n`;
   }
   if (change.replace) {
-    ret += ` ... it replaces elements:\n${_describeRange(change.replace, '    x ')}`;
+    ret += `${indent} ... it replaces elements:\n${describeRange(change.replace, indent + '    x ')}`;
   } else if (change.insertAfter) {
-    ret += ` ... it inserts new elements after:\n${_describeRange(change.insertAfter, '    > ')}`;
+    ret += `${indent} ... it inserts new elements after:\n${describeRange(change.insertAfter, indent + '    > ')}`;
   } else if (change.parent) {
-    ret += ` ... it} inserts new elements as first under:\n${_describeRange(change.parent, '    v ')}`;
+    ret += `${indent} ... it} inserts new elements as first under:\n${describeRange(change.parent, indent + '    v ')}`;
   }
   return ret;
 }
 
-function _describeRange(element, indent = '') {
+function describeRange(element, indent = '') {
   let ret = '';
   let isFirst = true;
   forEachInElementRange(element, el => {
-    ret += _describeTree(el, indent + (isFirst ? '- ' : '  '));
+    ret += describeTree(el, indent + (isFirst ? '- ' : '  '));
     isFirst = false;
   });
   return ret;
 }
 
-function _describeTree(element, indent = '') {
+function describeTree(element, indent = '') {
   let ret = '';
   const templateDatapointId = element.getAttribute('nobo-template-dpid'),
     variant = templateDatapointId ? variantForTemplateDatapointId(templateDatapointId) : undefined,
@@ -378,7 +378,7 @@ function _describeTree(element, indent = '') {
   ret += `${indent}${desc}\n`;
   indent += '. ';
   for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    ret += _describeRange(child, indent);
+    ret += describeRange(child, indent);
     child = rangeForElement(child)[1];
   }
   return ret;

@@ -1,10 +1,10 @@
 const PageState = require('./page-state'),
   WebSocketClient = require('../web-socket/web-socket-client'),
-  WebSocketProtocol = require('../web-socket/web-socket-protocol'),
+  WebSocketProtocol = require('../web-socket/web-socket-protocol-client'),
   DomGenerator = require('../dom/dom-generator'),
   DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
-  { htmlToElement } = require('../dom/dom-functions'),
+  { htmlToElement, describeRange } = require('../dom/dom-functions'),
   ClientActions = require('./client-actions'),
   DatapointCache = require('../datapoints/cache/datapoint-cache'),
   Schema = require('../general/schema'),
@@ -110,7 +110,7 @@ const appDbRowId = 1,
     appDbRowId,
     isClient: true,
   }),
-  wsprotocol = new WebSocketProtocol({ cache, ws: wsclient, isServer: false }),
+  wsprotocol = new WebSocketProtocol({ cache, ws: wsclient }),
   domGenerator = new DomGenerator({
     htmlToElement,
     cache,
@@ -127,6 +127,11 @@ const appDbRowId = 1,
 domGenerator.prepPage();
 
 pageState.visit();
+
+window.logDOM = element => {
+  console.log(`tree:\n${describeRange(element || document.getElementById('page'), 't     ')}`);
+  console.log(`changes:\n${domUpdater.domWaitingChangeQueue.changeDescriptions('c     ').join('\n')}`);
+};
 
 window.nobo = {
   PageState,

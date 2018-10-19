@@ -154,9 +154,7 @@ module.exports =
     //         CA2: datapoint didn't exist
     await rig.assert(
       `the datapoint ${datapointId} doesn't exist in the cache yet`,
-      !datapointCache.getExistingDatapoint({
-        simpleDatapointId,
-      })
+      !datapointCache.getExistingDatapoint(simpleDatapointId)
     );
     //     "getOrCreateDatapoint",
     //         CB2: datapoint didn't exist
@@ -184,9 +182,7 @@ module.exports =
     for (const datapointId of datapointsWithoutDependentIds) {
       await rig.assert(
         `the recently created datapoint ${datapointId} is returned by getExistingDatapoint`,
-        datapointCache.getExistingDatapoint({
-          datapointId,
-        }),
+        datapointCache.getExistingDatapoint(datapointId),
         {
           sameObject: datapoints[datapointId],
         }
@@ -196,9 +192,7 @@ module.exports =
     for (const datapointId of datapointsWithDependentIds) {
       await rig.assert(
         `the dependency datapoint ${datapointId} was created ok and is returned by getExistingDatapoint`,
-        (datapoints[datapointId] = datapointCache.getExistingDatapoint({
-          datapointId,
-        }))
+        (datapoints[datapointId] = datapointCache.getExistingDatapoint(datapointId))
       );
     }
     //     "watch",
@@ -321,9 +315,7 @@ module.exports =
     );
     await rig.assert(
       `the datapoint ${datapointId} still exists after removing one of the listeners`,
-      datapointCache.getExistingDatapoint({
-        datapointId,
-      }),
+      datapointCache.getExistingDatapoint(datapointId),
       {
         sameObject: datapoints[datapointId],
       }
@@ -349,9 +341,7 @@ module.exports =
     for (const datapointId of datapointIds) {
       await rig.assert(
         `the datapoint ${datapointId} no longer exists after removing the last listener`,
-        datapointCache.getExistingDatapoint({
-          datapointId,
-        }),
+        datapointCache.getExistingDatapoint(datapointId),
         {
           equals: false,
         }
@@ -364,9 +354,7 @@ module.exports =
     await datapoints[datapointId].value;
     await rig.assert(
       `the recreated datapoint ${datapointId} no longer exists after removing the last watchingOneShotResolver`,
-      datapointCache.getExistingDatapoint({
-        datapointId,
-      }),
+      datapointCache.getExistingDatapoint(datapointId),
       {
         equals: false,
       }
