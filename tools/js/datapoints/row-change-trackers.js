@@ -42,14 +42,18 @@ class RowChangeTrackers {
       };
 
     args.push({
-      rowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
+      getRowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
       getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
+      willRetry: () => executor.retryAfterPromises.length > 0,
     });
+
+    const useThisArg =
+      typeof thisArg == 'string' && ConvertIds.rowRegex.test(thisArg) ? rowChangeTrackers.rowObject(thisArg) : thisArg;
 
     try {
       const executorWas = rowChangeTrackers._executor;
       rowChangeTrackers._executor = executor;
-      const result = fn.apply(thisArg, args);
+      const result = fn.apply(useThisArg, args);
       rowChangeTrackers._executor = executorWas;
       executor.result = RowChangeTrackers.sanitizeCDOs(await result);
     } catch (error) {

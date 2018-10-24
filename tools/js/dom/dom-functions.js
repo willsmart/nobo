@@ -18,13 +18,6 @@ module.exports = {
   htmlToElement,
   templateDatapointIdForRowAndVariant,
   variantForTemplateDatapointId,
-  nextChild,
-  childRanges,
-  skipAllChildren,
-  skipChildren,
-  _nextChild,
-  _skipAllChildren,
-  _skipChildren,
   rangeForElement,
   childRangeAtIndex,
   elementForUniquePath,
@@ -114,14 +107,6 @@ function variantForTemplateDatapointId(datapointId) {
   }
 }
 
-function nextChild(placeholderUid, previousChildElement, nextElementSiblingFn) {
-  return _nextChild(placeholderUid, [previousChildElement], nextElementSiblingFn);
-}
-
-function skipAllChildren(placeholderUid, previousChildElement, nextElementSiblingFn) {
-  return _skipAllChildren(placeholderUid, [previousChildElement], nextElementSiblingFn);
-}
-
 function skipChildren(placeholderUid, previousChildElement, count, nextElementSiblingFn) {
   return _skipChildren(placeholderUid, [previousChildElement], count, nextElementSiblingFn);
 }
@@ -159,20 +144,6 @@ function rangeForElement(startElement, nextElementSiblingFn) {
   const currentChildElementArray = [startElement];
   _nextChild(startElement.getAttribute('nobo-placeholder-uid'), currentChildElementArray, nextElementSiblingFn);
   return [startElement, currentChildElementArray[1]];
-}
-
-function childRanges({ placeholderDiv, nextElementSiblingFn }) {
-  const placeholderUid = placeholderDiv.getAttribute('nobo-uid'),
-    ret = [];
-  let element = nextElementSiblingFn ? nextElementSiblingFn(placeholderDiv) : placeholderDiv.nextElementSibling;
-
-  while (element && element.getAttribute('nobo-placeholder-uid') == placeholderUid) {
-    const currentChildElementArray = [element];
-    _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn);
-    ret.push([element, currentChildElementArray[1]]);
-    element = currentChildElementArray[0];
-  }
-  return ret;
 }
 
 function childRangeAtIndex({ placeholderDiv, index, nextElementSiblingFn }) {

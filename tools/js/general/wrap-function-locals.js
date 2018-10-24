@@ -34,6 +34,7 @@ function wrapFunctionLocals(codeString) {
       'model',
       'event',
       'newrow',
+      'getDatapoint',
       '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: true })
     );
   } catch (err) {
@@ -44,6 +45,7 @@ function wrapFunctionLocals(codeString) {
         'model',
         'event',
         'newrow',
+        'getDatapoint',
         '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {

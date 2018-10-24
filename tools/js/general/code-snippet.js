@@ -25,7 +25,7 @@ class Code {
     Object.assign(code, wrapFunctionLocals(codeString));
   }
 
-  evalOnContext(context, state, event, allocateRowObject) {
+  evalOnContext(context, state, event, allocateRowObject, getDatapointValue) {
     const code = this,
       { wrappedFunction } = code,
       changeDetectingContext = changeDetectorObject(context);
@@ -33,8 +33,16 @@ class Code {
     try {
       result = wrappedFunction
         ? event
-          ? wrappedFunction.call(event.target, changeDetectingContext.useObject, state, {}, event, allocateRowObject)
-          : wrappedFunction(changeDetectingContext.useObject, state, {}, event, allocateRowObject)
+          ? wrappedFunction.call(
+              event.target,
+              changeDetectingContext.useObject,
+              state,
+              {},
+              event,
+              allocateRowObject,
+              getDatapointValue
+            )
+          : wrappedFunction(changeDetectingContext.useObject, state, {}, event, allocateRowObject, getDatapointValue)
         : undefined;
     } catch (error) {
       log('err.code', `Error while evaluating code: ${error.message}`);
@@ -46,15 +54,15 @@ class Code {
     };
   }
 
-  evalOnModelCDO(modelCDO, state, event, allocateRowObject) {
+  evalOnModelCDO(modelCDO, state, event, allocateRowObject, getDatapointValue) {
     const code = this,
       { wrappedFunction } = code;
     let result;
     try {
       result = wrappedFunction
         ? event
-          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event, allocateRowObject)
-          : wrappedFunction(modelCDO, state, modelCDO, event, allocateRowObject)
+          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event, allocateRowObject, getDatapointValue)
+          : wrappedFunction(modelCDO, state, modelCDO, event, allocateRowObject, getDatapointValue)
         : undefined;
     } catch (error) {
       log('err.code', `Error while evaluating code: ${error.message}`);
@@ -121,7 +129,17 @@ class CodeSnippet {
     return hasName;
   }
 
-  evaluate({ cache, rowId, valueForNameCallback, valuesByName, defaultValue, timeout, event }) {
+  evaluate({
+    cache,
+    getDatapointValue,
+    rowId,
+    getRowObject,
+    valueForNameCallback,
+    valuesByName,
+    defaultValue,
+    timeout,
+    event,
+  }) {
     const codeSnippet = this,
       sandbox = {};
 
@@ -130,10 +148,9 @@ class CodeSnippet {
 
     const stateVar = cache ? cache.stateVar : undefined,
       state = stateVar ? stateVar.stateVar : {},
-      rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined,
-      rowObject = rowId && rowChangeTrackers ? rowChangeTrackers.rowObject(rowId) : undefined,
+      rowObject = rowId ? getRowObject(rowId) : undefined,
       allocateRowObject = typeName => {
-        return rowChangeTrackers.rowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}` }).rowId);
+        return getRowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}` }).rowId);
       };
 
     if (typeof valueForNameCallback != 'function') {
@@ -170,9 +187,15 @@ class CodeSnippet {
         ret = codeSnippet._func.call(event, sandbox, state, allocateRowObject);
       } else ret = codeSnippet._func(sandbox, state, allocateRowObject);
     } else if (rowObject) {
-      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state, event, allocateRowObject));
+      ({ result: ret } = codeSnippet.code.evalOnModelCDO(
+        rowObject,
+        state,
+        event,
+        allocateRowObject,
+        getDatapointValue
+      ));
     } else {
-      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event, allocateRowObject));
+      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event, allocateRowObject, getDatapointValue));
     }
     if (stateVar) stateVar.commitStateVar();
 
