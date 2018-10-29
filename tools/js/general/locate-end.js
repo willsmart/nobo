@@ -49,6 +49,8 @@ function locateEndOfString(string, closeChar, openIndex) {
   let regex;
   switch (closeChar) {
     case false:
+      regex = /(?:\\$|(?!\$\{)[\s\S])*/g;
+      break;
     case '`':
       regex = /(?:\\`|\\$|(?!\$\{)[^`])*/g;
       break;
@@ -74,7 +76,7 @@ function locateEndOfString(string, closeChar, openIndex) {
 
   regex.lastIndex = openIndex;
   while (true) {
-    const match = regex.exec(string);
+    regex.exec(string);
     if (regex.lastIndex == string.length) return ret;
     const endChar = string.charAt(regex.lastIndex);
     if (endChar === closeChar) {

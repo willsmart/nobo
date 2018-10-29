@@ -14,6 +14,7 @@ const processArgs = require('../../general/process-args');
 
 const Connection = require('../../db/postgresql-connection');
 const TemplatedText = require('../../dom/templated-text');
+const templateCodeToJs = require('../../general/template-code-to-js');
 
 async function execHaml(hamlPath) {
   const processedHamlDir = 'templates/processedHaml/',
@@ -279,6 +280,8 @@ async function processTemplateIncludes({ template, templatesByPath }, stack = {}
   for (const root of template.domTree.childNodes) {
     await checkForIncludeComment(root, index++, template.domTree.childNodes, template, templatesByPath);
   }
+
+  exposeTemplates(template.domTree);
   template.processedDom = Parse5.serialize(template.domTree);
   template.processedRoots = Parse5.parseFragment(template.processedDom || template.dom).childNodes;
 
@@ -416,6 +419,93 @@ function scrapeTemplateInfo(element) {
       if (range && subchildren) {
         dealWithChildren(rangeStart + range[0], subchildren);
       }
+    }
+  }
+}
+
+function findAttribute(element, name) {
+  if (!element.attrs) return;
+  return element.attrs.find(attr => attr.name == name);
+}
+
+function findAttributeIndex(element, name) {
+  if (!element.attrs) return -1;
+  return element.attrs.indexOf(attr => attr.name == name);
+}
+
+function getAttribute(element, name) {
+  if (!element.attrs) return;
+  const attr = findAttribute(element, name);
+  if (attr) return attr.value;
+}
+
+function setAttribute(element, name, value) {
+  if (!element.attrs) {
+    element.attrs = [{ name, value }];
+    return;
+  }
+  const attr = findAttribute(element, name);
+  if (attr) attr.value = value;
+  else element.attrs.push({ name, value });
+}
+
+function removeAttribute(element, name) {
+  if (!element.attrs) return;
+  const index = findAttributeIndex(element, name);
+  if (index >= 0) {
+    if (element.attrs.length == 1) delete element.attrs;
+    else element.attrs.splice(index, 1);
+  }
+}
+
+function exposeTemplates(element) {
+  const setAttrs = {};
+
+  if (element.childNodes) {
+    let textIndex = -1,
+      inText = false,
+      text = '',
+      textNode;
+    for (let childNodeIndex = 0; childNodeIndex <= element.childNodes.length; childNodeIndex++) {
+      const childNode = childNodeIndex == element.childNodes.length ? undefined : element.childNodes[childNodeIndex];
+      if (childNode && childNode.nodeName == '#text') {
+        text += childNode.value;
+        if (!inText) {
+          textNode = childNode;
+          textIndex++;
+          inText = true;
+        } else {
+          childNode.value = '';
+        }
+      } else if (inText) {
+        inText = false;
+        const { js, literal } = templateCodeToJs(text);
+        if (literal === undefined) {
+          setAttrs[`textnode${textIndex}-template`] = js;
+          textNode.value = '...';
+        }
+        text = '';
+      }
+    }
+  }
+
+  if (element.attrs) {
+    for (const { name, value } of element.attrs) {
+      if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
+
+      const { js, literal } = templateCodeToJs(value);
+      if (literal !== undefined) continue;
+
+      setAttrs[`${name}-template`] = js;
+      setAttrs[name] = '...';
+    }
+  }
+
+  for (const [name, value] of Object.entries(setAttrs)) setAttribute(element, name, value);
+
+  if (element.childNodes) {
+    for (const childNode of element.childNodes) {
+      exposeTemplates(childNode);
     }
   }
 }

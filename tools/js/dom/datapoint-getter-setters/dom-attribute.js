@@ -1,5 +1,7 @@
 const ChangeCase = require('change-case');
+const ConvertIds = require('../../datapoints/convert-ids');
 const CodeSnippet = require('../../general/code-snippet');
+const templateCodeToJs = require('../../general/template-code-to-js');
 
 const fieldNamePrefix = 'attribute-',
   templateSuffix = '-template';
@@ -7,7 +9,7 @@ const fieldNamePrefix = 'attribute-',
 module.exports = function({ datapoint }) {
   const { fieldName, typeName, rowId, proxyKey } = datapoint;
 
-  if (typeof document == 'undefined' || typeName != 'Dom' || !proxyKey) {
+  if (typeName != 'Dom' || !proxyKey) {
     return;
   }
 
@@ -16,7 +18,7 @@ module.exports = function({ datapoint }) {
 
   const valueAttributeName = paramCaseFieldName.substring(fieldNamePrefix.length),
     templateAttributeName = valueAttributeName + templateSuffix,
-    match = /^text-node-(\d+)$/.exec(valueAttributeName),
+    match = /^textnode(\d+)$/.exec(valueAttributeName),
     textNodeIndex = match ? Number(match[1]) : undefined;
 
   if (valueAttributeName.endsWith(templateSuffix)) {
@@ -85,17 +87,21 @@ module.exports = function({ datapoint }) {
   };
 
   evaluate = ({ getDatapointValue, getRowObject, willRetry }) => {
-    const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' })),
+    const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId),
+      { rowId: sourceRowId } =
+        getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'context' }).datapointId) || {},
       newState = { template: '', compiledGetter: undefined };
 
     if (willRetry()) return;
 
-    let value = '';
+    let value = '',
+      needsSet = true;
     do {
       if (!element) break;
 
       if (!element.hasAttribute(templateAttributeName)) {
         value = getValue(element);
+        needsSet = false;
         break;
       }
 
@@ -113,14 +119,14 @@ module.exports = function({ datapoint }) {
             newState.compiledGetter.evaluate({
               getDatapointValue,
               getRowObject,
-              rowId: element.getAttribute('nobo-row-id'),
+              rowId: sourceRowId,
             })
           )
         : '';
     } while (false);
 
     if (!willRetry()) {
-      if (element) setValue(element, value);
+      if (element && needsSet) setValue(element, value);
       datapointState = newState;
     }
 

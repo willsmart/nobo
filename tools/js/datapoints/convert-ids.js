@@ -79,11 +79,30 @@ const typeNameRegex = /^([a-z0-9]+(?:_[a-z0-9]+)*)$/,
   //      [3]: row id as an integer string
   //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
   //      [5]: field name in snake_case
-  datapointRegex = new RegExp(
+  basicDatapointRegex = new RegExp(
     `^(${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyableRowIdRegex.source.substring(
       1,
       proxyableRowIdRegex.source.length - 1
     )})__~?${fieldNameRegex.source.substring(1, fieldNameRegex.source.length - 1)}$`
+  ),
+  // Pointer to a particular expression of a row in the db
+  //   captures:
+  //      [1]: the row string
+  //      [2]: typename in snake_case
+  //      [3]: row id as an integer string
+  //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  //      [5]: field name in snake_case
+  //      [6]: embedded datapoint id
+  //      [7]: embedded datapoint: the row string
+  //      [8]: embedded datapoint: typename in snake_case
+  //      [9]: embedded datapoint: row id as an integer string
+  //      [10]: embedded datapoint: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  //      [11]: embedded datapoint: field name in snake_case
+  datapointRegex = new RegExp(
+    `^${basicDatapointRegex.source.substring(
+      1,
+      basicDatapointRegex.source.length - 1
+    )}(?:\\[(${basicDatapointRegex.source.substring(1, basicDatapointRegex.source.length - 1)})\\])?$`
   );
 
 // API
@@ -134,13 +153,15 @@ function ensureDecomposed({ typeName }) {
 
 // reconstructs string ids from their component parts or throws if not possible
 // you can provide more than one argument, in which case they are combined with the last taking precidence
-function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, permissive }) {
+function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, embeddedDatapointId, permissive }) {
   if (arguments.length != 1) {
     const combined = {};
     Array.prototype.forEach.call(arguments, argument => processArg(argument, combined));
     return recomposeId(combined);
   } else {
-    ({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, permissive } = processArg(arguments[0]));
+    ({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, embeddedDatapointId, permissive } = processArg(
+      arguments[0]
+    ));
   }
 
   function processArg(arg, into) {
@@ -161,6 +182,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
         into.dbRowId = args.dbRowId;
         into.proxyKey = args.proxyKey;
         into.fieldName = args.fieldName;
+        into.embeddedDatapointId = args.embeddedDatapointId;
       }
     }
 
@@ -178,6 +200,9 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
   };
   if (!typeNameRegex.test(ret.typeName)) throw new Error('Type name has invalid characters or format');
 
+  if (embeddedDatapointId !== undefined && !basicDatapointRegex.test(embeddedDatapointId))
+    throw new Error('Embedded datapoint id has invalid format');
+
   if (dbRowId) {
     if (!dbRowIdRegex.test(dbRowId)) {
       throw new Error('Db row id has invalid characters or format');
@@ -190,6 +215,8 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
+
+      if (embeddedDatapointId) ret.datapointId += `[${embeddedDatapointId}]`;
     }
   } else if (proxyKey) {
     ret.proxyKey = proxyKey;
@@ -201,6 +228,8 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
+
+      if (embeddedDatapointId) ret.datapointId += `[${embeddedDatapointId}]`;
     }
   } else {
     if (permissive) return;
@@ -252,6 +281,7 @@ function stringToDatapoint(datapointId, permissive) {
       rowId: match[1],
       typeName: ChangeCase.pascalCase(match[2]),
       fieldName: match[5] == '*' ? '*' : ChangeCase.camelCase(match[5]),
+      embeddedDatapointId: match[6],
     },
     match[3]
       ? {

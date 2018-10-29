@@ -28,14 +28,7 @@ class Templates {
     templates.templatesByRowId = {};
     templates.templatesByVariantClassOwnership = {};
     templates.bubbledTemplatesByVariantClassOwnership = {};
-
-    templates.domGenerator = new DomGenerator({
-      htmlToElement,
-      cache: {
-        getExistingDatapoint: () => undefined,
-        getOrCreateDatapoint: () => undefined,
-      },
-    });
+    templates.htmlToElement = htmlToElement;
 
     setTimeout(() => {
       this.callbackKey = cache.getOrCreateDatapoint(this.appTemplatesDatapointId).watch({
@@ -75,7 +68,9 @@ class Templates {
   cvoForTemplateDatapointId(datapointId) {
     const { typeName, dbRowId, fieldName } = ConvertIds.decomposeId({ datapointId });
     if (typeName !== 'App' || dbRowId !== this.appDbRowId) return;
-    const match = /^use_template((?:_v\w+)*)((?:_c\w+)*)(_private|)$/.exec(ChangeCase.snakeCase(fieldName));
+    const match = /^use_template((?:_v[A-Za-z0-9]+)*)((?:_c[A-Za-z0-9]+)*)(_private|)$/.exec(
+      ChangeCase.snakeCase(fieldName)
+    );
     if (!match) return;
     const variant = match[1] ? ChangeCase.camelCase(match[1].substring(2).replace('_v', '_')) : undefined,
       classFilter = match[2] ? ChangeCase.pascalCase(match[2].substring(2).replace('_c', '_')) : undefined;
@@ -329,23 +324,21 @@ class Template {
 
   updateDom(domString) {
     const template = this,
-      { templates } = template;
+      { templates } = template,
+      { htmlToElement } = templates;
 
     if (!(domString && typeof domString == 'string')) domString = '<div></div>';
 
     if (template.domString == domString) return;
     template.domString = domString;
 
-    const elements = templates.domGenerator.createElementsUsingDatapointIds({
-      domString,
-      rowId: 'placeholder__1',
-    });
+    const element = htmlToElement(domString);
 
     const displayedFields = {},
       children = {},
       embedded = [];
 
-    elements.forEach(addElement);
+    addElement(element);
 
     function addElement(element) {
       const childrenDatapointId = element.getAttribute('nobo-children-dpid'),

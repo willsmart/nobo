@@ -5,6 +5,7 @@ const PublicApi = require('../general/public-api');
 const ConvertIds = require('./convert-ids');
 const changeDetectorObject = require('../general/change-detector-object');
 const mapValues = require('../general/map-values');
+const log = require('../general/log');
 
 class RowChangeTrackers {
   // public methods
@@ -44,6 +45,7 @@ class RowChangeTrackers {
     args.push({
       getRowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
       getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
+      setDatapointValue: rowChangeTrackers.setDatapointValue.bind(rowChangeTrackers),
       willRetry: () => executor.retryAfterPromises.length > 0,
     });
 
@@ -63,6 +65,7 @@ class RowChangeTrackers {
           mutatingRowChangeTrackers = new RowChangeTrackers({ cache, schema, readOnly: false });
         return mutatingRowChangeTrackers.execute(thisArg, fn, ...args);
       }
+      log('err.eval', `While executing code: ${error.message}`);
       executor.error = error;
     }
 
@@ -174,13 +177,19 @@ class RowChangeTrackers {
     if (Array.isArray(value)) {
       return value.map(item => RowChangeTrackers.sanitizeCDOs(item));
     }
-    if (value && typeof value == 'object') {
+    if (value && typeof value == 'object' && value.constructor === Object) {
       return mapValues(value, item => RowChangeTrackers.sanitizeCDOs(item));
     }
     return value;
   }
 
   setDatapointValue(rowId, fieldName, value) {
+    let embeddedDatapointId;
+    if (ConvertIds.datapointRegex.test(rowId)) {
+      value = fieldName;
+      ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
+    }
+
     if (fieldName == 'id') return;
 
     const rowChangeTrackers = this,
@@ -211,9 +220,9 @@ class RowChangeTrackers {
     if (datapoint) datapoint.setValue(value);
   }
 
-  getDatapointValue(rowId, fieldName) {
+  getDatapointValue(rowId, fieldName, embeddedDatapointId) {
     if (ConvertIds.datapointRegex.test(rowId)) {
-      ({ rowId, fieldName } = ConvertIds.decomposeId({ datapointId: rowId }));
+      ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
     }
 
     if (fieldName == 'id') return rowId;
@@ -221,7 +230,7 @@ class RowChangeTrackers {
     const rowChangeTrackers = this,
       { cache, schema, executor } = rowChangeTrackers,
       { typeName } = ConvertIds.decomposeId({ rowId }),
-      datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
+      datapointId = ConvertIds.recomposeId({ rowId, fieldName, embeddedDatapointId }).datapointId,
       datapoint = cache.getOrCreateDatapoint(datapointId);
 
     if (executor) executor.usesDatapoints[datapointId] = true;

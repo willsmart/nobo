@@ -2,86 +2,13 @@
 module.exports = undefined;
 
 },{}],2:[function(require,module,exports){
-const PublicApi = require('../general/public-api');
-const ConvertIds = require('../datapoints/convert-ids');
-const PageState = require('./page-state');
-const { uniquePathForElement } = require('../dom/dom-functions');
-
-let globalClientActions;
-const callbackKey = 'client-actions';
-
-// API is auto-generated at the bottom from the public interface of this class
-
-class ClientActions {
-  // public methods
-  static publicMethods() {
-    return ['installOnElement'];
-  }
-
-  constructor({ domGenerator } = {}) {
-    const clientActions = this;
-
-    clientActions.nextElementIndex = 1;
-
-    if (!globalClientActions) globalClientActions = clientActions;
-
-    clientActions.domGenerator = domGenerator;
-    domGenerator.watch({
-      callbackKey,
-      onprepelement: ({ element, rowId }) => {
-        clientActions.installOnElement({ element, rowId });
-      },
-    });
-  }
-
-  installOnElement({ element, rowId }) {
-    if (
-      element.classList.contains('pushModel') ||
-      element.hasAttribute('pushmodel') ||
-      element.hasAttribute('pushvariant')
-    )
-      do {
-        let pushModel = element.getAttribute('pushmodel') || rowId;
-        if (ConvertIds.rowRegex.test(pushModel) && element.hasAttribute('pushvariant')) {
-          const modelInfo = ConvertIds.recomposeId({
-            rowId: pushModel,
-            fieldName: element.getAttribute('pushvariant'),
-          });
-          if (!modelInfo) break;
-          pushModel = modelInfo.datapointId;
-        }
-        if (!pushModel) break;
-        element.addEventListener('click', () => {
-          PageState.global.visit(pushModel);
-        });
-      } while (0);
-
-    let value;
-    if ((value = element.getAttribute('clickvariant')) && ConvertIds.fieldNameRegex.test(value)) {
-      element.addEventListener('click', () => {
-        const path = uniquePathForElement(element);
-        //TODO SharedState.global.withTemporaryState(state => (state.atPath('overriddenElementDatapoints')[path] = value));
-      });
-    }
-  }
-}
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: ClientActions,
-  hasExposedBackDoor: true,
-});
-
-},{"../datapoints/convert-ids":8,"../dom/dom-functions":20,"../general/public-api":34,"./page-state":5}],3:[function(require,module,exports){
 const PageState = require('./page-state'),
   WebSocketClient = require('../web-socket/web-socket-client'),
   WebSocketProtocol = require('../web-socket/web-socket-protocol-client'),
-  DomGenerator = require('../dom/dom-generator'),
-  DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
-  { htmlToElement, describeRange } = require('../dom/dom-functions'),
-  ClientActions = require('./client-actions'),
+  { htmlToElement, describeTree } = require('../dom/dom-functions'),
   DatapointCache = require('../datapoints/cache/datapoint-cache'),
+  installDomDatapointGetterSetters = require('../dom/datapoint-getter-setters/install'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
   log = require('../general/log');
@@ -186,34 +113,22 @@ const appDbRowId = 1,
     isClient: true,
   }),
   wsprotocol = new WebSocketProtocol({ cache, ws: wsclient }),
-  domGenerator = new DomGenerator({
-    htmlToElement,
-    cache,
-  }),
-  domUpdater = new DomUpdater({
-    domGenerator,
-    cache,
-  }),
   pageState = new PageState({
     cache,
-  }),
-  clientActions = new ClientActions({ domGenerator: domGenerator });
+  });
 
-domGenerator.prepPage();
+installDomDatapointGetterSetters({ cache, htmlToElement });
 
 pageState.visit();
 
 window.logDOM = element => {
-  console.log(`tree:\n${describeRange(element || document.getElementById('page'), 't     ')}`);
-  console.log(`changes:\n${domUpdater.domWaitingChangeQueue.changeDescriptions('c     ').join('\n')}`);
+  console.log(`tree:\n${describeTree(element || document.getElementById('page'), 't     ')}`);
 };
 
 window.nobo = {
   PageState,
   WebSocketClient,
   WebSocketProtocol,
-  DomGenerator,
-  DomUpdater,
   DomFunctions,
   DatapointCache,
   Schema,
@@ -221,16 +136,13 @@ window.nobo = {
   schema,
   wsclient,
   cache,
-  domGenerator,
-  domUpdater,
   pageState,
-  clientActions,
   appClient,
   wsprotocol,
   log,
 };
 
-},{"../datapoints/cache/datapoint-cache":7,"../dom/dom-functions":20,"../dom/dom-generator":21,"../dom/dom-updater":22,"../general/log":30,"../general/schema":35,"../web-socket/web-socket-client":66,"../web-socket/web-socket-protocol-client":67,"./app-client":1,"./client-actions":2,"./datapoint-util":4,"./page-state":5,"./page-util":6}],4:[function(require,module,exports){
+},{"../datapoints/cache/datapoint-cache":6,"../dom/datapoint-getter-setters/install":23,"../dom/dom-functions":24,"../general/log":32,"../general/schema":37,"../web-socket/web-socket-client":69,"../web-socket/web-socket-protocol-client":70,"./app-client":1,"./datapoint-util":3,"./page-state":4,"./page-util":5}],3:[function(require,module,exports){
 const ConvertIds = require('../datapoints/convert-ids');
 
 let nextLocalId = 1;
@@ -239,7 +151,7 @@ window.newdp = (typeName, fieldName) => {
   return datapointInfo.datapointId || datapointInfo.rowId;
 };
 
-},{"../datapoints/convert-ids":8}],5:[function(require,module,exports){
+},{"../datapoints/convert-ids":7}],4:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 
@@ -400,7 +312,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/public-api":34}],6:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/public-api":36}],5:[function(require,module,exports){
 window.forEachLocal = (el, cb) => {
   while (el && !el.hasAttribute('sourcetemplate')) el = el.parentElement;
   if (!el) return;
@@ -448,7 +360,7 @@ window.localElement = (el, name) => {
   return findLocal(el, el => el.getAttribute('localid') === name);
 };
 
-},{}],7:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 const makeClassWatchable = require('../../general/watchable');
 const Datapoint = require('../../datapoints/datapoint/datapoint');
 const PublicApi = require('../../general/public-api');
@@ -618,7 +530,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
 
-},{"../../datapoints/datapoint/datapoint":9,"../../datapoints/datapoint/getters-setters/all.js":11,"../../datapoints/row-change-trackers":17,"../../datapoints/templates":18,"../../general/public-api":34,"../../general/state-var":36,"../../general/watchable":39}],8:[function(require,module,exports){
+},{"../../datapoints/datapoint/datapoint":8,"../../datapoints/datapoint/getters-setters/all.js":10,"../../datapoints/row-change-trackers":16,"../../datapoints/templates":17,"../../general/public-api":36,"../../general/state-var":38,"../../general/watchable":42}],7:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -700,11 +612,30 @@ const typeNameRegex = /^([a-z0-9]+(?:_[a-z0-9]+)*)$/,
   //      [3]: row id as an integer string
   //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
   //      [5]: field name in snake_case
-  datapointRegex = new RegExp(
+  basicDatapointRegex = new RegExp(
     `^(${typeNameRegex.source.substring(1, typeNameRegex.source.length - 1)}__${proxyableRowIdRegex.source.substring(
       1,
       proxyableRowIdRegex.source.length - 1
     )})__~?${fieldNameRegex.source.substring(1, fieldNameRegex.source.length - 1)}$`
+  ),
+  // Pointer to a particular expression of a row in the db
+  //   captures:
+  //      [1]: the row string
+  //      [2]: typename in snake_case
+  //      [3]: row id as an integer string
+  //      [4]: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  //      [5]: field name in snake_case
+  //      [6]: embedded datapoint id
+  //      [7]: embedded datapoint: the row string
+  //      [8]: embedded datapoint: typename in snake_case
+  //      [9]: embedded datapoint: row id as an integer string
+  //      [10]: embedded datapoint: or proxy row id as a snake_case word (eg for proxy row strings like "user__me")
+  //      [11]: embedded datapoint: field name in snake_case
+  datapointRegex = new RegExp(
+    `^${basicDatapointRegex.source.substring(
+      1,
+      basicDatapointRegex.source.length - 1
+    )}(?:\\[(${basicDatapointRegex.source.substring(1, basicDatapointRegex.source.length - 1)})\\])?$`
   );
 
 // API
@@ -755,13 +686,15 @@ function ensureDecomposed({ typeName }) {
 
 // reconstructs string ids from their component parts or throws if not possible
 // you can provide more than one argument, in which case they are combined with the last taking precidence
-function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, permissive }) {
+function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, embeddedDatapointId, permissive }) {
   if (arguments.length != 1) {
     const combined = {};
     Array.prototype.forEach.call(arguments, argument => processArg(argument, combined));
     return recomposeId(combined);
   } else {
-    ({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, permissive } = processArg(arguments[0]));
+    ({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointId, embeddedDatapointId, permissive } = processArg(
+      arguments[0]
+    ));
   }
 
   function processArg(arg, into) {
@@ -782,6 +715,7 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
         into.dbRowId = args.dbRowId;
         into.proxyKey = args.proxyKey;
         into.fieldName = args.fieldName;
+        into.embeddedDatapointId = args.embeddedDatapointId;
       }
     }
 
@@ -799,6 +733,9 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
   };
   if (!typeNameRegex.test(ret.typeName)) throw new Error('Type name has invalid characters or format');
 
+  if (embeddedDatapointId !== undefined && !basicDatapointRegex.test(embeddedDatapointId))
+    throw new Error('Embedded datapoint id has invalid format');
+
   if (dbRowId) {
     if (!dbRowIdRegex.test(dbRowId)) {
       throw new Error('Db row id has invalid characters or format');
@@ -811,6 +748,8 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
+
+      if (embeddedDatapointId) ret.datapointId += `[${embeddedDatapointId}]`;
     }
   } else if (proxyKey) {
     ret.proxyKey = proxyKey;
@@ -822,6 +761,8 @@ function recomposeId({ typeName, dbRowId, proxyKey, fieldName, rowId, datapointI
       if (!fieldNameRegex.test(ret.fieldName)) throw new Error('Field name has invalid characters or format');
 
       ret.datapointId = `${ret.rowId}__${ret.fieldName}`;
+
+      if (embeddedDatapointId) ret.datapointId += `[${embeddedDatapointId}]`;
     }
   } else {
     if (permissive) return;
@@ -873,6 +814,7 @@ function stringToDatapoint(datapointId, permissive) {
       rowId: match[1],
       typeName: ChangeCase.pascalCase(match[2]),
       fieldName: match[5] == '*' ? '*' : ChangeCase.camelCase(match[5]),
+      embeddedDatapointId: match[6],
     },
     match[3]
       ? {
@@ -886,7 +828,7 @@ function stringToDatapoint(datapointId, permissive) {
   );
 }
 
-},{"change-case":42}],9:[function(require,module,exports){
+},{"change-case":45}],8:[function(require,module,exports){
 const { decomposeId } = require('../../datapoints/convert-ids');
 const makeClassWatchable = require('../../general/watchable');
 const isEqual = require('../../general/is-equal');
@@ -906,6 +848,7 @@ class Datapoint {
       'proxyKey',
       'rowId',
       'datapointId',
+      'embeddedDatapointId',
 
       'isId',
       'isMultiple',
@@ -995,6 +938,9 @@ class Datapoint {
   }
   get datapointId() {
     return this.datapointInfo.datapointId;
+  }
+  get embeddedDatapointId() {
+    return this.datapointInfo.embeddedDatapointId;
   }
 
   get isId() {
@@ -1148,8 +1094,9 @@ class Datapoint {
   // sets the value by invoking the setter method if any
   setValue(newValue) {
     const datapoint = this,
-      { setter, valueIfAny } = datapoint,
-      changed = !isEqual(valueIfAny, newValue, { exact: true });
+      { setter, valueIfAny, cache, rowId, valid } = datapoint,
+      { rowChangeTrackers } = cache,
+      changed = !valid || !isEqual(valueIfAny, newValue, { exact: true });
 
     if (!changed) return;
 
@@ -1164,7 +1111,7 @@ class Datapoint {
       datapoint.invalidate();
 
       rowChangeTrackers
-        .executeAfterValidatingDatapoints(rowId, getter.fn, newValue)
+        .executeAfterValidatingDatapoints(rowId, setter.fn, newValue)
         .then(({ result, usesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
 
@@ -1235,13 +1182,13 @@ module.exports = PublicApi({
   hasExposedBackDoor: true, // note that the __private backdoor is used by this class, leave this as true
 });
 
-},{"../../datapoints/convert-ids":8,"../../general/is-equal":28,"../../general/log":30,"../../general/public-api":34,"../../general/watchable":39,"./dependency-methods":10}],10:[function(require,module,exports){
+},{"../../datapoints/convert-ids":7,"../../general/is-equal":30,"../../general/log":32,"../../general/public-api":36,"../../general/watchable":42,"./dependency-methods":9}],9:[function(require,module,exports){
 const log = require('../../general/log');
 
 module.exports = addDependencyMethods;
 
-function addDependencyMethods(watchableClass) {
-  Object.assign(watchableClass.prototype, {
+function addDependencyMethods(theClass) {
+  Object.assign(theClass.prototype, {
     clearDependencies() {
       this.setDependencies();
     },
@@ -1267,14 +1214,16 @@ function addDependencyMethods(watchableClass) {
       for (const dependencyDatapointId of Object.keys(dependencies)) {
         if (!(newDependencies && newDependencies[dependencyDatapointId])) {
           const dependencyDatapoint = cache.getExistingDatapoint(dependencyDatapointId);
-          datapoint._removeDependency(dependencyDatapoint, type);
+          if (dependencyDatapoint) {
+            datapoint._removeDependency(dependencyDatapoint.__private, type);
+          }
           changed = true;
         }
       }
       if (newDependencies) {
         for (const dependencyDatapointId of Object.keys(newDependencies)) {
           if (!dependencies[dependencyDatapointId]) {
-            const dependencyDatapoint = cache.getOrCreateDatapoint(dependencyDatapointId);
+            const dependencyDatapoint = cache.getOrCreateDatapoint(dependencyDatapointId).__private;
             datapoint._addDependency(dependencyDatapoint, type);
             changed = true;
           }
@@ -1357,7 +1306,7 @@ function addDependencyMethods(watchableClass) {
 
       if (!dependents) return;
       for (const dependentDatapointId of Object.keys(dependents)) {
-        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.invalidDependencyCount = 1;
@@ -1371,7 +1320,7 @@ function addDependencyMethods(watchableClass) {
 
       if (!dependents) return;
       for (const dependentDatapointId of Object.keys(dependents)) {
-        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!--dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.validate();
@@ -1384,7 +1333,7 @@ function addDependencyMethods(watchableClass) {
 
       if (!dependents) return;
       for (const dependentDatapointId of Object.keys(dependents)) {
-        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.validate();
@@ -1394,7 +1343,7 @@ function addDependencyMethods(watchableClass) {
   });
 }
 
-},{"../../general/log":30}],11:[function(require,module,exports){
+},{"../../general/log":32}],10:[function(require,module,exports){
 const finders = [
   require('./page-state'),
   require('./state'),
@@ -1419,7 +1368,7 @@ module.exports = {
   },
 };
 
-},{"./db":12,"./page-state":13,"./schema-code":14,"./state":15,"./template":16}],12:[function(require,module,exports){
+},{"./db":11,"./page-state":12,"./schema-code":13,"./state":14,"./template":15}],11:[function(require,module,exports){
 module.exports = function({ datapoint, schema, datapointDbConnection }) {
   if (!datapointDbConnection) return;
 
@@ -1451,7 +1400,7 @@ module.exports = function({ datapoint, schema, datapointDbConnection }) {
   return ret;
 };
 
-},{}],13:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 const PageState = require('../../../client/page-state');
 
 module.exports = function({ datapoint, cache }) {
@@ -1480,7 +1429,7 @@ module.exports = function({ datapoint, cache }) {
   }
 };
 
-},{"../../../client/page-state":5}],14:[function(require,module,exports){
+},{"../../../client/page-state":4}],13:[function(require,module,exports){
 module.exports = function({ datapoint, schema }) {
   const { typeName, fieldName } = datapoint,
     type = schema.allTypes[typeName];
@@ -1500,7 +1449,7 @@ module.exports = function({ datapoint, schema }) {
   return ret;
 };
 
-},{}],15:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 const g_state = {};
 
 module.exports = function({ datapoint }) {
@@ -1526,7 +1475,7 @@ module.exports = function({ datapoint }) {
   };
 };
 
-},{}],16:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 const ChangeCase = require('change-case');
 
 module.exports = function({ datapoint, templates }) {
@@ -1596,7 +1545,7 @@ module.exports = function({ datapoint, templates }) {
   }
 };
 
-},{"change-case":42}],17:[function(require,module,exports){
+},{"change-case":45}],16:[function(require,module,exports){
 // row-change-trackers
 // © Will Smart 2018. Licence: MIT
 
@@ -1604,6 +1553,7 @@ const PublicApi = require('../general/public-api');
 const ConvertIds = require('./convert-ids');
 const changeDetectorObject = require('../general/change-detector-object');
 const mapValues = require('../general/map-values');
+const log = require('../general/log');
 
 class RowChangeTrackers {
   // public methods
@@ -1641,14 +1591,19 @@ class RowChangeTrackers {
       };
 
     args.push({
-      rowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
+      getRowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
       getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
+      setDatapointValue: rowChangeTrackers.setDatapointValue.bind(rowChangeTrackers),
+      willRetry: () => executor.retryAfterPromises.length > 0,
     });
+
+    const useThisArg =
+      typeof thisArg == 'string' && ConvertIds.rowRegex.test(thisArg) ? rowChangeTrackers.rowObject(thisArg) : thisArg;
 
     try {
       const executorWas = rowChangeTrackers._executor;
       rowChangeTrackers._executor = executor;
-      const result = fn.apply(thisArg, args);
+      const result = fn.apply(useThisArg, args);
       rowChangeTrackers._executor = executorWas;
       executor.result = RowChangeTrackers.sanitizeCDOs(await result);
     } catch (error) {
@@ -1658,6 +1613,7 @@ class RowChangeTrackers {
           mutatingRowChangeTrackers = new RowChangeTrackers({ cache, schema, readOnly: false });
         return mutatingRowChangeTrackers.execute(thisArg, fn, ...args);
       }
+      log('err.eval', `While executing code: ${error.message}`);
       executor.error = error;
     }
 
@@ -1769,13 +1725,19 @@ class RowChangeTrackers {
     if (Array.isArray(value)) {
       return value.map(item => RowChangeTrackers.sanitizeCDOs(item));
     }
-    if (value && typeof value == 'object') {
+    if (value && typeof value == 'object' && value.constructor === Object) {
       return mapValues(value, item => RowChangeTrackers.sanitizeCDOs(item));
     }
     return value;
   }
 
   setDatapointValue(rowId, fieldName, value) {
+    let embeddedDatapointId;
+    if (ConvertIds.datapointRegex.test(rowId)) {
+      value = fieldName;
+      ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
+    }
+
     if (fieldName == 'id') return;
 
     const rowChangeTrackers = this,
@@ -1806,9 +1768,9 @@ class RowChangeTrackers {
     if (datapoint) datapoint.setValue(value);
   }
 
-  getDatapointValue(rowId, fieldName) {
+  getDatapointValue(rowId, fieldName, embeddedDatapointId) {
     if (ConvertIds.datapointRegex.test(rowId)) {
-      ({ rowId, fieldName } = ConvertIds.decomposeId({ datapointId: rowId }));
+      ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
     }
 
     if (fieldName == 'id') return rowId;
@@ -1816,7 +1778,7 @@ class RowChangeTrackers {
     const rowChangeTrackers = this,
       { cache, schema, executor } = rowChangeTrackers,
       { typeName } = ConvertIds.decomposeId({ rowId }),
-      datapointId = ConvertIds.recomposeId({ rowId, fieldName }).datapointId,
+      datapointId = ConvertIds.recomposeId({ rowId, fieldName, embeddedDatapointId }).datapointId,
       datapoint = cache.getOrCreateDatapoint(datapointId);
 
     if (executor) executor.usesDatapoints[datapointId] = true;
@@ -1859,7 +1821,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/change-detector-object":25,"../general/map-values":31,"../general/public-api":34,"./convert-ids":8}],18:[function(require,module,exports){
+},{"../general/change-detector-object":27,"../general/log":32,"../general/map-values":33,"../general/public-api":36,"./convert-ids":7}],17:[function(require,module,exports){
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
@@ -1890,14 +1852,7 @@ class Templates {
     templates.templatesByRowId = {};
     templates.templatesByVariantClassOwnership = {};
     templates.bubbledTemplatesByVariantClassOwnership = {};
-
-    templates.domGenerator = new DomGenerator({
-      htmlToElement,
-      cache: {
-        getExistingDatapoint: () => undefined,
-        getOrCreateDatapoint: () => undefined,
-      },
-    });
+    templates.htmlToElement = htmlToElement;
 
     setTimeout(() => {
       this.callbackKey = cache.getOrCreateDatapoint(this.appTemplatesDatapointId).watch({
@@ -1937,7 +1892,9 @@ class Templates {
   cvoForTemplateDatapointId(datapointId) {
     const { typeName, dbRowId, fieldName } = ConvertIds.decomposeId({ datapointId });
     if (typeName !== 'App' || dbRowId !== this.appDbRowId) return;
-    const match = /^use_template((?:_v\w+)*)((?:_c\w+)*)(_private|)$/.exec(ChangeCase.snakeCase(fieldName));
+    const match = /^use_template((?:_v[A-Za-z0-9]+)*)((?:_c[A-Za-z0-9]+)*)(_private|)$/.exec(
+      ChangeCase.snakeCase(fieldName)
+    );
     if (!match) return;
     const variant = match[1] ? ChangeCase.camelCase(match[1].substring(2).replace('_v', '_')) : undefined,
       classFilter = match[2] ? ChangeCase.pascalCase(match[2].substring(2).replace('_c', '_')) : undefined;
@@ -2191,23 +2148,21 @@ class Template {
 
   updateDom(domString) {
     const template = this,
-      { templates } = template;
+      { templates } = template,
+      { htmlToElement } = templates;
 
     if (!(domString && typeof domString == 'string')) domString = '<div></div>';
 
     if (template.domString == domString) return;
     template.domString = domString;
 
-    const elements = templates.domGenerator.createElementsUsingDatapointIds({
-      domString,
-      rowId: 'placeholder__1',
-    });
+    const element = htmlToElement(domString);
 
     const displayedFields = {},
       children = {},
       embedded = [];
 
-    elements.forEach(addElement);
+    addElement(element);
 
     function addElement(element) {
       const childrenDatapointId = element.getAttribute('nobo-children-dpid'),
@@ -2320,89 +2275,475 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../dom/dom-generator":21,"../general/map-values":31,"../general/public-api":34,"./convert-ids":8,"change-case":42}],19:[function(require,module,exports){
-const PublicApi = require('../general/public-api');
-const { cloneShowingElementNames } = require('../general/name-for-element');
-const { rangeForElement, forEachInElementRange } = require('./dom-functions');
+},{"../dom/dom-generator":25,"../general/map-values":33,"../general/public-api":36,"./convert-ids":7,"change-case":45}],18:[function(require,module,exports){
+const ChangeCase = require('change-case');
+const ConvertIds = require('../../datapoints/convert-ids');
+const CodeSnippet = require('../../general/code-snippet');
+const templateCodeToJs = require('../../general/template-code-to-js');
 
-// API is auto-generated at the bottom from the public interface of the DomChangeQueue class
+const fieldNamePrefix = 'attribute-',
+  templateSuffix = '-template';
 
-class DomChangeQueue {
-  // public methods
-  static publicMethods() {
-    return ['push', 'apply'];
+module.exports = function({ datapoint }) {
+  const { fieldName, typeName, rowId, proxyKey } = datapoint;
+
+  if (typeName != 'Dom' || !proxyKey) {
+    return;
   }
 
-  constructor() {
-    const domChangeQueue = this;
+  const paramCaseFieldName = ChangeCase.paramCase(fieldName);
+  if (!paramCaseFieldName.startsWith(fieldNamePrefix)) return;
 
-    domChangeQueue.queue = [];
+  const valueAttributeName = paramCaseFieldName.substring(fieldNamePrefix.length),
+    templateAttributeName = valueAttributeName + templateSuffix,
+    match = /^textnode(\d+)$/.exec(valueAttributeName),
+    textNodeIndex = match ? Number(match[1]) : undefined;
+
+  if (valueAttributeName.endsWith(templateSuffix)) {
+    return;
   }
 
-  push(change) {
-    const domChangeQueue = this,
-      { queue } = domChangeQueue;
+  let datapointState = { template: '', compiledGetter: undefined };
 
-    queue.push(change);
+  getValue = element => {
+    if (textNodeIndex !== undefined) {
+      let value = '';
+      for (
+        let child = element.firstChild, thisTextNodeIndex = -1, inTextNode = false;
+        child;
+        child = child.nextSibling
+      ) {
+        if (child.nodeType != 3) {
+          if (inTextNode) {
+            if (thisTextNodeIndex == textNodeIndex) break;
+            inTextNode = false;
+          }
+          continue;
+        }
+        if (!inTextNode) {
+          thisTextNodeIndex++;
+          inTextNode = true;
+        }
+        if (thisTextNodeIndex == textNodeIndex) {
+          value += child.textContent;
+        }
+      }
+      return value;
+    }
+    return element.getAttribute(valueAttributeName) || '';
+  };
 
-    domChangeQueue.queueJob();
+  setValue = (element, value) => {
+    if (textNodeIndex !== undefined) {
+      let value = '';
+      for (
+        let child = element.firstChild,
+          nextChild = child ? child.nextSibling : undefined,
+          thisTextNodeIndex = -1,
+          inTextNode = false;
+        child;
+        child = nextChild, nextChild = child ? child.nextSibling : undefined
+      ) {
+        if (child.nodeType != 3) {
+          if (inTextNode) {
+            if (thisTextNodeIndex == textNodeIndex) break;
+            inTextNode = false;
+          }
+          continue;
+        }
+        if (!inTextNode) {
+          thisTextNodeIndex++;
+          inTextNode = true;
+          child.textContent = value;
+        } else if (thisTextNodeIndex == textNodeIndex) {
+          child.parentNode.removeChild(child);
+        }
+      }
+    } else {
+      element.setAttribute(valueAttributeName, value);
+    }
+  };
+
+  evaluate = ({ getDatapointValue, getRowObject, willRetry }) => {
+    const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId),
+      { rowId: sourceRowId } =
+        getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'context' }).datapointId) || {},
+      newState = { template: '', compiledGetter: undefined };
+
+    if (willRetry()) return;
+
+    let value = '',
+      needsSet = true;
+    do {
+      if (!element) break;
+
+      if (!element.hasAttribute(templateAttributeName)) {
+        value = getValue(element);
+        needsSet = false;
+        break;
+      }
+
+      newState.template = element.getAttribute(templateAttributeName);
+
+      newState.compiledGetter =
+        newState.template == datapointState.template
+          ? datapointState.compiledGetter
+          : new CodeSnippet({
+              code: newState.template,
+            });
+
+      value = newState.compiledGetter
+        ? String(
+            newState.compiledGetter.evaluate({
+              getDatapointValue,
+              getRowObject,
+              rowId: sourceRowId,
+            })
+          )
+        : '';
+    } while (false);
+
+    if (!willRetry()) {
+      if (element && needsSet) setValue(element, value);
+      datapointState = newState;
+    }
+
+    return value;
+  };
+
+  return {
+    getter: {
+      fn: evaluate,
+    },
+    setter: {
+      fn: (_newValue, { getDatapointValue, getRowObject }) => evaluate({ getDatapointValue, getRowObject }),
+    },
+  };
+};
+
+},{"../../datapoints/convert-ids":7,"../../general/code-snippet":28,"../../general/template-code-to-js":40,"change-case":45}],19:[function(require,module,exports){
+const ChangeCase = require('change-case');
+const ConvertIds = require('../../datapoints/convert-ids');
+const diffAny = require('../../general/diff');
+const { childRangesForElement, insertChildRange, deleteChildRange } = require('../dom-functions');
+
+let _nextElementId = 2;
+function nextElementId() {
+  return `seq${_nextElementId++}`;
+}
+
+module.exports = function({ datapoint }) {
+  const { fieldName: childrenFieldName, typeName, rowId, proxyKey } = datapoint;
+
+  if (typeName != 'Dom' || !proxyKey) {
+    return;
   }
 
-  queueJob({ delay = 10 } = {}) {
-    const domChangeQueue = this;
+  const match = /^children([A-Z].*)$/.exec(childrenFieldName);
+  if (!match) return;
 
-    if (delay <= 0) {
-      domChangeQueue.applyDomChanges();
+  const fieldName = ChangeCase.camelCase(match[1]);
+
+  let datapointState = { childTrees: [] };
+  const childrenWorkingArray = [];
+
+  evaluate = ({ getDatapointValue, setDatapointValue, willRetry }) => {
+    const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId),
+      newState = { childTrees: undefined };
+
+    if (willRetry()) return;
+
+    do {
+      if (!element) {
+        childrenWorkingArray = [];
+        break;
+      }
+
+      let childIds = getDatapointValue(
+        ConvertIds.recomposeId({ rowId: element.getAttribute('nobo-row-id'), fieldName })
+      );
+      if (willRetry()) return;
+
+      if (!Array.isArray(childIds)) childRowIds = [];
+      childIds = childIds.filter(
+        rowId => typeof rowId == 'string' && (ConvertIds.rowRegex.test(rowId) || ConvertIds.datapointRegex.test(rowId))
+      );
+
+      const diff = diffAny(childrenWorkingArray.map(child => child.id), childIds);
+
+      if (diff && diff.arrayDiff) {
+        for (const { insertAt, deleteAt, value: id } of diff.arrayDiff) {
+          if (insertAt !== undefined) {
+            const childProxyKey = nextElementId(),
+              contextDatapointId = ConvertIds.recomposeId({
+                typeName: 'Dom',
+                proxyKey: childProxyKey,
+                fieldName: 'context',
+              }),
+              contextDatapointInfo = ConvertIds.rowRegex.test(id)
+                ? { rowId: id }
+                : ConvertIds.decomposeId({ datapointId: id });
+
+            setDatapointValue(contextDatapointId, {
+              rowId: contextDatapointInfo.rowId,
+              variant: contextDatapointInfo.fieldName,
+            });
+
+            childrenWorkingArray.splice(insertAt, 0, {
+              elementId: nextElementId(),
+            });
+          }
+
+          if (deleteAt !== undefined) {
+            childrenWorkingArray.splice(deleteAt, 1);
+          }
+        }
+      }
+    } while (false);
+
+    for (const child of childrenWorkingArray) {
+      child.tree = getDatapointValue(
+        ConvertIds.recomposeId({
+          typeName: 'Dom',
+          proxyKey: child.elementId,
+          fieldName: 'tree',
+        }).datapointId
+      );
+    }
+
+    newState.childTrees = childrenWorkingArray.map(child => child.tree);
+
+    if (!willRetry()) {
+      datapointState = newState;
+      const childRanges = childRangesForElement(element);
+      const diff = diffAny(childRanges.map(([start]) => start), datapointState.childTrees.map(([start]) => start));
+
+      if (diff && diff.arrayDiff) {
+        for (const { insertAt, deleteAt, value: childRange } of diff.arrayDiff) {
+          childRange[0].setAttribute('nobo-parent-uid', proxyKey);
+          if (insertAt !== undefined) {
+            insertChildRange({
+              parent: element,
+              before: insertAt < childRanges.length ? childRanges[insertAt][0] : undefined,
+              childRange,
+            });
+          }
+          if (deleteAt !== undefined) {
+            deleteChildRange(childRanges[deleteAt]);
+          }
+        }
+      }
+    }
+
+    return datapointState.childTrees;
+  };
+
+  return {
+    getter: {
+      fn: evaluate,
+    },
+    setter: {
+      fn: (_newValue, { getDatapointValue, getRowObject }) => evaluate({ getDatapointValue, getRowObject }),
+    },
+  };
+};
+
+},{"../../datapoints/convert-ids":7,"../../general/diff":29,"../dom-functions":24,"change-case":45}],20:[function(require,module,exports){
+const ConvertIds = require('../../datapoints/convert-ids');
+
+module.exports = function({ datapoint }) {
+  const { fieldName, typeName, proxyKey } = datapoint;
+
+  if (typeName != 'Dom' || !proxyKey) {
+    return;
+  }
+
+  if (fieldName == 'context') {
+    return {
+      getter: {
+        fn: () => datapoint.valueIfAny || { rowId: undefined, variant: undefined },
+      },
+      setter: {
+        fn: context => {
+          let rowId, variant;
+          if (typeof context == 'string') {
+            if (ConvertIds.rowRegex.test(context)) rowId = context;
+            else if (ConvertIds.datapointRegex.test(context)) {
+              ({ rowId, fieldName: variant } = ConvertIds.decomposeId({ datapointId: context }));
+            }
+          } else if (typeof context == 'object') {
+            ({ rowId, variant } = context);
+            if (rowId && (typeof rowId != 'string' || !ConvertIds.rowRegex.test(rowId))) {
+              rowId = undefined;
+            }
+            if (variant && (typeof variant != 'string' || !ConvertIds.fieldNameRegex.test(variant))) {
+              rowId = undefined;
+              variant = undefined;
+            }
+          }
+          return { rowId, variant };
+        },
+      },
+    };
+  }
+};
+
+},{"../../datapoints/convert-ids":7}],21:[function(require,module,exports){
+const ChangeCase = require('change-case');
+const ConvertIds = require('../../datapoints/convert-ids');
+const { templateDatapointIdForRowAndVariant } = require('../dom-functions');
+
+module.exports = ({ htmlToElement }) =>
+  function({ datapoint }) {
+    const { fieldName, typeName, rowId, proxyKey } = datapoint;
+
+    if (typeName != 'Dom' || !proxyKey) {
       return;
     }
 
-    if (domChangeQueue._applyTimeout) return;
-    domChangeQueue._applyTimeout = setTimeout(() => {
-      delete domChangeQueue._applyTimeout;
-      domChangeQueue.applyDomChanges();
-    }, delay);
+    if (fieldName == 'element') {
+      const match = /^id([A-Z0-9][A-Za-z0-9]*)$/.exec(proxyKey);
+      if (match) {
+        const elementId = ChangeCase.paramCase(match[1]);
+
+        evaluateElement = () => {
+          const element = typeof document == 'undefined' ? undefined : document.getElementById(elementId);
+          if (element) element.setAttribute('nobo-uid', proxyKey);
+          return element;
+        };
+
+        return {
+          getter: {
+            fn: evaluateElement,
+          },
+          setter: {
+            fn: (_newValue, { getDatapointValue }) => evaluateElement({ getDatapointValue }),
+          },
+        };
+      } else {
+        const defaultDom = '<div>...</div>';
+
+        let datapointState = { dom: undefined, element: undefined };
+
+        evaluateElement = ({ getDatapointValue, willRetry }) => {
+          newState = { dom: undefined, element: undefined };
+
+          do {
+            const { rowId: sourceRowId, variant } =
+              getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'context' }).datapointId) || {};
+
+            if (sourceRowId) {
+              const template = getDatapointValue(templateDatapointIdForRowAndVariant(sourceRowId, variant));
+
+              if (Array.isArray(template) && template.length == 1) {
+                newState.dom = getDatapointValue(
+                  ConvertIds.recomposeId({ rowId: template[0], fieldName: 'dom' }).datapointId
+                );
+              }
+            }
+
+            if (willRetry()) return;
+
+            if (!newState.dom || typeof newState.dom != 'string') newState.dom = defaultDom;
+
+            if (newState.dom == datapointState.dom) newState.element = datapointState.element;
+            else {
+              newState.element = htmlToElement(newState.dom);
+              if (!newState.element) {
+                newState.dom = defaultDom;
+                newState.element = htmlToElement(newState.dom);
+              }
+              newState.element.setAttribute('nobo-uid', proxyKey);
+              newState.element.setAttribute('nobo-rowid', sourceRowId);
+              newState.element.setAttribute('nobo-variant', variant || 'default');
+            }
+          } while (false);
+
+          if (!willRetry()) {
+            datapointState = newState;
+          }
+
+          return datapointState.element;
+        };
+
+        return {
+          getter: {
+            fn: evaluateElement,
+          },
+          setter: {
+            fn: (_newValue, { getDatapointValue }) => evaluateElement({ getDatapointValue }),
+          },
+        };
+      }
+    }
+  };
+
+},{"../../datapoints/convert-ids":7,"../dom-functions":24,"change-case":45}],22:[function(require,module,exports){
+const ChangeCase = require('change-case');
+const ConvertIds = require('../../datapoints/convert-ids');
+const { rangeForElement } = require('../dom-functions');
+
+module.exports = function({ datapoint }) {
+  const { fieldName, typeName, rowId, proxyKey } = datapoint;
+
+  if (typeName != 'Dom' || !proxyKey) {
+    return;
   }
 
-  applyDomChanges() {
-    const domChangeQueue = this;
+  if (fieldName == 'tree') {
+    evaluateTree = ({ getDatapointValue, willRetry }) => {
+      const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId);
+      if (!element) return;
 
-    if (domChangeQueue._applyTimeout) {
-      clearTimeout(domChangeQueue._applyTimeout);
-      delete domChangeQueue._applyTimeout;
-    }
+      for (let attributeIndex = element.attributes.length - 1; attributeIndex >= 0; attributeIndex--) {
+        const { name } = element.attributes[attributeIndex];
+        if (name.endsWith('-template')) {
+          const fieldName = ChangeCase.camelCase(`attribute-${name.substring(0, name.length - '-template'.length)}`);
+          getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName }));
+        }
+      }
 
-    if (domChangeQueue.queue.length) {
-      const changes = domChangeQueue.queue;
+      for (let classIndex = element.classList.length - 1; classIndex >= 0; classIndex--) {
+        const name = element.classList[classIndex];
+        if (name.endsWith('-model-child')) {
+          const fieldName = ChangeCase.camelCase(`children-${name.substring(0, name.length - '-model-child'.length)}`);
+          getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName }));
+          break;
+        }
+      }
 
-      domChangeQueue.queue = [];
-      changes.forEach(domChangeQueue.apply);
-    }
+      if (willRetry()) return;
+
+      return rangeForElement(element);
+    };
+
+    return {
+      getter: {
+        fn: evaluateTree,
+      },
+      setter: {
+        fn: (_newValue, { getDatapointValue }) => evaluateTree({ getDatapointValue }),
+      },
+    };
   }
+};
 
-  apply({ replace, insertAfter, parent, firstElement }) {
-    if (replace) {
-      parent = replace.parentElement;
-      insertAfter = replace.previousSibling;
+},{"../../datapoints/convert-ids":7,"../dom-functions":24,"change-case":45}],23:[function(require,module,exports){
+const finders = [
+  require('./dom-attribute'),
+  require('./dom-children'),
+  require('./dom-context'),
+  require('./dom-tree'),
+];
+const finderFactories = [require('./dom-element')];
 
-      forEachInElementRange(replace, el => parent.removeChild(el));
-    }
+module.exports = ({ cache, htmlToElement }) => {
+  const finderFns = finders.concat(finderFactories.map(factory => factory({ htmlToElement })));
 
-    if (insertAfter) parent = insertAfter.parentNode;
+  for (const fn of finderFns) cache.getterSetterInfo.finders.push(fn);
+};
 
-    if (firstElement && parent) {
-      const nextSibling = insertAfter ? insertAfter.nextSibling : parent.firstChild;
-      forEachInElementRange(firstElement, el => parent.insertBefore(el, nextSibling));
-    }
-  }
-}
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: DomChangeQueue,
-  hasExposedBackDoor: true,
-});
-
-},{"../general/name-for-element":32,"../general/public-api":34,"./dom-functions":20}],20:[function(require,module,exports){
+},{"./dom-attribute":18,"./dom-children":19,"./dom-context":20,"./dom-element":21,"./dom-tree":22}],24:[function(require,module,exports){
 const ChangeCase = require('change-case');
 const ConvertIds = require('../datapoints/convert-ids');
 const nameForElement = require('../general/name-for-element');
@@ -2410,89 +2751,22 @@ const log = require('../general/log');
 
 // API is just all the functions
 module.exports = {
-  datapointChildrenClass,
-  datapointValueFieldClass,
-  datapointTemplateFieldClass,
-  datapointDomFieldClass,
-  childrenPlaceholders,
-  datapointValueElements,
-  datapointTemplateElements,
-  datapointDomElements,
-  elementChildrenFieldName,
-  childrenFieldNameForElement,
   htmlToElement,
   templateDatapointIdForRowAndVariant,
   variantForTemplateDatapointId,
-  nextChild,
-  childRanges,
-  skipAllChildren,
-  skipChildren,
-  _nextChild,
-  _skipAllChildren,
-  _skipChildren,
+  describeTree,
   rangeForElement,
-  childRangeAtIndex,
-  elementForUniquePath,
-  uniquePathForElement,
-  templateDatapointIdforVariantOfRow,
   forEachInElementRange,
   mapInElementRange,
   findInElementRange,
-  logChange,
-  describeRange,
-  describeTree,
-  describeChange,
-  logRange,
-  logTree,
+  forEachChildRange,
+  mapChildRanges,
+  findChildRange,
+  childRangesForElement,
+  insertChildRange,
+  deleteChildRange,
 };
 
-const waitCountAttributeName = 'nobo-wait-count',
-  waitNamesAttributeName = 'nobo-wait-names',
-  waitingChangesAttributeName = 'nobo-waiting-changes',
-  rootInChangeIdAttributeName = 'nobo-root-in-change';
-
-function datapointChildrenClass(datapointId) {
-  return `children--${datapointId}`;
-}
-
-function datapointValueFieldClass(datapointId) {
-  return `value--${datapointId}`;
-}
-
-function datapointTemplateFieldClass(datapointId) {
-  return `template--${datapointId}`;
-}
-
-function datapointDomFieldClass(datapointId) {
-  return `dom--${datapointId}`;
-}
-
-function childrenPlaceholders(datapointId) {
-  return document.getElementsByClassName(datapointChildrenClass(datapointId));
-}
-function datapointValueElements(datapointId) {
-  return document.getElementsByClassName(datapointValueFieldClass(datapointId));
-}
-function datapointTemplateElements(datapointId) {
-  return document.getElementsByClassName(datapointTemplateFieldClass(datapointId));
-}
-function datapointDomElements(datapointId) {
-  return document.getElementsByClassName(datapointDomFieldClass(datapointId));
-}
-
-function elementChildrenFieldName(element) {
-  for (const className of element.classList) {
-    const match = /^(\w+)-model-child$/.exec(className);
-    if (match) return ChangeCase.camelCase(match[1]);
-  }
-}
-
-function childrenFieldNameForElement(element) {
-  for (const className of element.classList) {
-    const match = /(\w+)-model-child/.exec(className);
-    if (match) return match[1];
-  }
-}
 function htmlToElement(html) {
   var template = document.createElement('template');
   template.innerHTML = html.trim();
@@ -2508,185 +2782,16 @@ function htmlToElement(html) {
 function templateDatapointIdForRowAndVariant(rowId, variant) {
   return ConvertIds.recomposeId({
     rowId,
-    fieldName: `template_${variant}`,
+    fieldName: `template_${variant || 'default'}`,
   }).datapointId;
 }
 
 function variantForTemplateDatapointId(datapointId) {
   const { fieldName } = ConvertIds.decomposeId({ datapointId });
   if (fieldName.startsWith('template')) {
-    return ChangeCase.camelCase(fieldName.substring('template'.length));
+    const variant = ChangeCase.camelCase(fieldName.substring('template'.length));
+    return variant == 'default' ? undefined : variant;
   }
-}
-
-function nextChild(placeholderUid, previousChildElement, nextElementSiblingFn) {
-  return _nextChild(placeholderUid, [previousChildElement], nextElementSiblingFn);
-}
-
-function skipAllChildren(placeholderUid, previousChildElement, nextElementSiblingFn) {
-  return _skipAllChildren(placeholderUid, [previousChildElement], nextElementSiblingFn);
-}
-
-function skipChildren(placeholderUid, previousChildElement, count, nextElementSiblingFn) {
-  return _skipChildren(placeholderUid, [previousChildElement], count, nextElementSiblingFn);
-}
-
-function _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn) {
-  const previousChildElement = currentChildElementArray[0],
-    previousChildUid = previousChildElement.getAttribute('nobo-uid');
-  let element = nextElementSiblingFn
-    ? nextElementSiblingFn(previousChildElement)
-    : previousChildElement.nextElementSibling;
-  currentChildElementArray[1] = previousChildElement;
-  currentChildElementArray[0] = element;
-  if (!element || element.getAttribute('nobo-placeholder-uid') == placeholderUid) return element;
-
-  if (!previousChildUid || element.getAttribute('nobo-placeholder-uid') != previousChildUid) return;
-  element = _skipAllChildren(previousChildUid, currentChildElementArray, nextElementSiblingFn);
-
-  return element && element.getAttribute('nobo-placeholder-uid') == placeholderUid ? element : undefined;
-}
-
-function _skipAllChildren(placeholderUid, currentChildElementArray, nextElementSiblingFn) {
-  while (_nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn));
-  return currentChildElementArray[0];
-}
-
-function _skipChildren(placeholderUid, currentChildElementArray, count, nextElementSiblingFn) {
-  for (let index = 0; index < count; index++) {
-    if (!_nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn)) return;
-  }
-  return currentChildElementArray[0];
-}
-
-function rangeForElement(startElement, nextElementSiblingFn) {
-  if (!startElement) return [undefined, undefined];
-  const currentChildElementArray = [startElement];
-  _nextChild(startElement.getAttribute('nobo-placeholder-uid'), currentChildElementArray, nextElementSiblingFn);
-  return [startElement, currentChildElementArray[1]];
-}
-
-function childRanges({ placeholderDiv, nextElementSiblingFn }) {
-  const placeholderUid = placeholderDiv.getAttribute('nobo-uid'),
-    ret = [];
-  let element = nextElementSiblingFn ? nextElementSiblingFn(placeholderDiv) : placeholderDiv.nextElementSibling;
-
-  while (element && element.getAttribute('nobo-placeholder-uid') == placeholderUid) {
-    const currentChildElementArray = [element];
-    _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn);
-    ret.push([element, currentChildElementArray[1]]);
-    element = currentChildElementArray[0];
-  }
-  return ret;
-}
-
-function childRangeAtIndex({ placeholderDiv, index, nextElementSiblingFn }) {
-  if (index < 0) return [placeholderDiv, placeholderDiv];
-  const placeholderUid = placeholderDiv.getAttribute('nobo-uid'),
-    firstElement = nextElementSiblingFn ? nextElementSiblingFn(placeholderDiv) : placeholderDiv.nextElementSibling;
-
-  if (!firstElement || firstElement.getAttribute('nobo-placeholder-uid') != placeholderUid) return [];
-  const startElement = skipChildren(placeholderUid, firstElement, index, nextElementSiblingFn);
-  if (!startElement) return [];
-  const currentChildElementArray = [startElement];
-  _nextChild(placeholderUid, currentChildElementArray, nextElementSiblingFn);
-  return [startElement, currentChildElementArray[1]];
-}
-
-function findPlaceholderDescendent(element, lid) {
-  if (!lid) {
-    for (let sib = element.nextElementSibling; sib; sib = sib.nextElementSibling) {
-      const childLid = child.getAttribute('nobo-lid');
-      if (child.getAttribute('nobo-lid') == lid) return sib;
-    }
-  } else
-    for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-      const childLid = child.getAttribute('nobo-lid');
-      if (childLid) {
-        if (childLid == lid) return child;
-      } else {
-        const lids = child.getAttribute('nobo-child-lids');
-        if (lids && lids.includes(` ${lid} `)) {
-          const ret = findPlaceholderDescendent(child, lid);
-          if (ret) return ret;
-        }
-      }
-    }
-}
-
-function elementForUniquePath(path) {
-  path = path.split(' ');
-  const roots = childrenPlaceholders('page');
-  if (!roots.length) return;
-  let element = roots[0];
-  for (const pathComponent of path) {
-    const match = /^([^_]+)__(.*)__#(\d+)$/.exec(pathComponent);
-    if (!match) return;
-    const lid = match[1],
-      templateDatapointId = match[2];
-    let index = +match[3];
-
-    let placeholderElement = element.hasAttribute('nobo-uid') ? element : findPlaceholderDescendent(element, lid);
-    if (!placeholderElement) return;
-    const placeholderUid = placeholderElement.getAttribute('nobo-uid');
-
-    element = undefined;
-    for (let sib = placeholderElement.nextElementSibling; sib; sib = sib.nextElementSibling) {
-      if (
-        sib.getAttribute('nobo-placeholder-uid') == placeholderUid &&
-        sib.getAttribute('nobo-orig-template-dpid') == templateDatapointId
-      ) {
-        if (index--) continue;
-        element = sib;
-        break;
-      }
-    }
-    if (!element) return;
-  }
-  return element;
-}
-
-function uniquePathForElement(element) {
-  while (!(element.hasAttribute('nobo-placeholder-uid') && element.hasAttribute('nobo-orig-template-dpid'))) {
-    if (!(element = element.parentElement)) return;
-  }
-  const placeholderUid = element.getAttribute('nobo-placeholder-uid'),
-    templateDatapointId = element.getAttribute('nobo-orig-template-dpid');
-  let index = 0;
-  for (let sib = element.previousElementSibling; sib; sib = sib.previousElementSibling) {
-    const sibUid = sib.getAttribute('nobo-uid'),
-      sibLid = sib.getAttribute('nobo-lid');
-    if (sibUid == 'page') {
-      return `0__${templateDatapointId}__#${index}`;
-    }
-    if (sibUid == placeholderUid) {
-      const sibPath = uniquePathForElement(sib);
-      if (sibPath === undefined) return;
-      return `${sibPath} ${sibLid}__${templateDatapointId}__#${index}`;
-    }
-    if (
-      sib.getAttribute('nobo-placeholder-uid') == placeholderUid &&
-      sib.getAttribute('nobo-orig-template-dpid') == templateDatapointId
-    ) {
-      index++;
-    }
-  }
-  return;
-}
-
-function templateDatapointIdforVariantOfRow({ variant = undefined, rowOrDatapointId }) {
-  variant = variant || '';
-  let rowId = rowOrDatapointId;
-
-  if (typeof rowOrDatapointId == 'string' && ConvertIds.datapointRegex.test(rowOrDatapointId)) {
-    ({ rowId, fieldName: variant } = ConvertIds.decomposeId({
-      datapointId: rowOrDatapointId,
-    }));
-  }
-
-  return typeof rowId == 'string' && ConvertIds.rowRegex.test(rowId)
-    ? templateDatapointIdForRowAndVariant(rowId, variant)
-    : undefined;
 }
 
 function forEachInElementRange(element, fn) {
@@ -2721,48 +2826,6 @@ function findInElementRange(element, fn) {
   }
 }
 
-function logRange(module, prompt, element) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeRange(element)}`);
-}
-
-function logTree(module, prompt, element) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeTree(element)}`);
-}
-
-function logChange(module, prompt, change) {
-  log(module, () => `${prompt ? `${prompt}:\n` : ''}${describeChange(change)}`);
-}
-
-function describeChange(change, indent = '') {
-  let ret = '';
-  if (change.firstElement) {
-    ret += `${indent} Change${change.id ? ` #${change.id}` : ''} has new elements:\n${describeRange(
-      change.firstElement,
-      indent + '    + '
-    )}`;
-  } else {
-    ret += `${indent} Change${change.id ? ` #${change.id}` : ''} has no new elements:\n`;
-  }
-  if (change.replace) {
-    ret += `${indent} ... it replaces elements:\n${describeRange(change.replace, indent + '    x ')}`;
-  } else if (change.insertAfter) {
-    ret += `${indent} ... it inserts new elements after:\n${describeRange(change.insertAfter, indent + '    > ')}`;
-  } else if (change.parent) {
-    ret += `${indent} ... it} inserts new elements as first under:\n${describeRange(change.parent, indent + '    v ')}`;
-  }
-  return ret;
-}
-
-function describeRange(element, indent = '') {
-  let ret = '';
-  let isFirst = true;
-  forEachInElementRange(element, el => {
-    ret += describeTree(el, indent + (isFirst ? '- ' : '  '));
-    isFirst = false;
-  });
-  return ret;
-}
-
 function describeTree(element, indent = '') {
   let ret = '';
   const templateDatapointId = element.getAttribute('nobo-template-dpid'),
@@ -2770,44 +2833,76 @@ function describeTree(element, indent = '') {
     rowId = templateDatapointId ? ConvertIds.decomposeId({ datapointId: templateDatapointId }).rowId : undefined,
     name = nameForElement(element),
     clas = element.className.replace(' ', '+'),
-    waitCount = elementWaitCount(element),
-    waitNames = elementWaitNames(element),
-    rootInChangeId = elementRootInChangeId(element),
-    waitingChangeIds = elementWaitingChangeIds(element),
-    waitInfo = `${waitCount ? `Wx${waitCount}` : ''}${waitNames.length ? `[${waitNames.join(',')}]` : ''}${
-      rootInChangeId ? `R${rootInChangeId}` : ''
-    }${waitingChangeIds.length ? `C[${waitingChangeIds.join(',')}]` : ''}`,
-    desc = `${name}${clas ? `.${clas}` : ''}${templateDatapointId ? `:${rowId}${variant ? `[${variant}]` : ''}` : ''}${
-      waitInfo ? `{${waitInfo}}` : ''
-    }`;
+    desc = `${name}${clas ? `.${clas}` : ''}${templateDatapointId ? `:${rowId}${variant ? `[${variant}]` : ''}` : ''}`;
   ret += `${indent}${desc}\n`;
   indent += '. ';
-  for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    ret += describeRange(child, indent);
-    child = rangeForElement(child)[1];
-  }
+  forEachChildRange(element, ([child]) => {
+    ret += describeTree(child, indent);
+  });
   return ret;
 }
 
-function elementWaitCount(element) {
-  return Number(element.getAttribute(waitCountAttributeName) || 0);
+function rangeForElement(element) {
+  const parentId = parent.getAttribute('nobo-uid');
+  if (!parentId) return [element, element];
+  for (let child = parent.nextElementSibling, lastChildEnd = parent; child; child = lastChildEnd.nextElementSibling) {
+    if (child.getAttribute('nobo-parent-uid') != parentId) break;
+    lastChildEnd = rangeForElement(child)[1];
+  }
+  return [element, lastChildEnd];
 }
 
-function elementWaitNames(element) {
-  const names = element.getAttribute(waitNamesAttributeName);
-  return names ? names.split(' ') : [];
+function forEachChildRange(parent, fn) {
+  const parentId = parent.getAttribute('nobo-uid');
+  for (let child = parent.nextElementSibling, lastChildRange; child; child = lastChildRange[1].nextElementSibling) {
+    if (child.getAttribute('nobo-parent-uid') != parentId) break;
+    fn((lastChildRange = rangeForElement(child)));
+  }
 }
 
-function elementRootInChangeId(element) {
-  return element.getAttribute(rootInChangeIdAttributeName) || undefined;
+function mapChildRanges(parent, fn) {
+  const ret = [];
+  forEachChildRange(parent, range => ret.push(fn(range)));
+  return ret;
 }
 
-function elementWaitingChangeIds(element) {
-  const value = element.getAttribute(waitingChangesAttributeName);
-  return value ? value.split(' ') : [];
+function findChildRange(parent, fn) {
+  const parentId = parent.getAttribute('nobo-uid');
+  for (let child = parent.nextElementSibling, lastChildRange; child; child = lastChildRange[1].nextElementSibling) {
+    if (child.getAttribute('nobo-parent-uid') != parentId) break;
+    if (fn((lastChildRange = rangeForElement(child)))) {
+      return lastChildRange;
+    }
+  }
 }
 
-},{"../datapoints/convert-ids":8,"../general/log":30,"../general/name-for-element":32,"change-case":42}],21:[function(require,module,exports){
+function childRangesForElement(parent) {
+  const ranges = [];
+  forEachChildRange(parent, range => ranges.push(range));
+  return ranges;
+}
+
+function insertChildRange({ parent, before, childRange }) {
+  for (
+    let [child, end] = childRange, nextSibling = child === end ? undefined : child.nextSibling;
+    child;
+    child = nextSibling, nextSibling = !child || child === end ? undefined : child.nextSibling
+  ) {
+    parent.insertBefore(child, before);
+  }
+}
+
+function deleteChildRange([child, end]) {
+  for (
+    let nextSibling = child === end ? undefined : child.nextSibling;
+    child;
+    child = nextSibling, nextSibling = !child || child === end ? undefined : child.nextSibling
+  ) {
+    if (child.parentNode) child.parentNode.removeChild(child);
+  }
+}
+
+},{"../datapoints/convert-ids":7,"../general/log":32,"../general/name-for-element":34,"change-case":45}],25:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const ConvertIds = require('../datapoints/convert-ids');
 const TemplatedText = require('./templated-text');
@@ -3189,669 +3284,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/public-api":34,"../general/watchable":39,"./dom-functions":20,"./templated-text":24}],22:[function(require,module,exports){
-const PublicApi = require('../general/public-api');
-const TemplatedText = require('./templated-text');
-const diffAny = require('../general/diff');
-const ConvertIds = require('../datapoints/convert-ids');
-const DomWaitingChangeQueue = require('./dom-waiting-change-queue');
-const { nameForElement, cloneShowingElementNames } = require('../general/name-for-element');
-const log = require('../general/log');
-
-const { rangeForElement, childRangeAtIndex, variantForTemplateDatapointId } = require('./dom-functions');
-
-// API is auto-generated at the bottom from the public interface of the DomUpdater class
-
-const waitCountAttributeName = 'nobo-wait-count';
-const waitNamesAttributeName = 'nobo-wait-names';
-
-function elementWaitCount(element) {
-  return Number(element.getAttribute(waitCountAttributeName) || 0);
-}
-
-function elementWaitNames(element) {
-  const names = element.getAttribute(waitNamesAttributeName);
-  return names ? names.split(' ') : [];
-}
-
-function incElementWaitCount(element, name) {
-  const waitCount = elementWaitCount(element) + 1;
-  element.setAttribute(waitCountAttributeName, waitCount);
-  const waitNames = elementWaitNames(element);
-  if (waitNames.indexOf(name) != -1)
-    log('err.dom', `Didn't expect element ${nameForElement(element)} to already be waiting on name ${name}`);
-  waitNames.push(name);
-  element.setAttribute(waitNamesAttributeName, waitNames.join(' '));
-  return waitCount;
-}
-
-function decElementWaitCount(element, name) {
-  const waitCount = elementWaitCount(element) - 1;
-  if (waitCount) {
-    element.setAttribute(waitCountAttributeName, waitCount);
-  } else {
-    element.removeAttribute(waitCountAttributeName);
-  }
-  const waitNames = elementWaitNames(element);
-  const index = waitNames.indexOf(name);
-  if (index == -1) log('err.dom', `Expected element ${nameForElement(element)} to be waiting on name ${name}`);
-  else waitNames.splice(index, 1);
-  if (waitNames.length) {
-    element.setAttribute(waitNamesAttributeName, waitNames.join(' '));
-  } else {
-    element.removeAttribute(waitNamesAttributeName);
-  }
-  return waitCount;
-}
-
-function callbackKeyOnElement(element, type) {
-  return `updater-${type}-${nameForElement(element)}`;
-}
-
-class DomUpdater {
-  // public methods
-  static publicMethods() {
-    return ['datapointUpdated', 'domWaitingChangeQueue'];
-  }
-
-  get domWaitingChangeQueue() {
-    return this._domWaitingChangeQueue;
-  }
-
-  constructor({ cache, domGenerator }) {
-    const domUpdater = this;
-
-    Object.assign(domUpdater, {
-      cloneShowingElementNames,
-      cache,
-      domGenerator: domGenerator,
-      _domWaitingChangeQueue: new DomWaitingChangeQueue(),
-    });
-
-    domUpdater.dg_callbackKey = domGenerator.watch({
-      onprepelement: ({ element }) => {
-        const templateDatapointId = element.getAttribute('nobo-template-dpid'),
-          domDatapointId = element.getAttribute('nobo-dom-dpid'),
-          childrenDatapointId = element.getAttribute('nobo-children-dpid'),
-          valueDatapointIdsString = element.getAttribute('nobo-val-dpids'),
-          valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined,
-          depth = element.getAttribute('nobo-depth');
-
-        if (!(templateDatapointId || domDatapointId || childrenDatapointId || valueDatapointIds)) {
-          return;
-        }
-
-        if (templateDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint(templateDatapointId);
-          if (!datapoint.initialized) {
-            log(
-              'dom',
-              'dom',
-              `> dp ${datapoint.datapointId} not initialized (wanted for template on element ${nameForElement(
-                element
-              )})`
-            );
-            incElementWaitCount(element, datapoint.datapointId);
-          }
-          datapoint.watch({
-            callbackKey: callbackKeyOnElement(element, 'template'),
-            onchange: () => {
-              const variantBackup = element.getAttribute('nobo-backup---variant'),
-                variantDatapointIdsString = element.getAttribute('nobo-variant-dpids'),
-                variantDatapointIds = variantDatapointIdsString ? variantDatapointIdsString.split(' ') : [];
-              domUpdater.queueDomChange({
-                replace: element,
-                firstElement: domGenerator.createElementsUsingDatapointIds({
-                  templateDatapointId,
-                  depth,
-                  variantBackup,
-                  variantDatapointIds,
-                })[0],
-              });
-            },
-          });
-        }
-        if (domDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint(domDatapointId);
-          if (!datapoint.initialized) {
-            log(
-              'dom',
-              `> dp ${datapoint.datapointId} not initialized (wanted for dom on element ${nameForElement(element)})`
-            );
-            incElementWaitCount(element, datapoint.datapointId);
-          }
-          datapoint.watch({
-            callbackKey: callbackKeyOnElement(element, 'dom'),
-            onchange: () => {
-              const variantBackup = element.getAttribute('nobo-backup---variant'),
-                variantDatapointIdsString = element.getAttribute('nobo-variant-dpids'),
-                variantDatapointIds = variantDatapointIdsString ? variantDatapointIdsString.split(' ') : [];
-              domUpdater.queueDomChange({
-                replace: element,
-                firstElement: domGenerator.createElementsUsingDatapointIds({
-                  templateDatapointId,
-                  domDatapointId,
-                  depth,
-                  variantBackup,
-                  variantDatapointIds,
-                })[0],
-              });
-            },
-          });
-        }
-        if (childrenDatapointId) {
-          const datapoint = cache.getOrCreateDatapoint(childrenDatapointId),
-            childDepth = element.getAttribute('nobo-child-depth') || 1;
-          let childrenWere = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [];
-
-          if (!datapoint.initialized) {
-            log(
-              'dom',
-              `> dp ${datapoint.datapointId} not initialized (wanted for children of element ${nameForElement(
-                element
-              )})`
-            );
-            incElementWaitCount(element, datapoint.datapointId);
-          }
-          datapoint.watch({
-            callbackKey: callbackKeyOnElement(element, 'children'),
-            oninit: () => {
-              log(
-                'dom',
-                `< dp ${datapoint.datapointId} is now initialized (wanted for children of element ${nameForElement(
-                  element
-                )})`,
-                datapoint.valueIfAny
-              );
-              domUpdater.decWaitCount(element, datapoint.datapointId);
-            },
-            onchange: () => {
-              const children = Array.isArray(datapoint.valueIfAny) ? datapoint.valueIfAny : [],
-                diff = diffAny(childrenWere, children),
-                variant = element.getAttribute('variant') || undefined;
-
-              if (!diff) return;
-              if (!diff.arrayDiff) {
-                log('err', 'Expected array diff');
-                return;
-              } else {
-                for (const diffPart of diff.arrayDiff) {
-                  if (diffPart.insertAt !== undefined) {
-                    domUpdater.queueDomChange({
-                      insertAfter: childRangeAtIndex({ placeholderDiv: element, index: diffPart.insertAt - 1 })[1],
-                      firstElement: domGenerator.createElementsForVariantOfRow({
-                        variant,
-                        rowOrDatapointId: diffPart.value,
-                        depth: childDepth,
-                      })[0],
-                    });
-                    continue;
-                  }
-                  if (diffPart.deleteAt !== undefined) {
-                    domUpdater.queueDomChange({
-                      replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.deleteAt })[0],
-                    });
-                    continue;
-                  }
-                  if (diffPart.at !== undefined) {
-                    domUpdater.queueDomChange({
-                      replace: childRangeAtIndex({ placeholderDiv: element, index: diffPart.at })[0],
-                      firstElement: domGenerator.createElementsForVariantOfRow({
-                        variant,
-                        rowOrDatapointId: diffPart.value,
-                        depth: childDepth,
-                      })[0],
-                    });
-                    continue;
-                  }
-                }
-              }
-              childrenWere = children;
-            },
-          });
-        }
-        if (valueDatapointIds) {
-          for (const datapointId of valueDatapointIds) {
-            const datapoint = cache.getOrCreateDatapoint(datapointId);
-            if (!datapoint.initialized) {
-              log(
-                'dom',
-                `> dp ${datapoint.datapointId} not initialized (wanted for value on element ${nameForElement(element)})`
-              );
-              incElementWaitCount(element, datapoint.datapointId);
-            }
-            datapoint.watch({
-              callbackKey: callbackKeyOnElement(element, 'value'),
-              oninit: () => {
-                log(
-                  'dom',
-                  `< dp ${datapoint.datapointId} is now initialized (wanted for value on element ${nameForElement(
-                    element
-                  )})`,
-                  datapoint.valueIfAny
-                );
-                domUpdater.decWaitCount(element, datapoint.datapointId);
-              },
-              onchange: () => {
-                const usesString = element.getAttribute(`nobo-use-${datapointId}`),
-                  uses = usesString ? usesString.split(' ') : undefined,
-                  rowId = element.getAttribute('nobo-row-id');
-
-                if (uses) {
-                  for (const use of uses) {
-                    const indexMatch = /^=(\d+)$/.exec(use);
-                    if (indexMatch) {
-                      const index = indexMatch[1],
-                        templateText = element.getAttribute(`nobo-backup-text-${index}`);
-                      let upToIndex = 0;
-                      for (let childNode = element.firstChild; childNode; childNode = childNode.nextSibling) {
-                        if (childNode.nodeType == 3) {
-                          if (index < upToIndex++) continue;
-
-                          const templatedText = new TemplatedText({
-                            cache,
-                            rowId,
-                            text: templateText,
-                          });
-
-                          // Delete runs of text nodes, which were probably put there by an edit with contentEditable
-                          for (
-                            let nextSibling = childNode.nextSibling;
-                            nextSibling && nextSibling.nodeType == 3;
-                            childNode = nextSibling, nextSibling = childNode.nextSibling
-                          ) {
-                            childNode.parentNode.removeChild(childNode);
-                          }
-
-                          childNode.textContent = templatedText.evaluate().string;
-                          break;
-                        }
-                      }
-                      continue;
-                    }
-                    const name = use,
-                      templateText = element.getAttribute(`nobo-backup--${name}`);
-                    const templatedText = new TemplatedText({
-                      cache,
-                      rowId,
-                      text: templateText,
-                    });
-                    if (name.startsWith('on')) {
-                      element[name] = event => {
-                        templatedText.evaluate({ event });
-                      };
-                    } else
-                      switch (name) {
-                        default:
-                          element.setAttribute(name, templatedText.evaluate().string);
-                          break;
-                        case '-variant':
-                          if (!templateDatapointId) break;
-                          const newVariant = templatedText.evaluate().string,
-                            oldVariant = variantForTemplateDatapointId(templateDatapointId);
-                          if (newVariant == oldVariant) break;
-                          domUpdater.queueDomChange({
-                            replace: element,
-                            firstElement: domGenerator.createElementsForVariantOfRow({
-                              variant: templateText,
-                              rowOrDatapointId: ConvertIds.decomposeId({ datapointId: templateDatapointId }).rowId,
-                              depth,
-                            })[0],
-                          });
-                          break;
-                      }
-                  }
-                }
-              },
-            });
-          }
-        }
-      },
-    });
-  }
-
-  decWaitCount(element, name) {
-    const domUpdater = this,
-      waitCount = decElementWaitCount(element, name);
-    if (!waitCount) {
-      domUpdater.domWaitingChangeQueue.elementIsDoneWaiting(element);
-    }
-  }
-
-  queueDomChange(change) {
-    const domUpdater = this;
-    let { replace } = change;
-
-    if (replace) {
-      domUpdater.stopWatchersOnRange(replace);
-    }
-
-    domUpdater.domWaitingChangeQueue.push(change);
-  }
-
-  stopWatchersOnRange(range) {
-    const domUpdater = this;
-
-    if (!range) return;
-
-    if (!Array.isArray(range)) {
-      range = rangeForElement(range);
-    }
-
-    const [start, end] = range;
-    parent = start.parentElement;
-
-    for (let element = start; element; element = element.nextElementSibling) {
-      domUpdater.stopWatchers(element);
-      if (element == end) break;
-    }
-  }
-
-  stopWatchers(element) {
-    const domUpdater = this,
-      templateDatapointId = element.getAttribute('nobo-template-dpid'),
-      domDatapointId = element.getAttribute('nobo-dom-dpid'),
-      childrenDatapointId = element.getAttribute('nobo-children-dpid'),
-      valueDatapointIdsString = element.getAttribute('nobo-val-dpids'),
-      valueDatapointIds = valueDatapointIdsString ? valueDatapointIdsString.split(' ') : undefined;
-
-    if (!(templateDatapointId || domDatapointId || childrenDatapointId || valueDatapointIds)) {
-      return;
-    }
-
-    if (templateDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint(templateDatapointId);
-      datapoint.stopWatching({
-        callbackKey: callbackKeyOnElement(element, 'template'),
-      });
-    }
-    if (domDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint(domDatapointId);
-      datapoint.stopWatching({
-        callbackKey: callbackKeyOnElement(element, 'dom'),
-      });
-    }
-    if (childrenDatapointId) {
-      const datapoint = domUpdater.cache.getExistingDatapoint(childrenDatapointId);
-      datapoint.stopWatching({
-        callbackKey: callbackKeyOnElement(element, 'children'),
-      });
-    }
-    if (valueDatapointIds) {
-      for (const datapointId of valueDatapointIds) {
-        const datapoint = domUpdater.cache.getExistingDatapoint(datapointId);
-        datapoint.stopWatching({
-          callbackKey: callbackKeyOnElement(element, 'value'),
-        });
-      }
-    }
-  }
-}
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: DomUpdater,
-  hasExposedBackDoor: true,
-});
-
-},{"../datapoints/convert-ids":8,"../general/diff":27,"../general/log":30,"../general/name-for-element":32,"../general/public-api":34,"./dom-functions":20,"./dom-waiting-change-queue":23,"./templated-text":24}],23:[function(require,module,exports){
-const DomChangeQueue = require('./dom-change-queue');
-const PublicApi = require('../general/public-api');
-const { forEachInElementRange, findInElementRange, logChange, describeChange } = require('./dom-functions');
-
-// API is auto-generated at the bottom from the public interface of the DomChangeQueue class
-
-const waitCountAttributeName = 'nobo-wait-count',
-  waitingChangesAttributeName = 'nobo-waiting-changes',
-  rootInChangeIdAttributeName = 'nobo-root-in-change';
-
-function elementRootInChangeId(element) {
-  return element.getAttribute(rootInChangeIdAttributeName) || undefined;
-}
-
-function setElementRootInChangeId(element, changeId) {
-  if (changeId) element.setAttribute(rootInChangeIdAttributeName, changeId);
-  else element.removeAttribute(rootInChangeIdAttributeName);
-}
-
-function elementWaitingChangeIds(element) {
-  const value = element.getAttribute(waitingChangesAttributeName);
-  return value ? value.split(' ') : [];
-}
-
-function clearElementWaitingChangeIds(element) {
-  element.removeAttribute(waitingChangesAttributeName);
-}
-
-function elementIsWaiting(element) {
-  return element.getAttribute(waitCountAttributeName);
-}
-
-function rangeIsWaiting(element) {
-  return Boolean(findInElementRange(element, treeIsWaiting));
-}
-
-function treeIsWaiting(element) {
-  if (elementIsWaiting(element)) return true;
-  for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    if (treeIsWaiting(child)) return true;
-  }
-}
-
-function rangeWaitCount(element) {
-  let ret = 0;
-  forEachInElementRange(element, el => (ret += treeWaitCount(el)));
-  return ret;
-}
-
-function treeWaitCount(element) {
-  let ret = elementIsWaiting(element) ? 1 : 0;
-  for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    ret += treeWaitCount(child);
-  }
-  return ret;
-}
-
-function addChangeIdToElement(element, changeId) {
-  const value = element.getAttribute(waitingChangesAttributeName);
-  element.setAttribute(waitingChangesAttributeName, value ? `${value} ${changeId}` : changeId);
-}
-
-function ensureChangeIdInElement(element, changeId) {
-  changeId = String(changeId);
-  const value = element.getAttribute(waitingChangesAttributeName);
-  if (value && value.split(' ').includes(changeId)) return;
-  element.setAttribute(waitingChangesAttributeName, value ? `${value} ${changeId}` : changeId);
-}
-
-function addChangeIdToWaitingElementsInRange(element, changeId, checkForExisting) {
-  let ret = 0;
-  forEachInElementRange(element, el => (ret += addChangeIdToWaitingElementsInTree(el, changeId, checkForExisting)));
-  return ret;
-}
-
-function addChangeIdToWaitingElementsInTree(element, changeId, checkForExisting) {
-  let ret = 0;
-  if (elementIsWaiting(element)) {
-    if (checkForExisting) ensureChangeIdInElement(element, changeId);
-    else addChangeIdToElement(element, changeId);
-    ret++;
-  }
-  for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    ret += addChangeIdToWaitingElementsInTree(child, changeId, checkForExisting);
-  }
-  return ret;
-}
-
-class DomWaitingChangeQueue {
-  // public methods
-  static publicMethods() {
-    return ['push', 'elementIsDoneWaiting', 'changeDescriptions'];
-  }
-
-  constructor() {
-    const domWaitingChangeQueue = this;
-
-    Object.assign(domWaitingChangeQueue, {
-      domChangeQueue: new DomChangeQueue(),
-      changesById: {},
-      queue: [],
-      nextChangeId: 1,
-    });
-  }
-
-  changeDescriptions(indent = '') {
-    return this.queue.map(change => describeChange(change, indent));
-  }
-
-  push(change) {
-    const domWaitingChangeQueue = this;
-
-    const consumedChangeIds = domWaitingChangeQueue.existingWaitingChildChangeIds(change);
-    for (const changeId of Object.keys(consumedChangeIds)) {
-      const consumedChange = domWaitingChangeQueue.changesById[changeId];
-      logChange('dom.changes', `Change was consumed by pushed change`, consumedChange);
-
-      forEachInElementRange(consumedChange.firstElement, setElementRootInChangeId);
-      const index = domWaitingChangeQueue.queue.indexOf(consumedChange);
-      domWaitingChangeQueue.queue.splice(index, 1);
-      delete domWaitingChangeQueue.changesById[consumedChange.id];
-    }
-
-    const parentChange = domWaitingChangeQueue.existingWaitingParentChange(change);
-    if (parentChange) {
-      logChange('dom.changes', 'Pushed change has a parent change and will be applied immediately', change);
-      if (parentChange.firstElement == change.replace) {
-        forEachInElementRange(parentChange.firstElement, setElementRootInChangeId);
-        parentChange.firstElement = change.firstElement;
-      } else {
-        domWaitingChangeQueue.domChangeQueue.apply(change);
-      }
-      domWaitingChangeQueue.refreshChangeWaitInfo(parentChange);
-      if (!parentChange.waitCount) {
-        logChange('dom.changes', `Parent change is now ready to go`, parentChange);
-        forEachInElementRange(parentChange.firstElement, setElementRootInChangeId);
-        const index = domWaitingChangeQueue.queue.indexOf(parentChange);
-        delete domWaitingChangeQueue.changesById[parentChange.id];
-        domWaitingChangeQueue.queue.splice(index, 1);
-        domWaitingChangeQueue.domChangeQueue.push(parentChange);
-      } else {
-        logChange('dom.changes', `Parent change`, parentChange);
-      }
-      return;
-    }
-
-    if (!(change.firstElement && rangeIsWaiting(change.firstElement))) {
-      logChange('dom.changes', `Pushed change isn't waiting on any datapoints, and will be queued immediately`, change);
-      domWaitingChangeQueue.domChangeQueue.push(change);
-      return;
-    }
-
-    change.id = domWaitingChangeQueue.nextChangeId++;
-
-    domWaitingChangeQueue.queue.push(change);
-    domWaitingChangeQueue.changesById[change.id] = change;
-    domWaitingChangeQueue.addChangeWaitInfo(change);
-    logChange('dom.changes', 'Change was pushed', change);
-  }
-
-  refreshChangeWaitInfo(change) {
-    forEachInElementRange(change.firstElement, el => setElementRootInChangeId(el, change.id));
-    change.waitCount = addChangeIdToWaitingElementsInRange(change.firstElement, change.id, true);
-  }
-
-  addChangeWaitInfo(change) {
-    forEachInElementRange(change.firstElement, el => setElementRootInChangeId(el, change.id));
-    change.waitCount = addChangeIdToWaitingElementsInRange(change.firstElement, change.id);
-  }
-
-  elementIsDoneWaiting(element) {
-    const domWaitingChangeQueue = this,
-      changeIds = elementWaitingChangeIds(element);
-    if (!changeIds.length) return;
-    clearElementWaitingChangeIds(element);
-
-    for (const changeId of changeIds) {
-      const change = domWaitingChangeQueue.changesById[changeId];
-
-      if (!--change.waitCount) {
-        forEachInElementRange(change.firstElement, setElementRootInChangeId);
-        const index = domWaitingChangeQueue.queue.indexOf(change);
-        delete domWaitingChangeQueue.changesById[change.id];
-        domWaitingChangeQueue.queue.splice(index, 1);
-        logChange('dom.changes', 'Change is ready to go', change);
-        domWaitingChangeQueue.domChangeQueue.push(change);
-      }
-    }
-  }
-
-  existingWaitingParentChange({ replace, insertAfter, parent, firstElement }) {
-    const domWaitingChangeQueue = this,
-      { changesById } = domWaitingChangeQueue;
-
-    for (; replace; replace = replace.parentElement) {
-      const changeId = elementRootInChangeId(replace);
-      if (changeId) return changesById[changeId];
-    }
-
-    if (insertAfter) parent = insertAfter.parentElement;
-    for (; parent; parent = parent.parentElement) {
-      const changeId = elementRootInChangeId(parent);
-      if (changeId) return changesById[changeId];
-    }
-
-    if (insertAfter) {
-      const changeId = elementRootInChangeId(insertAfter);
-      if (changeId) {
-        const next = insertAfter.nextElementSibling,
-          parentChange = changesById[changeId];
-
-        if (next && elementRootInChangeId(next) == changeId) return parentChange;
-        const placeholderUid = firstElement.getAttribute('nobo-placeholder-uid');
-        if (
-          placeholderUid &&
-          findInElementRange(change.firstElement, el => el.getAttribute('nobo-uid') == placeholderUid)
-        ) {
-          return parentChange;
-        }
-      }
-    }
-  }
-
-  existingWaitingChildChangeIds(change) {
-    const domWaitingChangeQueue = this,
-      { replace } = change,
-      changeIds = {};
-
-    if (replace) {
-      forEachInElementRange(replace, el => {
-        if (el == replace) return;
-        domWaitingChangeQueue.addExistingWaitingChildChangeIdsForElement(el, changeIds);
-      });
-    }
-
-    return changeIds;
-  }
-
-  addExistingWaitingChildChangeIdsForElement(element, changeIds) {
-    const domWaitingChangeQueue = this;
-
-    for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-      domWaitingChangeQueue.addExistingWaitingChildChangesForElement(child, changeIds);
-    }
-
-    const changeId = elementRootInChangeId(element);
-    if (changeId) changeIds[changeId] = true;
-  }
-}
-
-// API is the public facing class
-module.exports = PublicApi({
-  fromClass: DomWaitingChangeQueue,
-  hasExposedBackDoor: true,
-});
-
-},{"../general/public-api":34,"./dom-change-queue":19,"./dom-functions":20}],24:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/public-api":36,"../general/watchable":42,"./dom-functions":24,"./templated-text":26}],26:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const locateEnd = require('../general/locate-end');
 const CodeSnippet = require('../general/code-snippet');
@@ -3981,7 +3414,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/code-snippet":26,"../general/locate-end":29,"../general/public-api":34,"../general/state-var":36}],25:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/code-snippet":28,"../general/locate-end":31,"../general/public-api":36,"../general/state-var":38}],27:[function(require,module,exports){
 // change-detector-object
 // © Will Smart 2018. Licence: MIT
 
@@ -4076,7 +3509,7 @@ function changeDetectorObject(baseObject, readOnly, setParentModified) {
   };
 }
 
-},{}],26:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // code-snippet
 // © Will Smart 2018. Licence: MIT
 
@@ -4104,7 +3537,7 @@ class Code {
     Object.assign(code, wrapFunctionLocals(codeString));
   }
 
-  evalOnContext(context, state, event, allocateRowObject) {
+  evalOnContext(context, state, event, allocateRowObject, getDatapointValue) {
     const code = this,
       { wrappedFunction } = code,
       changeDetectingContext = changeDetectorObject(context);
@@ -4112,8 +3545,16 @@ class Code {
     try {
       result = wrappedFunction
         ? event
-          ? wrappedFunction.call(event.target, changeDetectingContext.useObject, state, {}, event, allocateRowObject)
-          : wrappedFunction(changeDetectingContext.useObject, state, {}, event, allocateRowObject)
+          ? wrappedFunction.call(
+              event.target,
+              changeDetectingContext.useObject,
+              state,
+              {},
+              event,
+              allocateRowObject,
+              getDatapointValue
+            )
+          : wrappedFunction(changeDetectingContext.useObject, state, {}, event, allocateRowObject, getDatapointValue)
         : undefined;
     } catch (error) {
       log('err.code', `Error while evaluating code: ${error.message}`);
@@ -4125,15 +3566,15 @@ class Code {
     };
   }
 
-  evalOnModelCDO(modelCDO, state, event, allocateRowObject) {
+  evalOnModelCDO(modelCDO, state, event, allocateRowObject, getDatapointValue) {
     const code = this,
       { wrappedFunction } = code;
     let result;
     try {
       result = wrappedFunction
         ? event
-          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event, allocateRowObject)
-          : wrappedFunction(modelCDO, state, modelCDO, event, allocateRowObject)
+          ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event, allocateRowObject, getDatapointValue)
+          : wrappedFunction(modelCDO, state, modelCDO, event, allocateRowObject, getDatapointValue)
         : undefined;
     } catch (error) {
       log('err.code', `Error while evaluating code: ${error.message}`);
@@ -4200,7 +3641,17 @@ class CodeSnippet {
     return hasName;
   }
 
-  evaluate({ cache, rowId, valueForNameCallback, valuesByName, defaultValue, timeout, event }) {
+  evaluate({
+    cache,
+    getDatapointValue,
+    rowId,
+    getRowObject,
+    valueForNameCallback,
+    valuesByName,
+    defaultValue,
+    timeout,
+    event,
+  }) {
     const codeSnippet = this,
       sandbox = {};
 
@@ -4209,10 +3660,9 @@ class CodeSnippet {
 
     const stateVar = cache ? cache.stateVar : undefined,
       state = stateVar ? stateVar.stateVar : {},
-      rowChangeTrackers = cache ? cache.rowChangeTrackers : undefined,
-      rowObject = rowId && rowChangeTrackers ? rowChangeTrackers.rowObject(rowId) : undefined,
+      rowObject = rowId ? getRowObject(rowId) : undefined,
       allocateRowObject = typeName => {
-        return rowChangeTrackers.rowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}` }).rowId);
+        return getRowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}` }).rowId);
       };
 
     if (typeof valueForNameCallback != 'function') {
@@ -4249,9 +3699,15 @@ class CodeSnippet {
         ret = codeSnippet._func.call(event, sandbox, state, allocateRowObject);
       } else ret = codeSnippet._func(sandbox, state, allocateRowObject);
     } else if (rowObject) {
-      ({ result: ret } = codeSnippet.code.evalOnModelCDO(rowObject, state, event, allocateRowObject));
+      ({ result: ret } = codeSnippet.code.evalOnModelCDO(
+        rowObject,
+        state,
+        event,
+        allocateRowObject,
+        getDatapointValue
+      ));
     } else {
-      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event, allocateRowObject));
+      ({ result: ret } = codeSnippet.code.evalOnContext(sandbox, state, event, allocateRowObject, getDatapointValue));
     }
     if (stateVar) stateVar.commitStateVar();
 
@@ -4265,7 +3721,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"../general/log":30,"./change-detector-object":25,"./public-api":34,"./wrap-function-locals":40}],27:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"../general/log":32,"./change-detector-object":27,"./public-api":36,"./wrap-function-locals":43}],29:[function(require,module,exports){
 // diff
 // © Will Smart 2018. Licence: MIT
 
@@ -4698,7 +4154,7 @@ if (typeof window !== 'undefined') {
   };
 }
 
-},{"./is-equal":28,"./log":30,"random-seed":59}],28:[function(require,module,exports){
+},{"./is-equal":30,"./log":32,"random-seed":62}],30:[function(require,module,exports){
 // compare
 // © Will Smart 2018. Licence: MIT
 
@@ -4975,7 +4431,7 @@ function objectIsEqualOrSuperset(v1, v2, options) {
   return supersetMatch ? '>' : true;
 }
 
-},{}],29:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 // locate-end
 // © Will Smart 2018. Licence: MIT
 
@@ -5027,6 +4483,8 @@ function locateEndOfString(string, closeChar, openIndex) {
   let regex;
   switch (closeChar) {
     case false:
+      regex = /(?:\\$|(?!\$\{)[\s\S])*/g;
+      break;
     case '`':
       regex = /(?:\\`|\\$|(?!\$\{)[^`])*/g;
       break;
@@ -5052,7 +4510,7 @@ function locateEndOfString(string, closeChar, openIndex) {
 
   regex.lastIndex = openIndex;
   while (true) {
-    const match = regex.exec(string);
+    regex.exec(string);
     if (regex.lastIndex == string.length) return ret;
     const endChar = string.charAt(regex.lastIndex);
     if (endChar === closeChar) {
@@ -5154,10 +4612,10 @@ function locateEnd(string, closeChar, openIndex = 0) {
   }
 }
 
-},{}],30:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = log;
 
-const enabledLogs = { err: true, diff: false, verbose: false, other: { verbose: false, other: true } };
+const enabledLogs = { err: true, diff: false, verbose: false, db: false, other: { verbose: false, other: true } };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;
@@ -5196,7 +4654,7 @@ if (typeof window !== 'undefined') {
   window.disableNoboLog = log.disableLog;
 }
 
-},{}],31:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 // map_values
 // © Will Smart 2018. Licence: MIT
 
@@ -5217,7 +4675,7 @@ function mapValues(object, fn) {
   return ret;
 }
 
-},{}],32:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 // clone
 // © Will Smart 2018. Licence: MIT
 
@@ -5269,7 +4727,7 @@ function _cloneShowingElementNames(value) {
   return { clone: value };
 }
 
-},{}],33:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 // names-from-code
 // © Will Smart 2018. Licence: MIT
 
@@ -5395,7 +4853,7 @@ function addNamesFromCodeString(codeString, names) {
   }
 }
 
-},{"./locate-end":29,"./unicode-categories":38}],34:[function(require,module,exports){
+},{"./locate-end":31,"./unicode-categories":41}],36:[function(require,module,exports){
 // convert_ids
 // © Will Smart 2018. Licence: MIT
 
@@ -5512,7 +4970,7 @@ function PublicApi({ fromClass, hasExposedBackDoor }) {
   return PublicClass;
 }
 
-},{}],35:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 const strippedValues = require('./stripped-values');
 const ConvertIds = require('../datapoints/convert-ids');
 const PublicApi = require('./public-api');
@@ -5772,7 +5230,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"./code-snippet":26,"./public-api":34,"./stripped-values":37}],36:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"./code-snippet":28,"./public-api":36,"./stripped-values":39}],38:[function(require,module,exports){
 // state-var
 // © Will Smart 2018. Licence: MIT
 
@@ -5849,7 +5307,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../datapoints/convert-ids":8,"./change-detector-object":25,"./public-api":34}],37:[function(require,module,exports){
+},{"../datapoints/convert-ids":7,"./change-detector-object":27,"./public-api":36}],39:[function(require,module,exports){
 const mapValues = require('../general/map-values');
 
 // API
@@ -5862,7 +5320,44 @@ function strippedValues(object) {
   );
 }
 
-},{"../general/map-values":31}],38:[function(require,module,exports){
+},{"../general/map-values":33}],40:[function(require,module,exports){
+// template-code-to-js
+// © Will Smart 2018. Licence: MIT
+
+const { locateEndOfString } = require('./locate-end');
+
+// Takes a piece of template string code and converts it to a JS code string
+
+module.exports = templateCodeToJs;
+
+function templateCodeToJs(templateCode) {
+  const info = locateEndOfString(templateCode, false, 0);
+  let prevEnd = 0,
+    literal = templateCode;
+  const parts = [];
+
+  if (info.children) {
+    literal = undefined;
+    for (const { range } of info.children) {
+      const [start, end] = range;
+      if (start > prevEnd) {
+        parts.push(`\`${templateCode.substring(prevEnd, start).replace('`', '\\`')}\``);
+      }
+      parts.push(templateCode.substring(start + 2, (prevEnd = end) - 1));
+    }
+  }
+  if (prevEnd < templateCode.length) {
+    parts.push(`\`${templateCode.substring(prevEnd).replace('`', '\\`')}\``);
+  }
+
+  return {
+    parts,
+    js: parts.join('+'),
+    literal,
+  };
+}
+
+},{"./locate-end":31}],41:[function(require,module,exports){
 // unicode-regex-categories
 // © Will Smart 2018. Licence: MIT
 // with thanks to http://inimino.org/~inimino/blog/javascript_cset also under MIT licence
@@ -5901,7 +5396,7 @@ module.exports = {
   varInnard,
 };
 
-},{}],39:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 // watchable
 // © Will Smart 2018. Licence: MIT
 
@@ -5977,7 +5472,7 @@ function makeClassWatchable(watchableClass) {
   });
 }
 
-},{}],40:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 // wrap-function-locals
 // © Will Smart 2018. Licence: MIT
 
@@ -5989,7 +5484,7 @@ function makeClassWatchable(watchableClass) {
 const namesFromCodeString = require('./names-from-code-string');
 const log = require('../general/log');
 
-const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.))*$/;
+const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.|\n))*$/;
 function hasUnicodeEscape(string) {
   return !unicodeEscapeRegex.test(string);
 }
@@ -6014,6 +5509,7 @@ function wrapFunctionLocals(codeString) {
       'model',
       'event',
       'newrow',
+      'getDatapoint',
       '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: true })
     );
   } catch (err) {
@@ -6024,6 +5520,7 @@ function wrapFunctionLocals(codeString) {
         'model',
         'event',
         'newrow',
+        'getDatapoint',
         '"use strict";' + wrappedCodeString({ vars, codeString, isExpression: false })
       );
     } catch (err) {
@@ -6052,7 +5549,7 @@ function wrappedCodeString({ vars, codeString, isExpression }) {
   }
 }
 
-},{"../general/log":30,"./names-from-code-string":33}],41:[function(require,module,exports){
+},{"../general/log":32,"./names-from-code-string":35}],44:[function(require,module,exports){
 var upperCase = require('upper-case')
 var noCase = require('no-case')
 
@@ -6077,7 +5574,7 @@ module.exports = function (value, locale, mergeNumbers) {
   })
 }
 
-},{"no-case":52,"upper-case":65}],42:[function(require,module,exports){
+},{"no-case":55,"upper-case":68}],45:[function(require,module,exports){
 exports.no = exports.noCase = require('no-case')
 exports.dot = exports.dotCase = require('dot-case')
 exports.swap = exports.swapCase = require('swap-case')
@@ -6097,7 +5594,7 @@ exports.isLower = exports.isLowerCase = require('is-lower-case')
 exports.ucFirst = exports.upperCaseFirst = require('upper-case-first')
 exports.lcFirst = exports.lowerCaseFirst = require('lower-case-first')
 
-},{"camel-case":41,"constant-case":43,"dot-case":44,"header-case":45,"is-lower-case":46,"is-upper-case":47,"lower-case":51,"lower-case-first":50,"no-case":52,"param-case":56,"pascal-case":57,"path-case":58,"sentence-case":60,"snake-case":61,"swap-case":62,"title-case":63,"upper-case":65,"upper-case-first":64}],43:[function(require,module,exports){
+},{"camel-case":44,"constant-case":46,"dot-case":47,"header-case":48,"is-lower-case":49,"is-upper-case":50,"lower-case":54,"lower-case-first":53,"no-case":55,"param-case":59,"pascal-case":60,"path-case":61,"sentence-case":63,"snake-case":64,"swap-case":65,"title-case":66,"upper-case":68,"upper-case-first":67}],46:[function(require,module,exports){
 var upperCase = require('upper-case')
 var snakeCase = require('snake-case')
 
@@ -6112,7 +5609,7 @@ module.exports = function (value, locale) {
   return upperCase(snakeCase(value, locale), locale)
 }
 
-},{"snake-case":61,"upper-case":65}],44:[function(require,module,exports){
+},{"snake-case":64,"upper-case":68}],47:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6126,7 +5623,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '.')
 }
 
-},{"no-case":52}],45:[function(require,module,exports){
+},{"no-case":55}],48:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCase = require('upper-case')
 
@@ -6143,7 +5640,7 @@ module.exports = function (value, locale) {
   })
 }
 
-},{"no-case":52,"upper-case":65}],46:[function(require,module,exports){
+},{"no-case":55,"upper-case":68}],49:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 /**
@@ -6157,7 +5654,7 @@ module.exports = function (string, locale) {
   return lowerCase(string, locale) === string
 }
 
-},{"lower-case":51}],47:[function(require,module,exports){
+},{"lower-case":54}],50:[function(require,module,exports){
 var upperCase = require('upper-case')
 
 /**
@@ -6171,7 +5668,7 @@ module.exports = function (string, locale) {
   return upperCase(string, locale) === string
 }
 
-},{"upper-case":65}],48:[function(require,module,exports){
+},{"upper-case":68}],51:[function(require,module,exports){
 (function (global){
 // https://github.com/maxogden/websocket-stream/blob/48dc3ddf943e5ada668c31ccd94e9186f02fafbd/ws-fallback.js
 
@@ -6192,7 +5689,7 @@ if (typeof WebSocket !== 'undefined') {
 module.exports = ws
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],49:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 exports = module.exports = stringify
 exports.getSerialize = serializer
 
@@ -6221,7 +5718,7 @@ function serializer(replacer, cycleReplacer) {
   }
 }
 
-},{}],50:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 /**
@@ -6240,7 +5737,7 @@ module.exports = function (str, locale) {
   return lowerCase(str.charAt(0), locale) + str.substr(1)
 }
 
-},{"lower-case":51}],51:[function(require,module,exports){
+},{"lower-case":54}],54:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -6296,7 +5793,7 @@ module.exports = function (str, locale) {
   return str.toLowerCase()
 }
 
-},{}],52:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 var NON_WORD_REGEXP = require('./vendor/non-word-regexp')
@@ -6338,16 +5835,16 @@ module.exports = function (str, locale, replacement) {
   return lowerCase(str, locale)
 }
 
-},{"./vendor/camel-case-regexp":53,"./vendor/camel-case-upper-regexp":54,"./vendor/non-word-regexp":55,"lower-case":51}],53:[function(require,module,exports){
+},{"./vendor/camel-case-regexp":56,"./vendor/camel-case-upper-regexp":57,"./vendor/non-word-regexp":58,"lower-case":54}],56:[function(require,module,exports){
 module.exports = /([a-z\xB5\xDF-\xF6\xF8-\xFF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0529\u052B\u052D\u052F\u0561-\u0587\u13F8-\u13FD\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA699\uA69B\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793-\uA795\uA797\uA799\uA79B\uA79D\uA79F\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7B5\uA7B7\uA7FA\uAB30-\uAB5A\uAB60-\uAB65\uAB70-\uABBF\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A0-9\xB2\xB3\xB9\xBC-\xBE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A])/g
 
-},{}],54:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 module.exports = /([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A])([A-Z\xC0-\xD6\xD8-\xDE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u037F\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0528\u052A\u052C\u052E\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u13A0-\u13F5\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA698\uA69A\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA796\uA798\uA79A\uA79C\uA79E\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA-\uA7AD\uA7B0-\uA7B4\uA7B6\uFF21-\uFF3A][a-z\xB5\xDF-\xF6\xF8-\xFF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0529\u052B\u052D\u052F\u0561-\u0587\u13F8-\u13FD\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA699\uA69B\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793-\uA795\uA797\uA799\uA79B\uA79D\uA79F\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7B5\uA7B7\uA7FA\uAB30-\uAB5A\uAB60-\uAB65\uAB70-\uABBF\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A])/g
 
-},{}],55:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 module.exports = /[^A-Za-z\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u08A0-\u08B4\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16F1-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2183\u2184\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005\u3006\u3031-\u3035\u303B\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312D\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FD5\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6E5\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AD\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC0-9\xB2\xB3\xB9\xBC-\xBE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19]+/g
 
-},{}],56:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6361,7 +5858,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '-')
 }
 
-},{"no-case":52}],57:[function(require,module,exports){
+},{"no-case":55}],60:[function(require,module,exports){
 var camelCase = require('camel-case')
 var upperCaseFirst = require('upper-case-first')
 
@@ -6377,7 +5874,7 @@ module.exports = function (value, locale, mergeNumbers) {
   return upperCaseFirst(camelCase(value, locale, mergeNumbers), locale)
 }
 
-},{"camel-case":41,"upper-case-first":64}],58:[function(require,module,exports){
+},{"camel-case":44,"upper-case-first":67}],61:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6391,7 +5888,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '/')
 }
 
-},{"no-case":52}],59:[function(require,module,exports){
+},{"no-case":55}],62:[function(require,module,exports){
 /*
  * random-seed
  * https://github.com/skratchdot/random-seed
@@ -6661,7 +6158,7 @@ uheprng.create = function (seed) {
 };
 module.exports = uheprng;
 
-},{"json-stringify-safe":49}],60:[function(require,module,exports){
+},{"json-stringify-safe":52}],63:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCaseFirst = require('upper-case-first')
 
@@ -6676,7 +6173,7 @@ module.exports = function (value, locale) {
   return upperCaseFirst(noCase(value, locale), locale)
 }
 
-},{"no-case":52,"upper-case-first":64}],61:[function(require,module,exports){
+},{"no-case":55,"upper-case-first":67}],64:[function(require,module,exports){
 var noCase = require('no-case')
 
 /**
@@ -6690,7 +6187,7 @@ module.exports = function (value, locale) {
   return noCase(value, locale, '_')
 }
 
-},{"no-case":52}],62:[function(require,module,exports){
+},{"no-case":55}],65:[function(require,module,exports){
 var upperCase = require('upper-case')
 var lowerCase = require('lower-case')
 
@@ -6719,7 +6216,7 @@ module.exports = function (str, locale) {
   return result
 }
 
-},{"lower-case":51,"upper-case":65}],63:[function(require,module,exports){
+},{"lower-case":54,"upper-case":68}],66:[function(require,module,exports){
 var noCase = require('no-case')
 var upperCase = require('upper-case')
 
@@ -6736,7 +6233,7 @@ module.exports = function (value, locale) {
   })
 }
 
-},{"no-case":52,"upper-case":65}],64:[function(require,module,exports){
+},{"no-case":55,"upper-case":68}],67:[function(require,module,exports){
 var upperCase = require('upper-case')
 
 /**
@@ -6755,7 +6252,7 @@ module.exports = function (str, locale) {
   return upperCase(str.charAt(0), locale) + str.substr(1)
 }
 
-},{"upper-case":65}],65:[function(require,module,exports){
+},{"upper-case":68}],68:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -6807,7 +6304,7 @@ module.exports = function (str, locale) {
   return str.toUpperCase()
 }
 
-},{}],66:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 const WebSocket = require('isomorphic-ws');
 const PublicApi = require('../general/public-api');
 const makeClassWatchable = require('../general/watchable');
@@ -6986,7 +6483,7 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../client/page-state":5,"../general/log":30,"../general/public-api":34,"../general/watchable":39,"isomorphic-ws":48}],67:[function(require,module,exports){
+},{"../client/page-state":4,"../general/log":32,"../general/public-api":36,"../general/watchable":42,"isomorphic-ws":51}],70:[function(require,module,exports){
 const PublicApi = require('../general/public-api');
 const log = require('../general/log');
 const isEqual = require('../general/is-equal');
@@ -7209,4 +6706,4 @@ module.exports = PublicApi({
   hasExposedBackDoor: true,
 });
 
-},{"../general/is-equal":28,"../general/log":30,"../general/public-api":34}]},{},[3]);
+},{"../general/is-equal":30,"../general/log":32,"../general/public-api":36}]},{},[2]);

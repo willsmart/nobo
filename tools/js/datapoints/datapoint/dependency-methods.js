@@ -2,8 +2,8 @@ const log = require('../../general/log');
 
 module.exports = addDependencyMethods;
 
-function addDependencyMethods(watchableClass) {
-  Object.assign(watchableClass.prototype, {
+function addDependencyMethods(theClass) {
+  Object.assign(theClass.prototype, {
     clearDependencies() {
       this.setDependencies();
     },
@@ -29,14 +29,16 @@ function addDependencyMethods(watchableClass) {
       for (const dependencyDatapointId of Object.keys(dependencies)) {
         if (!(newDependencies && newDependencies[dependencyDatapointId])) {
           const dependencyDatapoint = cache.getExistingDatapoint(dependencyDatapointId);
-          datapoint._removeDependency(dependencyDatapoint, type);
+          if (dependencyDatapoint) {
+            datapoint._removeDependency(dependencyDatapoint.__private, type);
+          }
           changed = true;
         }
       }
       if (newDependencies) {
         for (const dependencyDatapointId of Object.keys(newDependencies)) {
           if (!dependencies[dependencyDatapointId]) {
-            const dependencyDatapoint = cache.getOrCreateDatapoint(dependencyDatapointId);
+            const dependencyDatapoint = cache.getOrCreateDatapoint(dependencyDatapointId).__private;
             datapoint._addDependency(dependencyDatapoint, type);
             changed = true;
           }
@@ -119,7 +121,7 @@ function addDependencyMethods(watchableClass) {
 
       if (!dependents) return;
       for (const dependentDatapointId of Object.keys(dependents)) {
-        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.invalidDependencyCount = 1;
@@ -133,7 +135,7 @@ function addDependencyMethods(watchableClass) {
 
       if (!dependents) return;
       for (const dependentDatapointId of Object.keys(dependents)) {
-        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!--dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.validate();
@@ -146,7 +148,7 @@ function addDependencyMethods(watchableClass) {
 
       if (!dependents) return;
       for (const dependentDatapointId of Object.keys(dependents)) {
-        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId);
+        const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
           dependentDatapoint.validate();

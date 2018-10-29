@@ -10,6 +10,7 @@ const Connection = require('../db/postgresql-connection');
 const DatapointDbConnection = require('../datapoints/db/datapoint-db-connection');
 const DatapointCache = require('../datapoints/cache/datapoint-cache');
 const { htmlToElement } = require('../dom/node-dom-functions');
+const installDomDatapointGetterSetters = require('../dom/datapoint-getter-setters/install');
 
 (async function() {
   var args = processArgs();
@@ -35,6 +36,8 @@ const { htmlToElement } = require('../dom/node-dom-functions');
   const schema = await connection.schemaLayoutConnection.currentSchema,
     datapointDbConnection = new DatapointDbConnection({ schema, dbConnection: connection }),
     cache = new DatapointCache({ schema, htmlToElement, datapointDbConnection });
+
+  installDomDatapointGetterSetters({ cache, htmlToElement });
 
   await connection.dbListener.listenForDatapointChanges({
     cache,

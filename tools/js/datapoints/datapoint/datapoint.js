@@ -17,6 +17,7 @@ class Datapoint {
       'proxyKey',
       'rowId',
       'datapointId',
+      'embeddedDatapointId',
 
       'isId',
       'isMultiple',
@@ -106,6 +107,9 @@ class Datapoint {
   }
   get datapointId() {
     return this.datapointInfo.datapointId;
+  }
+  get embeddedDatapointId() {
+    return this.datapointInfo.embeddedDatapointId;
   }
 
   get isId() {
@@ -259,8 +263,9 @@ class Datapoint {
   // sets the value by invoking the setter method if any
   setValue(newValue) {
     const datapoint = this,
-      { setter, valueIfAny } = datapoint,
-      changed = !isEqual(valueIfAny, newValue, { exact: true });
+      { setter, valueIfAny, cache, rowId, valid } = datapoint,
+      { rowChangeTrackers } = cache,
+      changed = !valid || !isEqual(valueIfAny, newValue, { exact: true });
 
     if (!changed) return;
 
@@ -275,7 +280,7 @@ class Datapoint {
       datapoint.invalidate();
 
       rowChangeTrackers
-        .executeAfterValidatingDatapoints(rowId, getter.fn, newValue)
+        .executeAfterValidatingDatapoints(rowId, setter.fn, newValue)
         .then(({ result, usesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
 

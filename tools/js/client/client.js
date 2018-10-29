@@ -1,12 +1,10 @@
 const PageState = require('./page-state'),
   WebSocketClient = require('../web-socket/web-socket-client'),
   WebSocketProtocol = require('../web-socket/web-socket-protocol-client'),
-  DomGenerator = require('../dom/dom-generator'),
-  DomUpdater = require('../dom/dom-updater'),
   DomFunctions = require('../dom/dom-functions'),
-  { htmlToElement, describeRange } = require('../dom/dom-functions'),
-  ClientActions = require('./client-actions'),
+  { htmlToElement, describeTree } = require('../dom/dom-functions'),
   DatapointCache = require('../datapoints/cache/datapoint-cache'),
+  installDomDatapointGetterSetters = require('../dom/datapoint-getter-setters/install'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
   log = require('../general/log');
@@ -111,34 +109,22 @@ const appDbRowId = 1,
     isClient: true,
   }),
   wsprotocol = new WebSocketProtocol({ cache, ws: wsclient }),
-  domGenerator = new DomGenerator({
-    htmlToElement,
-    cache,
-  }),
-  domUpdater = new DomUpdater({
-    domGenerator,
-    cache,
-  }),
   pageState = new PageState({
     cache,
-  }),
-  clientActions = new ClientActions({ domGenerator: domGenerator });
+  });
 
-domGenerator.prepPage();
+installDomDatapointGetterSetters({ cache, htmlToElement });
 
 pageState.visit();
 
 window.logDOM = element => {
-  console.log(`tree:\n${describeRange(element || document.getElementById('page'), 't     ')}`);
-  console.log(`changes:\n${domUpdater.domWaitingChangeQueue.changeDescriptions('c     ').join('\n')}`);
+  console.log(`tree:\n${describeTree(element || document.getElementById('page'), 't     ')}`);
 };
 
 window.nobo = {
   PageState,
   WebSocketClient,
   WebSocketProtocol,
-  DomGenerator,
-  DomUpdater,
   DomFunctions,
   DatapointCache,
   Schema,
@@ -146,10 +132,7 @@ window.nobo = {
   schema,
   wsclient,
   cache,
-  domGenerator,
-  domUpdater,
   pageState,
-  clientActions,
   appClient,
   wsprotocol,
   log,

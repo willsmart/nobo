@@ -9,7 +9,7 @@
 const namesFromCodeString = require('./names-from-code-string');
 const log = require('../general/log');
 
-const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.))*$/;
+const unicodeEscapeRegex = /^(?:(?!\\u)(?:\\.|.|\n))*$/;
 function hasUnicodeEscape(string) {
   return !unicodeEscapeRegex.test(string);
 }
