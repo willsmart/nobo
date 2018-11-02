@@ -137,3 +137,16 @@ window.nobo = {
   wsprotocol,
   log,
 };
+
+window.c = cache;
+window.dp = id => cache.getOrCreateDatapoint(id);
+window.dpv = async function(id) {
+  return await dp(id).value;
+};
+window.setdpv = function(id, value) {
+  dp(id).setValue(value);
+};
+
+dp('dom__id_page__tree').watch({});
+setdpv('dom__id_page__context', 'state__page');
+setpage = pageid => setdpv('state__page__items', [pageid]);

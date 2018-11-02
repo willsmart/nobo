@@ -282,6 +282,7 @@ async function processTemplateIncludes({ template, templatesByPath }, stack = {}
   }
 
   exposeTemplates(template.domTree);
+  assignLids(template.domTree);
   template.processedDom = Parse5.serialize(template.domTree);
   template.processedRoots = Parse5.parseFragment(template.processedDom || template.dom).childNodes;
 
@@ -441,12 +442,12 @@ function getAttribute(element, name) {
 
 function setAttribute(element, name, value) {
   if (!element.attrs) {
-    element.attrs = [{ name, value }];
+    element.attrs = [{ name, value: String(value) }];
     return;
   }
   const attr = findAttribute(element, name);
-  if (attr) attr.value = value;
-  else element.attrs.push({ name, value });
+  if (attr) attr.value = String(value);
+  else element.attrs.push({ name, value: String(value) });
 }
 
 function removeAttribute(element, name) {
@@ -506,6 +507,20 @@ function exposeTemplates(element) {
   if (element.childNodes) {
     for (const childNode of element.childNodes) {
       exposeTemplates(childNode);
+    }
+  }
+}
+
+function assignLids(element, lida = [0]) {
+  const lid = lida[0]++;
+
+  if (lid) setAttribute(element, 'nobo-lid', lid);
+
+  if (element.childNodes) {
+    for (const childNode of element.childNodes) {
+      if (childNode && childNode.nodeName != '#text') {
+        assignLids(childNode, lida);
+      }
     }
   }
 }

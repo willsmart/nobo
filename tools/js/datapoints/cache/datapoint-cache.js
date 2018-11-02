@@ -42,7 +42,7 @@ class DatapointCache {
       datapointsById: {},
       deletionLists: [undefined],
       deletionListByDatapointId: {},
-      deletionDelaySeconds: 30,
+      deletionDelaySeconds: 300,
       _stateVar: new StateVar({ cache }),
       _rowChangeTrackers: new RowChangeTrackers({ cache, schema }),
       _isClient: isClient,
@@ -144,18 +144,18 @@ class DatapointCache {
       { deletionLists, deletionListByDatapointId, deletionDelaySeconds, datapointsById } = cache;
     deletionLists.unshift(undefined);
 
-    if (deletionLists.length <= deletionDelaySeconds) return;
-
-    const deletionList = deletionLists.pop();
-    if (!deletionList) return;
-    for (const datapointId of Object.keys(deletionList)) {
-      datapointsById[datapointId].ondeletion();
-      delete deletionListByDatapointId[datapointId];
-      delete datapointsById[datapointId];
+    const deletionList = deletionLists.length == deletionDelaySeconds && deletionLists.pop();
+    if (deletionList) {
+      for (const datapointId of Object.keys(deletionList)) {
+        datapointsById[datapointId].ondeletion();
+        delete deletionListByDatapointId[datapointId];
+        delete datapointsById[datapointId];
+      }
     }
+
     if (deletionLists.find(list => list)) {
       cache.deletionTickTimeout = setTimeout(() => cache.deletionTick(), 1000);
-    }
+    } else cache.deletionTickTimeout = undefined;
   }
 }
 

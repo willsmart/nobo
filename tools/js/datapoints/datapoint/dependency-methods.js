@@ -5,7 +5,12 @@ module.exports = addDependencyMethods;
 function addDependencyMethods(theClass) {
   Object.assign(theClass.prototype, {
     clearDependencies() {
-      this.setDependencies();
+      const datapoint = this,
+        { dependenciesByType } = datapoint;
+      if (!dependenciesByType) return;
+      for (const type of Object.keys(dependenciesByType)) {
+        this.setDependenciesOfType(type, {});
+      }
     },
 
     dependenciesOfType(type) {
@@ -138,7 +143,7 @@ function addDependencyMethods(theClass) {
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!--dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate();
+          dependentDatapoint.validate(true);
         }
       }
     },
@@ -151,7 +156,7 @@ function addDependencyMethods(theClass) {
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate();
+          dependentDatapoint.validate(true);
         }
       }
     },

@@ -62,7 +62,7 @@ class WebSocketClient {
         }
 
         performance.mark('receive');
-        log('ws', 'Got message from server:   ' + message.data);
+        log('ws', 'WS>I> Got message from server:   ' + message.data);
 
         client.notifyListeners(
           'onpayload',
@@ -73,7 +73,7 @@ class WebSocketClient {
       };
 
       ws.onerror = err => {
-        log('err', `Error: ${err.message}`);
+        log('err', `WS>!> Error: ${err.message}`);
       };
 
       if (ws.ping) {
@@ -92,7 +92,7 @@ class WebSocketClient {
     }
     open();
 
-    log('ws', `Web socket client listening to server on port ${port}`);
+    log('ws', `WS>L> Web socket client listening to server on port ${port}`);
   }
 
   get isOpen() {
@@ -149,7 +149,7 @@ class WebSocketClient {
       messageIndex == -1 ? (messageType ? `${messageType}:` : '') : `${messageIndex}:`
     }${JSON.stringify(payloadObject)}`;
     performance.mark('send');
-    log('ws', 'Sending message to server:   ' + message);
+    log('ws', 'WS>O> Sending message to server:   ' + message);
 
     client.ws.send(message);
   }

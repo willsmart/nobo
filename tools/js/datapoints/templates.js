@@ -59,9 +59,9 @@ class Templates {
     return ConvertIds.recomposeId({
       typeName: 'App',
       dbRowId: this.appDbRowId,
-      fieldName: `useTemplate${variant ? `_v${ChangeCase.snakeCase(variant).replace('_', '_v')}` : ''}${
-        classFilter ? `_c${ChangeCase.snakeCase(classFilter).replace('_', '_c')}` : ''
-      }${ownerOnly ? '_private' : ''}`,
+      fieldName: `useTemplate${
+        variant && variant != 'default' ? `_v${ChangeCase.snakeCase(variant).replace('_', '_v')}` : ''
+      }${classFilter ? `_c${ChangeCase.snakeCase(classFilter).replace('_', '_c')}` : ''}${ownerOnly ? '_private' : ''}`,
     }).datapointId;
   }
 
@@ -110,6 +110,7 @@ class Templates {
   }
 
   getTemplateReferencingDatapoint({ variant, classFilter, ownerOnly }) {
+    if (variant == 'default') variant = undefined;
     return this.treeNode({
       canCreate: true,
       variant,

@@ -25,23 +25,28 @@ const log = require('./log'),
 
 module.exports = diffAny;
 
-function diffAny(was, is) {
+function diffAny(was, is, memberIsEqualFn) {
   if (was === is) return;
   if (Array.isArray(is)) {
     return Array.isArray(was)
-      ? diffArray(was, is)
+      ? diffArray(was, is, memberIsEqualFn)
       : {
           value: is,
         };
   }
-  if (is && typeof is == 'object') return diffObject(was && typeof was == 'object' ? was : undefined, is);
+  if (is && typeof is == 'object' && is.constructor == Object)
+    return diffObject(
+      was && typeof was == 'object' && was.constructor == Object ? was : undefined,
+      is,
+      memberIsEqualFn
+    );
   if (typeof was == typeof is && was == is) return;
   return {
     value: is,
   };
 }
 
-function diffObject(was, is) {
+function diffObject(was, is, memberIsEqualFn) {
   let diff;
   if (was) {
     for (const key in was) {
@@ -53,7 +58,7 @@ function diffObject(was, is) {
         }
         const wasChild = was[key],
           isChild = is[key],
-          diffChild = diffAny(wasChild, isChild);
+          diffChild = diffAny(wasChild, isChild, memberIsEqualFn);
 
         if (diffChild) {
           if (!diff) diff = {};
@@ -305,9 +310,9 @@ function processEdits_delIns(edits) {
   }
 }
 
-function diffArray(from, to) {
+function diffArray(from, to, memberIsEqualFn) {
   if (!Array.isArray(to)) to = [];
-  const edits = arrayDiffEdits(from, to, (a, b) => isEqual(a, b)),
+  const edits = arrayDiffEdits(from, to, memberIsEqualFn ? memberIsEqualFn : (a, b) => isEqual(a, b)),
     ret = { arrayDiff: [] },
     diff = ret.arrayDiff;
 
@@ -362,7 +367,7 @@ function diffArray(from, to) {
         break;
       case 'f':
         const diffChild = diffAny(from[fromIndex], value);
-        diff.push(Object.assign(diffChild, { at: fromIndex++ }));
+        diff.push(Object.assign(diffChild, { at: fromIndex++, value }));
         break;
     }
   }

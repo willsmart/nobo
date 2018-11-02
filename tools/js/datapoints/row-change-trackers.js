@@ -56,6 +56,7 @@ class RowChangeTrackers {
       const executorWas = rowChangeTrackers._executor;
       rowChangeTrackers._executor = executor;
       const result = fn.apply(useThisArg, args);
+      rowChangeTrackers.commit();
       rowChangeTrackers._executor = executorWas;
       executor.result = RowChangeTrackers.sanitizeCDOs(await result);
     } catch (error) {
@@ -220,8 +221,9 @@ class RowChangeTrackers {
     if (datapoint) datapoint.setValue(value);
   }
 
-  getDatapointValue(rowId, fieldName, embeddedDatapointId) {
+  getDatapointValue(rowId, fieldName, embeddedDatapointId, convertIdsToCDOs = true) {
     if (ConvertIds.datapointRegex.test(rowId)) {
+      if (fieldName !== undefined) convertIdsToCDOs = fieldName;
       ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
     }
 
@@ -240,7 +242,7 @@ class RowChangeTrackers {
       const promise = datapoint.value;
       if (executor) executor.retryAfterPromises.push(promise);
     }
-    if (datapoint.isId) {
+    if (datapoint.isId && convertIdsToCDOs) {
       if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {
         value = [rowChangeTrackers.rowObject(value)];
       } else if (Array.isArray(value) && (datapoint.isMultiple || value.length <= 1)) {

@@ -20,7 +20,7 @@ function templateCodeToJs(templateCode) {
       if (start > prevEnd) {
         parts.push(`\`${templateCode.substring(prevEnd, start).replace('`', '\\`')}\``);
       }
-      parts.push(templateCode.substring(start + 2, (prevEnd = end) - 1));
+      parts.push(`(${templateCode.substring(start + 2, (prevEnd = end) - 1)})`);
     }
   }
   if (prevEnd < templateCode.length) {

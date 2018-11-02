@@ -1,7 +1,7 @@
 // compare
 // © Will Smart 2018. Licence: MIT
 
-// This is a simple testing rig
+const log = require('./log');
 
 // API is the multi-function isEqual function
 module.exports = isEqual;
@@ -24,8 +24,13 @@ function description(value) {
 //        options.exact: disallow type coersion
 //    returns a boolean, or '>', or a longer string if it would return false and options.verboseFail is set
 //
-function isEqual(v1, v2, options = {}) {
+function isEqual(v1, v2, options = {}, depth = 0) {
   const { verboseFail, allowSuperset, exact } = options;
+
+  if (depth > 100) {
+    log('err', 'isEqual is getting very deep');
+    return verboseFail ? 'Too deep' : false;
+  }
 
   if (typeof v1 != typeof v2 || Array.isArray(v1) != Array.isArray(v2)) {
     if (exact) {
@@ -46,11 +51,18 @@ function isEqual(v1, v2, options = {}) {
   }
 
   if (Array.isArray(v1)) {
-    return allowSuperset ? arrayIsEqualOrSuperset(v1, v2, options) : arrayIsEqual(v1, v2, options);
+    return allowSuperset ? arrayIsEqualOrSuperset(v1, v2, options, depth) : arrayIsEqual(v1, v2, options, depth);
   }
 
   if (v1 && typeof v1 == 'object') {
-    return allowSuperset ? objectIsEqualOrSuperset(v1, v2, options) : objectIsEqual(v1, v2, options);
+    if (v1.constructor !== Object || v2.constructor !== Object) {
+      return v1 === v2
+        ? true
+        : verboseFail
+          ? `Non-plain object instances differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
+          : false;
+    }
+    return allowSuperset ? objectIsEqualOrSuperset(v1, v2, options, depth) : objectIsEqual(v1, v2, options, depth);
   }
 
   return v1 === v2
@@ -60,7 +72,7 @@ function isEqual(v1, v2, options = {}) {
       : false;
 }
 
-function arrayIsEqual(v1, v2, options) {
+function arrayIsEqual(v1, v2, options, depth = 0) {
   const { verboseFail, unordered, exact } = options;
 
   if (v1.length != v2.length) {
@@ -71,7 +83,7 @@ function arrayIsEqual(v1, v2, options) {
   if (!unordered) {
     let index = 0;
     for (const c1 of v1) {
-      const res = isEqual(c1, v2[index], options);
+      const res = isEqual(c1, v2[index], options, depth + 1);
       if (res !== true) {
         return verboseFail
           ? `${res}\n > Array values at index ${index} differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
@@ -87,10 +99,15 @@ function arrayIsEqual(v1, v2, options) {
         if (unusedC1Indexes.hasOwnProperty(c1Index)) {
           const c1 = v1[c1Index];
           if (
-            isEqual(c1, c2, {
-              unordered,
-              exact,
-            })
+            isEqual(
+              c1,
+              c2,
+              {
+                unordered,
+                exact,
+              },
+              depth + 1
+            )
           ) {
             delete unusedC1Indexes[c1Index];
             found = true;
@@ -109,7 +126,7 @@ function arrayIsEqual(v1, v2, options) {
   return true;
 }
 
-function objectIsEqual(v1, v2, options) {
+function objectIsEqual(v1, v2, options, depth = 0) {
   const { verboseFail } = options;
 
   const v1Keys = keysIncludingFromPrototype(v1),
@@ -118,7 +135,7 @@ function objectIsEqual(v1, v2, options) {
     return verboseFail ? `Object sizes differ: \n${description(v1)}\n ... vs ...\n${description(v2)}` : false;
   }
   for (const v1Key of v1Keys) {
-    const res = isEqual(v1[v1Key], v2[v1Key], options);
+    const res = isEqual(v1[v1Key], v2[v1Key], options, depth + 1);
     if (res !== true) {
       return verboseFail
         ? `${res}\n > Values for key ${v1Key} differ: \n${description(v1)}\n ... vs ...\n${description(v2)}`
@@ -128,7 +145,7 @@ function objectIsEqual(v1, v2, options) {
   return true;
 }
 
-function arrayIsEqualOrSuperset(v1, v2, options) {
+function arrayIsEqualOrSuperset(v1, v2, options, depth = 0) {
   const { unordered, exact, verboseFail } = options;
 
   if (v1.length < v2.length)
@@ -142,7 +159,7 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
   if (!unordered) {
     let index = 0;
     for (const c2 of v2) {
-      const res = isEqual(v1[index], c2, options);
+      const res = isEqual(v1[index], c2, options, depth + 1);
       if (res == '>') supersetMatch = true;
       else if (res !== true)
         return verboseFail
@@ -161,10 +178,15 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
         if (unusedC1Indexes.hasOwnProperty(c1Index)) {
           const c1 = v1[c1Index];
           if (
-            isEqual(c1, c2, {
-              unordered,
-              exact,
-            })
+            isEqual(
+              c1,
+              c2,
+              {
+                unordered,
+                exact,
+              },
+              depth + 1
+            )
           ) {
             delete unusedC1Indexes[c1Index];
             found = true;
@@ -180,11 +202,16 @@ function arrayIsEqualOrSuperset(v1, v2, options) {
     for (const [c2Index, supersetsC1Indexes] of Object.entries(unusedC2Indexes)) {
       for (const c1Index of Object.keys(unusedC1Indexes)) {
         if (
-          isEqual(v1[c1Index], v2[c2Index], {
-            unordered,
-            exact,
-            allowSuperset: true,
-          })
+          isEqual(
+            v1[c1Index],
+            v2[c2Index],
+            {
+              unordered,
+              exact,
+              allowSuperset: true,
+            },
+            depth + 1
+          )
         ) {
           supersetsC1Indexes.push(c1Index);
         }
@@ -251,7 +278,7 @@ function keysIncludingFromPrototype(object) {
   return Object.keys(keyo);
 }
 
-function objectIsEqualOrSuperset(v1, v2, options) {
+function objectIsEqualOrSuperset(v1, v2, options, depth = 0) {
   const { verboseFail } = options;
 
   const v1Keys = keysIncludingFromPrototype(v1),
@@ -262,7 +289,7 @@ function objectIsEqualOrSuperset(v1, v2, options) {
       : false;
   let supersetMatch = v1Keys.length > v2Keys.length;
   for (const v2Key of v2Keys) {
-    const res = isEqual(v1[v2Key], v2[v2Key], options);
+    const res = isEqual(v1[v2Key], v2[v2Key], options, depth + 1);
     if (res == '>') supersetMatch = true;
     else if (res !== true)
       return verboseFail

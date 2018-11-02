@@ -211,7 +211,7 @@ class WebSocketProtocol {
 
     if (datapointId) {
       const wsd = wsp.datapoints[datapointId];
-      if (!wsd.datapoint.valid) {
+      if (wsd && !wsd.datapoint.valid) {
         wsd.datapoint.value.then(() => {
           wsp.queueSendDatapoint(datapointId, clients);
         });

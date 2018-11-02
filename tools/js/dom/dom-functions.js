@@ -19,6 +19,8 @@ module.exports = {
   childRangesForElement,
   insertChildRange,
   deleteChildRange,
+  decomposeDatapointProxyKey,
+  recomposeDatapointProxyKey,
 };
 
 function htmlToElement(html) {
@@ -96,14 +98,16 @@ function describeTree(element, indent = '') {
   return ret;
 }
 
-function rangeForElement(element) {
+function rangeForElement(parent) {
   const parentId = parent.getAttribute('nobo-uid');
-  if (!parentId) return [element, element];
-  for (let child = parent.nextElementSibling, lastChildEnd = parent; child; child = lastChildEnd.nextElementSibling) {
-    if (child.getAttribute('nobo-parent-uid') != parentId) break;
-    lastChildEnd = rangeForElement(child)[1];
+  let lastChildEnd = parent;
+  if (parentId) {
+    for (let child = parent.nextElementSibling; child; child = lastChildEnd.nextElementSibling) {
+      if (child.getAttribute('nobo-parent-uid') != parentId) break;
+      lastChildEnd = rangeForElement(child)[1];
+    }
   }
-  return [element, lastChildEnd];
+  return [parent, lastChildEnd];
 }
 
 function forEachChildRange(parent, fn) {
@@ -136,13 +140,13 @@ function childRangesForElement(parent) {
   return ranges;
 }
 
-function insertChildRange({ parent, before, childRange }) {
+function insertChildRange({ parent, after, childRange }) {
   for (
     let [child, end] = childRange, nextSibling = child === end ? undefined : child.nextSibling;
     child;
     child = nextSibling, nextSibling = !child || child === end ? undefined : child.nextSibling
   ) {
-    parent.insertBefore(child, before);
+    parent.parentNode.insertBefore(child, (after || parent).nextSibling);
   }
 }
 
@@ -154,4 +158,18 @@ function deleteChildRange([child, end]) {
   ) {
     if (child.parentNode) child.parentNode.removeChild(child);
   }
+}
+
+function decomposeDatapointProxyKey(proxyKey) {
+  const match = /^(\w*?)(?:_lid_([0-9]\d*))?$/.exec(proxyKey);
+  return {
+    proxyKey,
+    baseProxyKey: match[1],
+    lid: match[2] ? Number(match[2]) : undefined,
+  };
+}
+
+function recomposeDatapointProxyKey({ baseProxyKey, lid }) {
+  if (lid === undefined) return baseProxyKey;
+  return `${baseProxyKey}_lid_${lid}`;
 }

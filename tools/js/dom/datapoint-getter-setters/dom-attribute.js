@@ -1,7 +1,7 @@
 const ChangeCase = require('change-case');
 const ConvertIds = require('../../datapoints/convert-ids');
 const CodeSnippet = require('../../general/code-snippet');
-const templateCodeToJs = require('../../general/template-code-to-js');
+const { decomposeDatapointProxyKey } = require('../dom-functions');
 
 const fieldNamePrefix = 'attribute-',
   templateSuffix = '-template';
@@ -12,6 +12,8 @@ module.exports = function({ datapoint }) {
   if (typeName != 'Dom' || !proxyKey) {
     return;
   }
+
+  const { baseProxyKey } = decomposeDatapointProxyKey(proxyKey);
 
   const paramCaseFieldName = ChangeCase.paramCase(fieldName);
   if (!paramCaseFieldName.startsWith(fieldNamePrefix)) return;
@@ -27,7 +29,7 @@ module.exports = function({ datapoint }) {
 
   let datapointState = { template: '', compiledGetter: undefined };
 
-  getValue = element => {
+  getValue = (element, valueAttributeName, textNodeIndex) => {
     if (textNodeIndex !== undefined) {
       let value = '';
       for (
@@ -55,9 +57,8 @@ module.exports = function({ datapoint }) {
     return element.getAttribute(valueAttributeName) || '';
   };
 
-  setValue = (element, value) => {
+  setValue = (element, valueAttributeName, textNodeIndex, value) => {
     if (textNodeIndex !== undefined) {
-      let value = '';
       for (
         let child = element.firstChild,
           nextChild = child ? child.nextSibling : undefined,
@@ -89,7 +90,9 @@ module.exports = function({ datapoint }) {
   evaluate = ({ getDatapointValue, getRowObject, willRetry }) => {
     const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId),
       { rowId: sourceRowId } =
-        getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'context' }).datapointId) || {},
+        getDatapointValue(
+          ConvertIds.recomposeId({ typeName, proxyKey: baseProxyKey, fieldName: 'context' }).datapointId
+        ) || {},
       newState = { template: '', compiledGetter: undefined };
 
     if (willRetry()) return;
@@ -100,7 +103,7 @@ module.exports = function({ datapoint }) {
       if (!element) break;
 
       if (!element.hasAttribute(templateAttributeName)) {
-        value = getValue(element);
+        value = getValue(element, valueAttributeName, textNodeIndex);
         needsSet = false;
         break;
       }
@@ -126,13 +129,14 @@ module.exports = function({ datapoint }) {
     } while (false);
 
     if (!willRetry()) {
-      if (element && needsSet) setValue(element, value);
+      if (element && needsSet) setValue(element, valueAttributeName, textNodeIndex, value);
       datapointState = newState;
     }
 
     return value;
   };
 
+  datapoint.autovalidates = true;
   return {
     getter: {
       fn: evaluate,

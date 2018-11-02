@@ -60,7 +60,10 @@ class Datapoint {
       _isMultiple: datapointInfo.field ? datapointInfo.field.isMultiple : false,
       state: 'uninitialized',
       cachedValue: isAnyFieldPlaceholder ? true : undefined,
+      autovalidates: false,
     });
+
+    log('dp', () => `DP>C> Created datapoint ${datapointId}`);
 
     const { getter, setter } = findGetterSetter({
       datapoint,
@@ -131,33 +134,53 @@ class Datapoint {
   // i.e. the value that would be obtained from the getter may be different to the cachedValue
   invalidate() {
     const datapoint = this,
-      { listeners, getterOneShotResolvers } = datapoint;
+      { listeners, getterOneShotResolvers, autovalidates } = datapoint;
     switch (datapoint.state) {
       case 'valid':
-        datapoint.state = 'invalid';
-        datapoint.notifyDependentsOfMoveToInvalidState();
+        datapoint._setState('invalid');
         break;
       case 'invalid':
       case 'uninitialized':
         datapoint.rerunGetter = true;
     }
 
-    if ((listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length)) {
+    if ((listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length) || autovalidates) {
       datapoint.validate();
     }
   }
 
   // refresh the cachedValue using the getter
-  validate() {
+  validate(refreshViaGetter = false) {
     const datapoint = this;
     switch (datapoint.state) {
       case 'invalid':
       case 'uninitialized':
         datapoint.value;
         break;
+      case 'valid':
+        if (refreshViaGetter) {
+          datapoint._valueFromGetter;
+        }
     }
   }
 
+  _setState(state) {
+    const datapoint = this,
+      { state: stateWas, cache } = datapoint;
+    if (stateWas == state) return;
+    datapoint.state = state;
+    log('dp', () => `DP>S> Datapoint ${datapoint.datapointId} is now ${state} (was ${stateWas})`);
+    switch (state) {
+      case 'valid':
+        datapoint.notifyListeners('onvalid', datapoint);
+        cache.notifyListeners('onvalid', datapoint);
+        datapoint.notifyDependentsOfMoveToValidState();
+        break;
+      case 'invalid':
+        datapoint.notifyDependentsOfMoveToInvalidState();
+        break;
+    }
+  }
   // sets the cached value to a trusted value, as would be obtained by the getter
   _setCachedValue(value) {
     const datapoint = this,
@@ -172,17 +195,9 @@ class Datapoint {
 
     datapoint.cachedValue = value;
 
-    log('dp', () => `Datapoint ${datapoint.datapointId} -> ${JSON.stringify(value)}`);
+    log('dp', () => `DP>V> Datapoint ${datapoint.datapointId} -> ${JSON.stringify(value)}`);
 
-    switch (state) {
-      case 'invalid':
-      case 'uninitialized':
-        datapoint.state = 'valid';
-        datapoint.notifyListeners('onvalid', datapoint);
-        cache.notifyListeners('onvalid', datapoint);
-        datapoint.notifyDependentsOfMoveToValidState();
-        break;
-    }
+    datapoint._setState('valid');
 
     if (!isEqual(valueIfAny, value, { exact: true })) {
       datapoint.notifyDependentsOfChangeOfValue();
@@ -229,7 +244,7 @@ class Datapoint {
     if (!getter || typeof getter != 'object' || !getter.fn) {
       // TODO codesnippet
       // if the datapoint has no getter method, then the cached value is correct by default
-      log('err.dp', `Datapoint ${datapoint.datapointId} has no associated getter`);
+      log('err.dp', `DP>!> Datapoint ${datapoint.datapointId} has no associated getter`);
       datapoint._setCachedValue(datapoint.valueIfAny);
       return Promise.resolve(datapoint.valueIfAny);
     }
@@ -246,7 +261,10 @@ class Datapoint {
           datapoint.setDependenciesOfType('getter', usesDatapoints);
           if (datapoint.rerunGetter) return runGetter();
 
-          Promise.resolve(result).then(value => {
+          if (result && typeof result == 'object' && result.then) {
+            Promise.resolve(result).then(dealWithValue);
+          } else dealWithValue(result);
+          function dealWithValue(value) {
             datapoint._setCachedValue(value);
 
             datapoint.getterOneShotResolvers = undefined;
@@ -254,7 +272,7 @@ class Datapoint {
             for (const resolve of getterOneShotResolvers) {
               resolve(value);
             }
-          });
+          }
         });
       }
     });
@@ -331,6 +349,9 @@ class Datapoint {
   ondeletion() {
     const datapoint = this,
       { _deletionCallbacks } = datapoint;
+
+    log('dp', `DP>F> Forgetting datapoint ${datapoint.datapointId}`);
+
     if (_deletionCallbacks) {
       for (const callback of _deletionCallbacks) {
         callback(datapoint);

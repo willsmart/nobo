@@ -13,7 +13,7 @@ function changeDetectorObject(baseObject, readOnly, setParentModified) {
     deletionsObject = {},
     modified = [false];
   function setModified() {
-    if (readOnly) throw new Exception('Cannot mutate in non-mutating CDO');
+    if (readOnly) throw new Error('Cannot mutate in non-mutating CDO');
     if (setParentModified) setParentModified();
     modified[0] = true;
   }

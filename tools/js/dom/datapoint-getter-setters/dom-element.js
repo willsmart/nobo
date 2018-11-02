@@ -11,13 +11,24 @@ module.exports = ({ htmlToElement }) =>
     }
 
     if (fieldName == 'element') {
-      const match = /^id([A-Z0-9][A-Za-z0-9]*)$/.exec(proxyKey);
+      const match = /^(id_(\w+?))(?:_lid_([0-9]\d*))?$/.exec(proxyKey);
       if (match) {
-        const elementId = ChangeCase.paramCase(match[1]);
+        const baseProxyKey = match[1],
+          elementId = ChangeCase.paramCase(match[2]),
+          lid = match[3] ? Number(match[3]) : undefined;
 
-        evaluateElement = () => {
+        evaluateElement = ({ getDatapointValue, willRetry }) => {
+          if (lid !== undefined) {
+            const baseElement = getDatapointValue(
+              ConvertIds.recomposeId({ typeName, proxyKey: baseProxyKey, fieldName: 'element' }).datapointId
+            );
+            if (willRetry() || !baseElement) return;
+            const element = lid == 1 ? baseElement : findLid(baseElement, lid);
+            element.setAttribute('nobo-uid', proxyKey);
+            return element;
+          }
+
           const element = typeof document == 'undefined' ? undefined : document.getElementById(elementId);
-          if (element) element.setAttribute('nobo-uid', proxyKey);
           return element;
         };
 
@@ -30,16 +41,32 @@ module.exports = ({ htmlToElement }) =>
           },
         };
       } else {
+        const match = /^(\w+?)(?:_lid_([0-9]\d*))?$/.exec(proxyKey),
+          baseProxyKey = match[1],
+          lid = match[2] ? Number(match[2]) : undefined;
+
         const defaultDom = '<div>...</div>';
 
         let datapointState = { dom: undefined, element: undefined };
 
         evaluateElement = ({ getDatapointValue, willRetry }) => {
+          if (lid !== undefined) {
+            const baseElement = getDatapointValue(
+              ConvertIds.recomposeId({ typeName, proxyKey: baseProxyKey, fieldName: 'element' }).datapointId
+            );
+            if (willRetry() || !baseElement) return;
+            const element = lid == 1 ? baseElement : findLid(baseElement, lid);
+            element.setAttribute('nobo-uid', proxyKey);
+            return element;
+          }
+
           newState = { dom: undefined, element: undefined };
 
           do {
             const { rowId: sourceRowId, variant } =
-              getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'context' }).datapointId) || {};
+              getDatapointValue(
+                ConvertIds.recomposeId({ typeName, proxyKey: baseProxyKey, fieldName: 'context' }).datapointId
+              ) || {};
 
             if (sourceRowId) {
               const template = getDatapointValue(templateDatapointIdForRowAndVariant(sourceRowId, variant));
@@ -62,7 +89,6 @@ module.exports = ({ htmlToElement }) =>
                 newState.dom = defaultDom;
                 newState.element = htmlToElement(newState.dom);
               }
-              newState.element.setAttribute('nobo-uid', proxyKey);
               newState.element.setAttribute('nobo-rowid', sourceRowId);
               newState.element.setAttribute('nobo-variant', variant || 'default');
             }
@@ -86,3 +112,28 @@ module.exports = ({ htmlToElement }) =>
       }
     }
   };
+
+function findLid(element, lid) {
+  const elLid = element.getAttribute('nobo-lid');
+  if (!elLid) return;
+  if (Number(elLid) == lid) return element;
+
+  return findLidChild(element, lid);
+}
+
+function findLidChild(element, lid) {
+  let prevChild;
+  for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.hasAttribute('sourcetemplate') || !child.hasAttribute('nobo-lid')) continue;
+
+    const childLid = Number(child.getAttribute('nobo-lid'));
+    if (childLid == lid) return child;
+    if (prevChild && childLid > lid) {
+      return findLidChild(prevChild, lid);
+    }
+    prevChild = child;
+  }
+  if (prevChild) {
+    return findLidChild(prevChild, lid);
+  }
+}
