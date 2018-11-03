@@ -126,7 +126,7 @@ module.exports = function({ datapoint }) {
             deleteAt = at;
           }
           if (deleteAt !== undefined) {
-            deleteChildRange(childRanges[deleteAt]);
+            deleteChildRange(childRanges.splice(deleteAt, 1)[0]);
           }
           if (insertAt !== undefined) {
             newChildRange[0].setAttribute('nobo-parent-uid', proxyKey);
@@ -135,6 +135,7 @@ module.exports = function({ datapoint }) {
               after: insertAt ? childRanges[insertAt - 1][1] : element,
               childRange: newChildRange,
             });
+            childRanges.splice(insertAt, 0, newChildRange);
           }
         }
       }

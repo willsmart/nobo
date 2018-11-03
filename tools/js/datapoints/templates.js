@@ -1,7 +1,6 @@
 const ConvertIds = require('./convert-ids');
 const PublicApi = require('../general/public-api');
 const mapValues = require('../general/map-values');
-const DomGenerator = require('../dom/dom-generator');
 const ChangeCase = require('change-case');
 
 // other implied dependencies

@@ -41,7 +41,7 @@ class WebSocketDatapoint {
 
   setValue(newValue) {
     const wsd = this,
-      { myVersion, theirVersion, datapointId, resolvers } = wsd;
+      { myVersion, theirVersion, datapointId, resolvers, wsp } = wsd;
     wsd.myVersion = Math.floor((Math.max(myVersion, theirVersion) + 1) / 2) * 2 + 1;
     wsd.myValue = newValue;
 

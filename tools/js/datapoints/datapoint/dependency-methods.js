@@ -142,8 +142,8 @@ function addDependencyMethods(theClass) {
       for (const dependentDatapointId of Object.keys(dependents)) {
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
-        if (!--dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate(true);
+        if (!--dependentDatapoint.invalidDependencyCount && !dependentDatapoint.autoinvalidates) {
+          dependentDatapoint.validate({ refreshViaGetter: true });
         }
       }
     },
@@ -155,8 +155,8 @@ function addDependencyMethods(theClass) {
       for (const dependentDatapointId of Object.keys(dependents)) {
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
-        if (!dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate(true);
+        if (!dependentDatapoint.autoinvalidates && !dependentDatapoint.invalidDependencyCount) {
+          dependentDatapoint.validate({ refreshViaGetter: true });
         }
       }
     },

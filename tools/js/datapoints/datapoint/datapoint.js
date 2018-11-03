@@ -61,6 +61,7 @@ class Datapoint {
       state: 'uninitialized',
       cachedValue: isAnyFieldPlaceholder ? true : undefined,
       autovalidates: false,
+      autoinvalidates: false,
     });
 
     log('dp', () => `DP>C> Created datapoint ${datapointId}`);
@@ -150,16 +151,16 @@ class Datapoint {
   }
 
   // refresh the cachedValue using the getter
-  validate(refreshViaGetter = false) {
+  validate({ refreshViaGetter, eventContext } = {}) {
     const datapoint = this;
     switch (datapoint.state) {
       case 'invalid':
       case 'uninitialized':
-        datapoint.value;
+        datapoint._value(eventContext);
         break;
       case 'valid':
         if (refreshViaGetter) {
-          datapoint._valueFromGetter;
+          datapoint._valueFromGetter(eventContext);
         }
     }
   }
@@ -218,18 +219,21 @@ class Datapoint {
 
   // async method that returns the cached value if valid, otherwise get the correct value via the getter
   get value() {
+    return this._value();
+  }
+  _value(eventContext) {
     const datapoint = this;
     switch (datapoint.state) {
       case 'valid':
         return Promise.resolve(datapoint.valueIfAny);
       case 'invalid':
       case 'uninitialized':
-        return datapoint._valueFromGetter;
+        return datapoint._valueFromGetter(eventContext);
     }
   }
 
   // gets the _actual_ value of the datapoints via the getter method
-  get _valueFromGetter() {
+  _valueFromGetter(eventContext) {
     const datapoint = this,
       { getter, getterOneShotResolvers, cache, rowId } = datapoint,
       { rowChangeTrackers } = cache;
@@ -246,6 +250,9 @@ class Datapoint {
       // if the datapoint has no getter method, then the cached value is correct by default
       log('err.dp', `DP>!> Datapoint ${datapoint.datapointId} has no associated getter`);
       datapoint._setCachedValue(datapoint.valueIfAny);
+
+      if (datapoint.autoinvalidates) datapoint.invalidate();
+
       return Promise.resolve(datapoint.valueIfAny);
     }
 
@@ -257,23 +264,27 @@ class Datapoint {
 
       function runGetter() {
         datapoint.rerunGetter = false;
-        rowChangeTrackers.executeAfterValidatingDatapoints(rowId, getter.fn).then(({ result, usesDatapoints }) => {
-          datapoint.setDependenciesOfType('getter', usesDatapoints);
-          if (datapoint.rerunGetter) return runGetter();
+        rowChangeTrackers
+          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, eventContext })
+          .then(({ result, usesDatapoints }) => {
+            datapoint.setDependenciesOfType('getter', usesDatapoints);
+            if (datapoint.rerunGetter) return runGetter();
 
-          if (result && typeof result == 'object' && result.then) {
-            Promise.resolve(result).then(dealWithValue);
-          } else dealWithValue(result);
-          function dealWithValue(value) {
-            datapoint._setCachedValue(value);
+            if (result && typeof result == 'object' && result.then) {
+              Promise.resolve(result).then(dealWithValue);
+            } else dealWithValue(result);
+            function dealWithValue(value) {
+              datapoint._setCachedValue(value);
 
-            datapoint.getterOneShotResolvers = undefined;
-            datapoint.deleteIfUnwatched();
-            for (const resolve of getterOneShotResolvers) {
-              resolve(value);
+              datapoint.getterOneShotResolvers = undefined;
+              datapoint.deleteIfUnwatched();
+              for (const resolve of getterOneShotResolvers) {
+                resolve(value);
+              }
+
+              if (datapoint.autoinvalidates) datapoint.invalidate();
             }
-          }
-        });
+          });
       }
     });
   }
@@ -290,6 +301,8 @@ class Datapoint {
     if (!setter || typeof setter != 'object' || !setter.fn) {
       // if the datapoint has no setter method, then just set the cached value directly
       datapoint._setCachedValue(newValue);
+
+      if (datapoint.autoinvalidates) datapoint.invalidate();
     } else {
       // to set the value if there is a setter method, the datapoint is marked as invalid,
       // then the setter method is invoked, then as it returns (either sync or async)
@@ -298,7 +311,7 @@ class Datapoint {
       datapoint.invalidate();
 
       rowChangeTrackers
-        .executeAfterValidatingDatapoints(rowId, setter.fn, newValue)
+        .executeAfterValidatingDatapoints({ thisArg: rowId, fn: setter.fn }, newValue)
         .then(({ result, usesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
 
@@ -307,6 +320,8 @@ class Datapoint {
           Promise.resolve(result).then(value => {
             datapoint._setCachedValue(value);
           });
+
+          if (datapoint.autoinvalidates) datapoint.invalidate();
         });
     }
   }

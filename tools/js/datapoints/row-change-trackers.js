@@ -25,16 +25,16 @@ class RowChangeTrackers {
     });
   }
 
-  async executeAfterValidatingDatapoints(thisArg, fn, ...args) {
+  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext }, ...args) {
     const rowChangeTrackers = this;
     while (true) {
-      const ret = await rowChangeTrackers.execute(thisArg, fn, ...args);
+      const ret = await rowChangeTrackers.execute({ thisArg, fn, eventContext }, ...args);
       if (!ret.retryAfterPromises.length) return ret;
       await Promise.all(ret.retryAfterPromises);
     }
   }
 
-  async execute(thisArg, fn, ...args) {
+  async execute({ thisArg, fn, eventContext }, ...args) {
     const rowChangeTrackers = this,
       executor = {
         rowChangeTrackers,
@@ -42,12 +42,13 @@ class RowChangeTrackers {
         usesDatapoints: {},
       };
 
-    args.push({
+    const optionsArg = {
       getRowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
       getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
       setDatapointValue: rowChangeTrackers.setDatapointValue.bind(rowChangeTrackers),
       willRetry: () => executor.retryAfterPromises.length > 0,
-    });
+      eventContext,
+    };
 
     const useThisArg =
       typeof thisArg == 'string' && ConvertIds.rowRegex.test(thisArg) ? rowChangeTrackers.rowObject(thisArg) : thisArg;
@@ -55,7 +56,7 @@ class RowChangeTrackers {
     try {
       const executorWas = rowChangeTrackers._executor;
       rowChangeTrackers._executor = executor;
-      const result = fn.apply(useThisArg, args);
+      const result = fn.apply(useThisArg, args.concat([optionsArg]));
       rowChangeTrackers.commit();
       rowChangeTrackers._executor = executorWas;
       executor.result = RowChangeTrackers.sanitizeCDOs(await result);
@@ -64,7 +65,7 @@ class RowChangeTrackers {
         // TODO type check instead
         const { cache, schema } = rowChangeTrackers,
           mutatingRowChangeTrackers = new RowChangeTrackers({ cache, schema, readOnly: false });
-        return mutatingRowChangeTrackers.execute(thisArg, fn, ...args);
+        return mutatingRowChangeTrackers.execute({ thisArg, fn, eventContext }, ...args);
       }
       log('err.eval', `While executing code: ${error.message}`);
       executor.error = error;

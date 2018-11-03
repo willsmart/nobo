@@ -2,7 +2,7 @@ const ChangeCase = require('change-case');
 const ConvertIds = require('../../datapoints/convert-ids');
 const { rangeForElement } = require('../dom-functions');
 
-module.exports = function({ datapoint }) {
+module.exports = function({ datapoint, cache }) {
   const { fieldName, typeName, rowId, proxyKey: baseProxyKey } = datapoint;
 
   if (typeName != 'Dom' || !baseProxyKey) {
@@ -25,8 +25,22 @@ module.exports = function({ datapoint }) {
         for (let attributeIndex = element.attributes.length - 1; attributeIndex >= 0; attributeIndex--) {
           const { name } = element.attributes[attributeIndex];
           if (name.endsWith('-template')) {
-            const fieldName = ChangeCase.camelCase(`attribute-${name.substring(0, name.length - '-template'.length)}`);
-            getDatapointValue(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
+            if (/^on[a-z]/.test(name)) {
+              const eventName = name.substring(0, name.length - '-template'.length);
+              element.removeAttribute(eventName);
+              element[eventName] = function(event) {
+                cache
+                  .getOrCreateDatapoint(
+                    ConvertIds.recomposeId({ typeName, proxyKey, fieldName: `attribute_${eventName}` }).datapointId
+                  )
+                  .validate({ eventContext: event });
+              };
+            } else {
+              const fieldName = ChangeCase.camelCase(
+                `attribute-${name.substring(0, name.length - '-template'.length)}`
+              );
+              getDatapointValue(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
+            }
           }
         }
 
@@ -58,9 +72,10 @@ module.exports = function({ datapoint }) {
 function forEachLid(element, fn, lid = 1) {
   fn(element, lid);
   for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    if (child.hasAttribute('sourcetemplate') || !child.hasAttribute('nobo-lid')) continue;
-
+    if (!child.hasAttribute('nobo-lid')) continue;
     const childLid = Number(child.getAttribute('nobo-lid'));
+    if (childLid == 1) continue;
+
     forEachLid(child, fn, childLid);
   }
 }

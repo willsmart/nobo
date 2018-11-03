@@ -192,7 +192,8 @@ async function processTemplateIncludes({ template, templatesByPath }, stack = {}
         attrs[name] = value;
         const match = /^([\w-]+)_field$/.exec(name);
         if (match) {
-          fields[match[1]] = value;
+          const { js } = templateCodeToJs(value);
+          fields[match[1]] = js;
         }
       });
 
@@ -290,74 +291,78 @@ async function processTemplateIncludes({ template, templatesByPath }, stack = {}
   delete template.mayHaveUnprocessedIncludes;
 }
 
-function substituteFields(originalElement, element, fields) {
+function substituteFields(originalElement, element, fields, fieldNames) {
   if (!originalElement.templateInfo) originalElement.templateInfo = scrapeTemplateInfo(originalElement);
   const templateInfo = originalElement.templateInfo;
-
-  if (element.childNodes) {
-    let index = 0;
-    for (const childNode of element.childNodes) {
-      if (childNode.nodeName == '#text') {
-        childNode.value = doSubstitution(index++, childNode.value);
-      }
-    }
-  }
 
   if (element.attrs) {
     for (const attr of element.attrs) {
       const { name, value } = attr;
-      if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
+      if (!name.endsWith('-template')) continue;
 
-      attr.value = doSubstitution(` ${name}`, value);
-    }
-  }
+      fieldNames = fieldNames || Object.keys(fields).sort();
 
-  function doSubstitution(templateKey, value) {
-    const indexes = templateInfo[templateKey];
-    if (!indexes) return value;
+      const tree = locateEnd(value, false, 0);
 
-    let newValue = '',
-      prevIndex = 0;
-    for (const [range, fieldName, isCode] of indexes) {
-      const fieldValue = fields[fieldName];
-      if (fieldValue === undefined) continue;
-      if (range[0] > prevIndex) newValue += value.substring(prevIndex, range[0]);
-      if (isCode) {
-        let addValue = '',
-          couldUnwrap = false;
-        let prevIndex = 0,
-          match;
-        const regex = /((?:\\\\.|(?!`|\$\{).)*)(`|\$\{)/g;
-        while ((match = regex.exec(fieldValue))) {
-          if (match[2] == '`') {
-            addValue += `${fieldValue.substring(prevIndex, match.index + match[1].length)}\\\``;
-            prevIndex = match.index + match[0].length;
-          } else {
-            const root = locateEnd(fieldValue, '}', match.index + match[0].length);
-            addValue += fieldValue.substring(prevIndex, root.range[1]);
-            prevIndex = regex.lastIndex = root.range[1];
-            if (match.index == 0 && prevIndex == fieldValue.length) {
-              couldUnwrap = true;
-            }
+      let prevEnd;
+      const replacements = [];
+      dealWithTree(tree, false);
+      dealWithSegment(value.length, false);
+
+      replacements.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+
+      prevEnd = 0;
+      let newValue = '';
+      for (const [at, end, fieldName] of replacements) {
+        if (at < prevEnd) continue;
+        newValue += value.substring(prevEnd, at) + fields[fieldName];
+        prevEnd = end;
+      }
+      newValue += value.substring(prevEnd);
+
+      attr.value = newValue;
+
+      function dealWithTree({ range, type, children }, parentType) {
+        const [start, end] = range;
+        dealWithSegment(start, parentType);
+        if (children) {
+          for (const child of children) {
+            dealWithTree(child, type);
           }
         }
-        if (prevIndex < fieldValue.length) addValue += fieldValue.substring(prevIndex);
-        newValue += couldUnwrap ? addValue.substring(2, addValue.length - 1) : '`' + addValue + '`';
-      } else {
-        newValue += fieldValue;
+        dealWithSegment(end === undefined ? value.length : end, type);
       }
-      prevIndex = range[1];
-    }
-    if (prevIndex < value.length) newValue += value.substring(prevIndex);
 
-    return newValue;
+      function dealWithSegment(end, type) {
+        const start = prevEnd;
+        prevEnd = end;
+        if (start >= end) return;
+        switch (type) {
+          case '...':
+          case '[]':
+          case '{}':
+          case '()':
+          case '${}':
+            let str = value.substring(start, end);
+            for (const fieldName of fieldNames) {
+              const regex = new RegExp(`\\b${fieldName}\\b`, 'g');
+              let match,
+                strIndex = 0;
+              while ((match = regex.exec(str))) {
+                replacements.push([match.index, match.index + match[0].length, fieldName]);
+              }
+            }
+            break;
+        }
+      }
+    }
   }
 
   if (element.childNodes) {
     let index = 0;
     for (const childNode of element.childNodes) {
       const originalChildNode = originalElement.childNodes[index++];
-      substituteFields(originalChildNode, childNode, fields);
+      substituteFields(originalChildNode, childNode, fields, fieldNames);
     }
   }
 
@@ -367,22 +372,9 @@ function substituteFields(originalElement, element, fields) {
 function scrapeTemplateInfo(element) {
   const ret = {};
   let index = 0;
-  if (element.childNodes) {
-    for (const childNode of element.childNodes) {
-      if (childNode.nodeName == '#text') {
-        const templatedText = new TemplatedText({
-          text: childNode.value,
-        });
-        if (!templatedText.dependencyTree) continue;
-
-        dealWithChildren(childNode.value, index++, 0, templatedText.dependencyTree.children);
-      }
-    }
-  }
-
   if (element.attrs) {
     for (const { name, value } of element.attrs) {
-      if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
+      if (!name.endsWith('-template')) continue;
 
       const templatedText = new TemplatedText({
         text: value,

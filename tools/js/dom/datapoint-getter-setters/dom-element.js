@@ -24,7 +24,7 @@ module.exports = ({ htmlToElement }) =>
             );
             if (willRetry() || !baseElement) return;
             const element = lid == 1 ? baseElement : findLid(baseElement, lid);
-            element.setAttribute('nobo-uid', proxyKey);
+            if (element) element.setAttribute('nobo-uid', proxyKey);
             return element;
           }
 
@@ -56,7 +56,7 @@ module.exports = ({ htmlToElement }) =>
             );
             if (willRetry() || !baseElement) return;
             const element = lid == 1 ? baseElement : findLid(baseElement, lid);
-            element.setAttribute('nobo-uid', proxyKey);
+            if (element) element.setAttribute('nobo-uid', proxyKey);
             return element;
           }
 
@@ -124,9 +124,10 @@ function findLid(element, lid) {
 function findLidChild(element, lid) {
   let prevChild;
   for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
-    if (child.hasAttribute('sourcetemplate') || !child.hasAttribute('nobo-lid')) continue;
-
+    if (!child.hasAttribute('nobo-lid')) continue;
     const childLid = Number(child.getAttribute('nobo-lid'));
+    if (childLid == 1) continue;
+
     if (childLid == lid) return child;
     if (prevChild && childLid > lid) {
       return findLidChild(prevChild, lid);

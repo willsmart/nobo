@@ -344,14 +344,14 @@ class PostgresqlConnection {
             fieldInfos.push(...Object.values(fieldsByName));
 
             const valueGivenModels = (a, b) => {
-              return field.sort.evaluate({
+              return field.sort.safeEvaluate({
                 valueForNameCallback: (...names) => {
                   if (names.length != 2) return;
                   if (names[0] == 'a') return a[`__sort__${names[1]}`];
                   if (names[0] == 'b') return b[`__sort__${names[1]}`];
                   return;
                 },
-              });
+              }).result;
             };
 
             sorter = (a, b) => {
@@ -373,12 +373,12 @@ class PostgresqlConnection {
             }
 
             const valueGivenModel = model => {
-              return field.sort.evaluate({
+              return field.sort.safeEvaluate({
                 valueForNameCallback: (...names) => {
                   if (names.length != 1) return;
                   return model[`__sort__${names[0]}`];
                 },
-              });
+              }).result;
             };
 
             sorter = (a, b) => {

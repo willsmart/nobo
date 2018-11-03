@@ -21,13 +21,16 @@ module.exports = function({ datapoint }) {
   const valueAttributeName = paramCaseFieldName.substring(fieldNamePrefix.length),
     templateAttributeName = valueAttributeName + templateSuffix,
     match = /^textnode(\d+)$/.exec(valueAttributeName),
-    textNodeIndex = match ? Number(match[1]) : undefined;
+    textNodeIndex = match ? Number(match[1]) : undefined,
+    isEvent = /^on[a-z]/.test(valueAttributeName);
+
+  if (isEvent) datapoint.autoinvalidates = true;
 
   if (valueAttributeName.endsWith(templateSuffix)) {
     return;
   }
 
-  let datapointState = { template: '', compiledGetter: undefined };
+  let datapointState = { template: '', compiledGetter: undefined, eventCount: 0 };
 
   getValue = (element, valueAttributeName, textNodeIndex) => {
     if (textNodeIndex !== undefined) {
@@ -82,18 +85,21 @@ module.exports = function({ datapoint }) {
           child.parentNode.removeChild(child);
         }
       }
+    } else if (typeof value == 'function') {
+      element.removeAttribute(valueAttributeName);
+      element[ChangeCase.camelCase(valueAttributeName)] = value;
     } else {
-      element.setAttribute(valueAttributeName, value);
+      element.setAttribute(valueAttributeName, String(value));
     }
   };
 
-  evaluate = ({ getDatapointValue, getRowObject, willRetry }) => {
+  evaluate = ({ getDatapointValue, getRowObject, willRetry, eventContext }) => {
     const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId),
       { rowId: sourceRowId } =
         getDatapointValue(
           ConvertIds.recomposeId({ typeName, proxyKey: baseProxyKey, fieldName: 'context' }).datapointId
         ) || {},
-      newState = { template: '', compiledGetter: undefined };
+      newState = { template: '', compiledGetter: undefined, eventCount: datapointState.eventCount + 1 };
 
     if (willRetry()) return;
 
@@ -118,25 +124,33 @@ module.exports = function({ datapoint }) {
             });
 
       value = newState.compiledGetter
-        ? String(
-            newState.compiledGetter.evaluate({
-              getDatapointValue,
-              getRowObject,
-              rowId: sourceRowId,
-            })
-          )
+        ? isEvent
+          ? String(
+              newState.compiledGetter.evaluate({
+                getDatapointValue,
+                getRowObject,
+                event: eventContext,
+                rowId: sourceRowId,
+              })
+            )
+          : String(
+              newState.compiledGetter.safeEvaluate({
+                getDatapointValue,
+                getRowObject,
+                rowId: sourceRowId,
+              }).result
+            )
         : '';
     } while (false);
 
     if (!willRetry()) {
-      if (element && needsSet) setValue(element, valueAttributeName, textNodeIndex, value);
+      if (element && needsSet && !isEvent) setValue(element, valueAttributeName, textNodeIndex, value);
       datapointState = newState;
     }
 
-    return value;
+    return isEvent ? datapointState.eventCount : value;
   };
 
-  datapoint.autovalidates = true;
   return {
     getter: {
       fn: evaluate,

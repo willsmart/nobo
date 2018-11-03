@@ -21,8 +21,9 @@ function logIsEnabled(module) {
 function log(module, ...args) {
   if (!logIsEnabled(module)) return false;
   if (args.length == 1 && typeof args[0] == 'function') args = [args[0]()];
-  if (module === 'err' || module.startsWith('err.')) console.error.apply(console, args);
-  else console.log.apply(console, args);
+  if (module === 'err' || module.startsWith('err.')) {
+    console.error.apply(console, args);
+  } else console.log.apply(console, args);
   return true;
 }
 

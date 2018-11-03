@@ -33,11 +33,11 @@ module.exports = function({ datapoint }) {
 
       if (newState.compiledGetter && newState.rowId) {
         newState.variant = String(
-          newState.compiledGetter.evaluate({
+          newState.compiledGetter.safeEvaluate({
             getDatapointValue,
             getRowObject,
             rowId: newState.rowId,
-          })
+          }).result
         );
       }
 
