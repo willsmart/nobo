@@ -52,7 +52,9 @@ module.exports = function({ datapoint }) {
       }
 
       let childIds = sourceRowId
-        ? getDatapointValue(ConvertIds.recomposeId({ rowId: sourceRowId, fieldName }).datapointId, false)
+        ? getDatapointValue(ConvertIds.recomposeId({ rowId: sourceRowId, fieldName }).datapointId, {
+            convertIdsToCDOs: false,
+          })
         : [];
 
       if (!Array.isArray(childIds)) childIds = [];

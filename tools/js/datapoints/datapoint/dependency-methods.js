@@ -56,6 +56,7 @@ function addDependencyMethods(theClass) {
 
     _addDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
+        isNotifying = !type.startsWith('~'),
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
@@ -83,10 +84,15 @@ function addDependencyMethods(theClass) {
       }
 
       dependentDependencyInfo[type] = dependencyDependentInfo[type] = type;
+
+      if (isNotifying) {
+        dependencyDependentInfo.__notify = true;
+      }
     },
 
     _removeDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
+        isNotifying = !type.startsWith('~'),
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
@@ -104,6 +110,10 @@ function addDependencyMethods(theClass) {
 
       delete dependencyDependentInfo[type];
       delete dependentDependencyInfo[type];
+
+      if (isNotifying && !Object.keys(dependencyDependentInfo).find(type => !type.startsWith('~'))) {
+        delete dependencyDependentInfo.__notify;
+      }
 
       if (Object.keys(dependencyDependentInfo).length) return;
 
@@ -125,7 +135,8 @@ function addDependencyMethods(theClass) {
         { dependents, cache } = datapoint;
 
       if (!dependents) return;
-      for (const dependentDatapointId of Object.keys(dependents)) {
+      for (const [dependentDatapointId, { __notify }] of Object.entries(dependents)) {
+        if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
@@ -139,11 +150,12 @@ function addDependencyMethods(theClass) {
         { dependents, cache } = datapoint;
 
       if (!dependents) return;
-      for (const dependentDatapointId of Object.keys(dependents)) {
+      for (const [dependentDatapointId, { __notify }] of Object.entries(dependents)) {
+        if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!--dependentDatapoint.invalidDependencyCount && !dependentDatapoint.autoinvalidates) {
-          dependentDatapoint.validate({ refreshViaGetter: true });
+          dependentDatapoint.validateIfWatched();
         }
       }
     },
@@ -152,12 +164,11 @@ function addDependencyMethods(theClass) {
         { dependents, cache } = datapoint;
 
       if (!dependents) return;
-      for (const dependentDatapointId of Object.keys(dependents)) {
+      for (const [dependentDatapointId, { __notify }] of Object.entries(dependents)) {
+        if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
-        if (!dependentDatapoint.autoinvalidates && !dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate({ refreshViaGetter: true });
-        }
+        dependentDatapoint.invalidate();
       }
     },
   });

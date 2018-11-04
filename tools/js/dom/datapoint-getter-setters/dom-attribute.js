@@ -25,6 +25,7 @@ module.exports = function({ datapoint }) {
     isEvent = /^on[a-z]/.test(valueAttributeName);
 
   if (isEvent) datapoint.autoinvalidates = true;
+  else datapoint.autovalidates = true;
 
   if (valueAttributeName.endsWith(templateSuffix)) {
     return;

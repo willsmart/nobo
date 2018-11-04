@@ -868,6 +868,7 @@ class Datapoint {
 
       'invalidate',
       'validate',
+      'validateIfWatched',
       'valueIfAny',
       'value',
       'setValue',
@@ -906,6 +907,7 @@ class Datapoint {
       cachedValue: isAnyFieldPlaceholder ? true : undefined,
       autovalidates: false,
       autoinvalidates: false,
+      autovalidatesForListener: false,
     });
 
     log('dp', () => `DP>C> Created datapoint ${datapointId}`);
@@ -930,6 +932,8 @@ class Datapoint {
     }
 
     datapoint.deleteIfUnwatched();
+
+    datapoint.validateIfWatched();
   }
 
   get typeName() {
@@ -978,8 +982,7 @@ class Datapoint {
   // marks the datapoint as having a possibly incorrect cachedValue
   // i.e. the value that would be obtained from the getter may be different to the cachedValue
   invalidate() {
-    const datapoint = this,
-      { listeners, getterOneShotResolvers, autovalidates } = datapoint;
+    const datapoint = this;
     switch (datapoint.state) {
       case 'valid':
         datapoint._setState('invalid');
@@ -988,8 +991,13 @@ class Datapoint {
       case 'uninitialized':
         datapoint.rerunGetter = true;
     }
+    datapoint.validateIfWatched();
+  }
 
-    if ((listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length) || autovalidates) {
+  validateIfWatched() {
+    const datapoint = this,
+      { getterOneShotResolvers, autovalidates, autovalidatesForListener } = datapoint;
+    if ((getterOneShotResolvers && getterOneShotResolvers.length) || autovalidates || autovalidatesForListener) {
       datapoint.validate();
     }
   }
@@ -1110,8 +1118,9 @@ class Datapoint {
         datapoint.rerunGetter = false;
         rowChangeTrackers
           .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, eventContext })
-          .then(({ result, usesDatapoints }) => {
+          .then(({ result, usesDatapoints, referencesDatapoints }) => {
             datapoint.setDependenciesOfType('getter', usesDatapoints);
+            datapoint.setDependenciesOfType('~getter', referencesDatapoints);
             if (datapoint.rerunGetter) return runGetter();
 
             if (result && typeof result == 'object' && result.then) {
@@ -1156,8 +1165,9 @@ class Datapoint {
 
       rowChangeTrackers
         .executeAfterValidatingDatapoints({ thisArg: rowId, fn: setter.fn }, newValue)
-        .then(({ result, usesDatapoints, commit }) => {
+        .then(({ result, usesDatapoints, referencesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
+          datapoint.setDependenciesOfType('~setter', referencesDatapoints);
 
           if (commit) commit();
 
@@ -1172,6 +1182,14 @@ class Datapoint {
 
   lastListenerRemoved() {
     this.deleteIfUnwatched();
+  }
+
+  listenersChanged() {
+    const datapoint = this,
+      { listeners } = datapoint;
+    datapoint.autovalidatesForListener = Boolean(
+      listeners && listeners.find(listener => listener.onvalid || listener.onchange)
+    );
   }
 
   firstListenerAdded() {
@@ -1290,6 +1308,7 @@ function addDependencyMethods(theClass) {
 
     _addDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
+        isNotifying = !type.startsWith('~'),
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
@@ -1317,10 +1336,15 @@ function addDependencyMethods(theClass) {
       }
 
       dependentDependencyInfo[type] = dependencyDependentInfo[type] = type;
+
+      if (isNotifying) {
+        dependencyDependentInfo.__notify = true;
+      }
     },
 
     _removeDependency(dependencyDatapoint, type) {
       const dependentDatapoint = this,
+        isNotifying = !type.startsWith('~'),
         { datapointId: dependencyDatapointId, valid: dependencyValid } = dependencyDatapoint,
         { datapointId: dependentDatapointId } = dependentDatapoint,
         dependencyDependents = dependencyDatapoint.dependents || (dependencyDatapoint.dependents = {}),
@@ -1338,6 +1362,10 @@ function addDependencyMethods(theClass) {
 
       delete dependencyDependentInfo[type];
       delete dependentDependencyInfo[type];
+
+      if (isNotifying && !Object.keys(dependencyDependentInfo).find(type => !type.startsWith('~'))) {
+        delete dependencyDependentInfo.__notify;
+      }
 
       if (Object.keys(dependencyDependentInfo).length) return;
 
@@ -1359,7 +1387,8 @@ function addDependencyMethods(theClass) {
         { dependents, cache } = datapoint;
 
       if (!dependents) return;
-      for (const dependentDatapointId of Object.keys(dependents)) {
+      for (const [dependentDatapointId, { __notify }] of Object.entries(dependents)) {
+        if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!dependentDatapoint.invalidDependencyCount) {
@@ -1373,11 +1402,12 @@ function addDependencyMethods(theClass) {
         { dependents, cache } = datapoint;
 
       if (!dependents) return;
-      for (const dependentDatapointId of Object.keys(dependents)) {
+      for (const [dependentDatapointId, { __notify }] of Object.entries(dependents)) {
+        if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
         if (!--dependentDatapoint.invalidDependencyCount && !dependentDatapoint.autoinvalidates) {
-          dependentDatapoint.validate({ refreshViaGetter: true });
+          dependentDatapoint.validateIfWatched();
         }
       }
     },
@@ -1386,12 +1416,11 @@ function addDependencyMethods(theClass) {
         { dependents, cache } = datapoint;
 
       if (!dependents) return;
-      for (const dependentDatapointId of Object.keys(dependents)) {
+      for (const [dependentDatapointId, { __notify }] of Object.entries(dependents)) {
+        if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
-        if (!dependentDatapoint.autoinvalidates && !dependentDatapoint.invalidDependencyCount) {
-          dependentDatapoint.validate({ refreshViaGetter: true });
-        }
+        dependentDatapoint.invalidate();
       }
     },
   });
@@ -1642,11 +1671,13 @@ class RowChangeTrackers {
         rowChangeTrackers,
         retryAfterPromises: [],
         usesDatapoints: {},
+        referencesDatapoints: {},
       };
 
     const optionsArg = {
       getRowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
       getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
+      referenceDatapoint: rowChangeTrackers.referenceDatapoint.bind(rowChangeTrackers),
       setDatapointValue: rowChangeTrackers.setDatapointValue.bind(rowChangeTrackers),
       willRetry: () => executor.retryAfterPromises.length > 0,
       eventContext,
@@ -1824,21 +1855,40 @@ class RowChangeTrackers {
     if (datapoint) datapoint.setValue(value);
   }
 
-  getDatapointValue(rowId, fieldName, embeddedDatapointId, convertIdsToCDOs = true) {
+  referenceDatapoint(rowId, fieldName, embeddedDatapointId) {
     if (ConvertIds.datapointRegex.test(rowId)) {
-      if (fieldName !== undefined) convertIdsToCDOs = fieldName;
       ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
     }
+
+    if (fieldName == 'id') return;
+
+    const rowChangeTrackers = this,
+      { executor } = rowChangeTrackers,
+      datapointId = ConvertIds.recomposeId({ rowId, fieldName, embeddedDatapointId }).datapointId;
+
+    if (executor) {
+      executor.referencesDatapoints[datapointId] = true;
+    }
+  }
+
+  getDatapointValue(rowId, fieldName, embeddedDatapointId, options) {
+    if (ConvertIds.datapointRegex.test(rowId)) {
+      if (fieldName !== undefined) options = fieldName;
+      ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
+    }
+
+    let convertIdsToCDOs = !(options && !options.convertIdsToCDOs);
 
     if (fieldName == 'id') return rowId;
 
     const rowChangeTrackers = this,
-      { cache, schema, executor } = rowChangeTrackers,
-      { typeName } = ConvertIds.decomposeId({ rowId }),
+      { cache, executor } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName, embeddedDatapointId }).datapointId,
       datapoint = cache.getOrCreateDatapoint(datapointId);
 
-    if (executor) executor.usesDatapoints[datapointId] = true;
+    if (executor) {
+      executor.usesDatapoints[datapointId] = true;
+    }
 
     let value = datapoint && datapoint.valueIfAny;
     if (!datapoint.valid) {
@@ -2360,6 +2410,7 @@ module.exports = function({ datapoint }) {
     isEvent = /^on[a-z]/.test(valueAttributeName);
 
   if (isEvent) datapoint.autoinvalidates = true;
+  else datapoint.autovalidates = true;
 
   if (valueAttributeName.endsWith(templateSuffix)) {
     return;
@@ -2551,7 +2602,9 @@ module.exports = function({ datapoint }) {
       }
 
       let childIds = sourceRowId
-        ? getDatapointValue(ConvertIds.recomposeId({ rowId: sourceRowId, fieldName }).datapointId, false)
+        ? getDatapointValue(ConvertIds.recomposeId({ rowId: sourceRowId, fieldName }).datapointId, {
+            convertIdsToCDOs: false,
+          })
         : [];
 
       if (!Array.isArray(childIds)) childIds = [];
@@ -2910,7 +2963,7 @@ module.exports = function({ datapoint, cache }) {
 
     if (lid !== undefined) return;
 
-    evaluateTree = ({ getDatapointValue, willRetry }) => {
+    evaluateTree = ({ getDatapointValue, referenceDatapoint, willRetry }) => {
       const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId);
       if (!element) return;
 
@@ -2934,7 +2987,7 @@ module.exports = function({ datapoint, cache }) {
               const fieldName = ChangeCase.camelCase(
                 `attribute-${name.substring(0, name.length - '-template'.length)}`
               );
-              getDatapointValue(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
+              referenceDatapoint(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
             }
           }
         }
@@ -2942,7 +2995,7 @@ module.exports = function({ datapoint, cache }) {
         for (let classIndex = element.classList.length - 1; classIndex >= 0; classIndex--) {
           const name = element.classList[classIndex];
           if (name.endsWith('-model-child')) {
-            getDatapointValue(ConvertIds.recomposeId({ typeName, proxyKey, fieldName: 'children' }).datapointId);
+            referenceDatapoint(ConvertIds.recomposeId({ typeName, proxyKey, fieldName: 'children' }).datapointId);
             break;
           }
         }
@@ -2958,7 +3011,7 @@ module.exports = function({ datapoint, cache }) {
         fn: evaluateTree,
       },
       setter: {
-        fn: (_newValue, { getDatapointValue }) => evaluateTree({ getDatapointValue }),
+        fn: (_newValue, options) => evaluateTree(options),
       },
     };
   }
@@ -5189,6 +5242,9 @@ function makeClassWatchable(watchableClass) {
         else listeners[index] = listener;
         me.listeners = listeners;
       }
+      if (typeof me.listenersChanged == 'function') {
+        me.listenersChanged.call(me);
+      }
       return listener.callbackKey;
     },
 
@@ -5207,6 +5263,9 @@ function makeClassWatchable(watchableClass) {
         }
       } else {
         me.listeners = listeners;
+      }
+      if (typeof me.listenersChanged == 'function') {
+        me.listenersChanged.call(me);
       }
       return listener;
     },

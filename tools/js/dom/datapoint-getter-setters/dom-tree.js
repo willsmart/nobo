@@ -15,7 +15,7 @@ module.exports = function({ datapoint, cache }) {
 
     if (lid !== undefined) return;
 
-    evaluateTree = ({ getDatapointValue, willRetry }) => {
+    evaluateTree = ({ getDatapointValue, referenceDatapoint, willRetry }) => {
       const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId);
       if (!element) return;
 
@@ -39,7 +39,7 @@ module.exports = function({ datapoint, cache }) {
               const fieldName = ChangeCase.camelCase(
                 `attribute-${name.substring(0, name.length - '-template'.length)}`
               );
-              getDatapointValue(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
+              referenceDatapoint(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
             }
           }
         }
@@ -47,7 +47,7 @@ module.exports = function({ datapoint, cache }) {
         for (let classIndex = element.classList.length - 1; classIndex >= 0; classIndex--) {
           const name = element.classList[classIndex];
           if (name.endsWith('-model-child')) {
-            getDatapointValue(ConvertIds.recomposeId({ typeName, proxyKey, fieldName: 'children' }).datapointId);
+            referenceDatapoint(ConvertIds.recomposeId({ typeName, proxyKey, fieldName: 'children' }).datapointId);
             break;
           }
         }
@@ -63,7 +63,7 @@ module.exports = function({ datapoint, cache }) {
         fn: evaluateTree,
       },
       setter: {
-        fn: (_newValue, { getDatapointValue }) => evaluateTree({ getDatapointValue }),
+        fn: (_newValue, options) => evaluateTree(options),
       },
     };
   }

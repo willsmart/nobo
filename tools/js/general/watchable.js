@@ -33,6 +33,9 @@ function makeClassWatchable(watchableClass) {
         else listeners[index] = listener;
         me.listeners = listeners;
       }
+      if (typeof me.listenersChanged == 'function') {
+        me.listenersChanged.call(me);
+      }
       return listener.callbackKey;
     },
 
@@ -51,6 +54,9 @@ function makeClassWatchable(watchableClass) {
         }
       } else {
         me.listeners = listeners;
+      }
+      if (typeof me.listenersChanged == 'function') {
+        me.listenersChanged.call(me);
       }
       return listener;
     },

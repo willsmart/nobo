@@ -40,11 +40,13 @@ class RowChangeTrackers {
         rowChangeTrackers,
         retryAfterPromises: [],
         usesDatapoints: {},
+        referencesDatapoints: {},
       };
 
     const optionsArg = {
       getRowObject: rowChangeTrackers.rowObject.bind(rowChangeTrackers),
       getDatapointValue: rowChangeTrackers.getDatapointValue.bind(rowChangeTrackers),
+      referenceDatapoint: rowChangeTrackers.referenceDatapoint.bind(rowChangeTrackers),
       setDatapointValue: rowChangeTrackers.setDatapointValue.bind(rowChangeTrackers),
       willRetry: () => executor.retryAfterPromises.length > 0,
       eventContext,
@@ -222,21 +224,40 @@ class RowChangeTrackers {
     if (datapoint) datapoint.setValue(value);
   }
 
-  getDatapointValue(rowId, fieldName, embeddedDatapointId, convertIdsToCDOs = true) {
+  referenceDatapoint(rowId, fieldName, embeddedDatapointId) {
     if (ConvertIds.datapointRegex.test(rowId)) {
-      if (fieldName !== undefined) convertIdsToCDOs = fieldName;
       ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
     }
+
+    if (fieldName == 'id') return;
+
+    const rowChangeTrackers = this,
+      { executor } = rowChangeTrackers,
+      datapointId = ConvertIds.recomposeId({ rowId, fieldName, embeddedDatapointId }).datapointId;
+
+    if (executor) {
+      executor.referencesDatapoints[datapointId] = true;
+    }
+  }
+
+  getDatapointValue(rowId, fieldName, embeddedDatapointId, options) {
+    if (ConvertIds.datapointRegex.test(rowId)) {
+      if (fieldName !== undefined) options = fieldName;
+      ({ rowId, fieldName, embeddedDatapointId } = ConvertIds.decomposeId({ datapointId: rowId }));
+    }
+
+    let convertIdsToCDOs = !(options && !options.convertIdsToCDOs);
 
     if (fieldName == 'id') return rowId;
 
     const rowChangeTrackers = this,
-      { cache, schema, executor } = rowChangeTrackers,
-      { typeName } = ConvertIds.decomposeId({ rowId }),
+      { cache, executor } = rowChangeTrackers,
       datapointId = ConvertIds.recomposeId({ rowId, fieldName, embeddedDatapointId }).datapointId,
       datapoint = cache.getOrCreateDatapoint(datapointId);
 
-    if (executor) executor.usesDatapoints[datapointId] = true;
+    if (executor) {
+      executor.usesDatapoints[datapointId] = true;
+    }
 
     let value = datapoint && datapoint.valueIfAny;
     if (!datapoint.valid) {

@@ -24,6 +24,7 @@ class Datapoint {
 
       'invalidate',
       'validate',
+      'validateIfWatched',
       'valueIfAny',
       'value',
       'setValue',
@@ -62,6 +63,7 @@ class Datapoint {
       cachedValue: isAnyFieldPlaceholder ? true : undefined,
       autovalidates: false,
       autoinvalidates: false,
+      autovalidatesForListener: false,
     });
 
     log('dp', () => `DP>C> Created datapoint ${datapointId}`);
@@ -86,6 +88,8 @@ class Datapoint {
     }
 
     datapoint.deleteIfUnwatched();
+
+    datapoint.validateIfWatched();
   }
 
   get typeName() {
@@ -134,8 +138,7 @@ class Datapoint {
   // marks the datapoint as having a possibly incorrect cachedValue
   // i.e. the value that would be obtained from the getter may be different to the cachedValue
   invalidate() {
-    const datapoint = this,
-      { listeners, getterOneShotResolvers, autovalidates } = datapoint;
+    const datapoint = this;
     switch (datapoint.state) {
       case 'valid':
         datapoint._setState('invalid');
@@ -144,8 +147,13 @@ class Datapoint {
       case 'uninitialized':
         datapoint.rerunGetter = true;
     }
+    datapoint.validateIfWatched();
+  }
 
-    if ((listeners && listeners.length) || (getterOneShotResolvers && getterOneShotResolvers.length) || autovalidates) {
+  validateIfWatched() {
+    const datapoint = this,
+      { getterOneShotResolvers, autovalidates, autovalidatesForListener } = datapoint;
+    if ((getterOneShotResolvers && getterOneShotResolvers.length) || autovalidates || autovalidatesForListener) {
       datapoint.validate();
     }
   }
@@ -266,8 +274,9 @@ class Datapoint {
         datapoint.rerunGetter = false;
         rowChangeTrackers
           .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, eventContext })
-          .then(({ result, usesDatapoints }) => {
+          .then(({ result, usesDatapoints, referencesDatapoints }) => {
             datapoint.setDependenciesOfType('getter', usesDatapoints);
+            datapoint.setDependenciesOfType('~getter', referencesDatapoints);
             if (datapoint.rerunGetter) return runGetter();
 
             if (result && typeof result == 'object' && result.then) {
@@ -312,8 +321,9 @@ class Datapoint {
 
       rowChangeTrackers
         .executeAfterValidatingDatapoints({ thisArg: rowId, fn: setter.fn }, newValue)
-        .then(({ result, usesDatapoints, commit }) => {
+        .then(({ result, usesDatapoints, referencesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
+          datapoint.setDependenciesOfType('~setter', referencesDatapoints);
 
           if (commit) commit();
 
@@ -328,6 +338,14 @@ class Datapoint {
 
   lastListenerRemoved() {
     this.deleteIfUnwatched();
+  }
+
+  listenersChanged() {
+    const datapoint = this,
+      { listeners } = datapoint;
+    datapoint.autovalidatesForListener = Boolean(
+      listeners && listeners.find(listener => listener.onvalid || listener.onchange)
+    );
   }
 
   firstListenerAdded() {
