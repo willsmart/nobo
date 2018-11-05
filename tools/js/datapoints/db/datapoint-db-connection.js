@@ -3,7 +3,7 @@ const PublicApi = require('../../general/public-api');
 
 class DatapointDbConnection {
   static publicMethods() {
-    return ['schema', 'dbConnection', 'queueGet', 'queueSet'];
+    return ['schema', 'dbConnection', 'queueGet', 'queueGetExists', 'queueSet', 'queueSetExists'];
   }
 
   constructor({ schema, dbConnection }) {
@@ -25,6 +25,31 @@ class DatapointDbConnection {
 
   get dbConnection() {
     return this._dbConnection;
+  }
+
+  queueGetExists({ typeName, dbRowId, resolve }) {
+    return this.queueGet({
+      field: { enclosingType: { name: typeName }, name: 'id' },
+      dbRowId,
+      resolve: resolve
+        ? value => {
+            resolve(Boolean(value));
+          }
+        : undefined,
+    });
+  }
+
+  queueSetExists({ typeName, dbRowId, newValue, resolve }) {
+    return this.queueSet({
+      field: { enclosingType: { name: typeName }, name: '*' },
+      dbRowId,
+      newValue,
+      resolve: resolve
+        ? value => {
+            resolve(Boolean(value));
+          }
+        : undefined,
+    });
   }
 
   queueGet({ field, dbRowId, resolve }) {
@@ -93,7 +118,7 @@ class DatapointDbConnection {
             })
             .then(row => {
               for (const [fieldName, resolves] of Object.entries(forRow)) {
-                const value = row[fieldName];
+                const value = row ? row[fieldName] : undefined;
                 for (const resolve of resolves) resolve(value);
               }
             })
@@ -101,12 +126,16 @@ class DatapointDbConnection {
       }
     }
 
-    Promise.all(promises).then(() => {
+    Promise.all(promises)
+      .then(restartJob)
+      .catch(restartJob);
+
+    function restartJob() {
       connection._getJobTimeout = undefined;
       if (Object.keys(connection.queuedGets).length) {
         connection.queueGetJob();
       }
-    });
+    }
   }
 
   goSetJob() {
@@ -132,7 +161,7 @@ class DatapointDbConnection {
               dbRowId,
               fields: Object.entries(forRow).map(([fieldName, { newValue }]) => ({ name: fieldName, value: newValue })),
             })
-            .then(() => {
+            .then(({ rowCount }) => {
               for (const { newValue, resolves } of Object.values(forRow)) {
                 for (const resolve of resolves) resolve(newValue);
               }
@@ -141,12 +170,16 @@ class DatapointDbConnection {
       }
     }
 
-    Promise.all(promises).then(() => {
+    Promise.all(promises)
+      .then(restartJob)
+      .catch(restartJob);
+
+    function restartJob() {
       connection._setJobTimeout = undefined;
       if (Object.keys(connection.queuedSets).length) {
         connection.queueSetJob();
       }
-    });
+    }
   }
 }
 

@@ -222,11 +222,16 @@ class PostgresqlConnection {
     const sqlTypeTable = ChangeCase.snakeCase(type.name);
 
     const fieldInfos = [];
-    let isDelete = false;
+    let isDelete = false,
+      isCreate = false;
 
     fields.forEach(field => {
-      if (field.name == '*' && field.value == null) {
-        isDelete = true;
+      if (field.name == '*') {
+        if (!field.value) {
+          isDelete = true;
+        } else {
+          isCreate = true;
+        }
         return;
       }
       const fieldInfo = PostgresqlConnection.processFieldInfoForSave(
@@ -241,6 +246,13 @@ class PostgresqlConnection {
 
     if (isDelete) {
       return connection.deleteRowInDB({
+        tableName: sqlTypeTable,
+        dbRowId,
+      });
+    }
+
+    if (isCreate) {
+      return connection.createRowInDB({
         tableName: sqlTypeTable,
         dbRowId,
       });
@@ -262,13 +274,13 @@ class PostgresqlConnection {
     const fieldSettings = fields.map((fieldInfo, index) => {
       return `${fieldInfo.sqlName} = ${SchemaToPostgresql.sqlArgTemplateForValue(index, fieldInfo.dataTypeName)}`;
     });
-    const fieldValues = fields.map(fieldInfo => {
-      return fieldInfo.value;
-    });
 
     const sql = `UPDATE "${tableName}" SET ${fieldSettings.join(', ')} WHERE "${tableName}"."id" = ${dbRowId}`;
 
-    return connection.query(sql, fieldValues);
+    return connection.query(sql, fields.map(fieldInfo => fieldInfo.value)).then(obj => {
+      if (!obj.rowCount) return connection.createRowInDB({ tableName, fields, dbRowId });
+      return obj;
+    });
   }
 
   /// Deletes one row of a given table
@@ -280,6 +292,25 @@ class PostgresqlConnection {
     const sql = `DELETE FROM "${tableName}" WHERE "${tableName}"."id" = ${dbRowId}`;
 
     return connection.query(sql);
+  }
+
+  /// Creates one row of a given table
+  createRowInDB({ tableName, fields = [], dbRowId }) {
+    const connection = this;
+
+    if (!dbRowId) return;
+
+    const fieldSettings = fields.map(fieldInfo => {
+      return `${fieldInfo.sqlName} = EXCLUDED.${fieldInfo.sqlName}`;
+    });
+
+    const sql = `INSERT INTO "${tableName}" (id${fields
+      .map(fieldInfo => `,${fieldInfo.sqlName}`)
+      .join('')}) VALUES (${dbRowId}${fields
+      .map((fieldInfo, index) => `,${SchemaToPostgresql.sqlArgTemplateForValue(index, fieldInfo.dataTypeName)}`)
+      .join('')}) ON CONFLICT (id) DO ${fields.length ? `UPDATE SET ${fieldSettings}` : 'NOTHING'};`;
+
+    return connection.query(sql, fields.map(fieldInfo => fieldInfo.value));
   }
 
   /// Takes the name and variant of a field, returns all the info required to SELECT it

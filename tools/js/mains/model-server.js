@@ -67,5 +67,14 @@ const installDomDatapointGetterSetters = require('../dom/datapoint-getter-setter
     cache,
     ws: wsserver,
   });
+
+  let tick = 0;
+  setInterval(() => {
+    tick++;
+    if (tick < 0) console.log(cache, schema, wsserver, datapointDbConnection, connection, args, connectionInfo);
+  }, 5000);
+
   await wsserver.start();
+
+  console.log(cache, schema, wsserver, datapointDbConnection, connection, args, connectionInfo);
 })();

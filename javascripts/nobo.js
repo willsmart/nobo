@@ -199,12 +199,10 @@ class PageState {
       const pageState = this;
 
       pageState.visit();
-      pageState.itemsDatapoint.invalidate();
     };
 
-    const itemsDatapoint = (pageState.itemsDatapoint = cache.getOrCreateDatapoint('page__default__items'));
-    itemsDatapoint.watch({ callbackKey: 'page-state' });
-    itemsDatapoint.value;
+    pageState.itemsDatapoint = cache.getOrCreateDatapoint('state__page__items');
+    pageState.updateState(PageState.currentWindowState.pageDatapointId);
   }
 
   static get global() {
@@ -282,7 +280,6 @@ class PageState {
     if (!oldState.nobo) {
       if (title) document.title = title;
       window.history.replaceState(newState, title, pageState.pathNameForState(newState));
-      pageState.itemsDatapoint.invalidate();
     } else if (newState.pageDatapointId == oldState.pageDatapointId) {
       if (newState.title != oldState.title) {
         if (title) document.title = title;
@@ -291,9 +288,8 @@ class PageState {
     } else {
       if (title) document.title = title;
       window.history.pushState(newState, title, pageState.pathNameForState(newState));
-      pageState.itemsDatapoint.invalidate();
     }
-
+    pageState.itemsDatapoint.setValue([newState.pageDatapointId]);
     return newState;
   }
 
@@ -6345,7 +6341,7 @@ class WebSocketDatapoint {
     const wsd = this,
       { myVersion, theirVersion, datapointId, resolvers, wsp } = wsd;
     wsd.myVersion = Math.floor((Math.max(myVersion, theirVersion) + 1) / 2) * 2 + 1;
-    wsd.myValue = newValue;
+    wsd.myValue = newValue === null ? undefined : newValue;
 
     if (resolvers.length) {
       wsd.resolvers = [];
@@ -6421,7 +6417,8 @@ class WebSocketProtocol {
                 wsp.queueSendDatapoint(datapointId);
               }
             } else if (payloadValue && typeof payloadValue == 'object' && payloadValue.version) {
-              const { version, value } = payloadValue;
+              let { version, value } = payloadValue;
+              if (value === null) value = undefined;
               if (wsd.theirVersion == version) continue;
               wsd.theirVersion = version;
               if (wsd.myVersion != version) {
@@ -6505,7 +6502,7 @@ class WebSocketProtocol {
       } else if (wsd.myVersion > wsd.theirVersion) {
         payloadObject[datapointId] = {
           version: wsd.myVersion,
-          value: wsd.myValue,
+          value: wsd.myValue === undefined ? null : wsd.myValue,
         };
       }
     }
