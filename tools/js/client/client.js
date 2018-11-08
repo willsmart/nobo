@@ -7,7 +7,9 @@ const PageState = require('./page-state'),
   installDomDatapointGetterSetters = require('../dom/datapoint-getter-setters/install'),
   Schema = require('../general/schema'),
   appClient = require('./app-client'),
-  log = require('../general/log');
+  log = require('../general/log'),
+  installDraggable = require('./draggable');
+
 require('./page-util');
 require('./datapoint-util');
 
@@ -112,6 +114,8 @@ const appDbRowId = 1,
   pageState = new PageState({
     cache,
   });
+
+installDraggable({ cache });
 
 installDomDatapointGetterSetters({ cache, htmlToElement });
 

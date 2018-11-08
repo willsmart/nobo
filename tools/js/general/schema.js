@@ -2,6 +2,7 @@ const strippedValues = require('./stripped-values');
 const ConvertIds = require('../datapoints/convert-ids');
 const PublicApi = require('./public-api');
 const CodeSnippet = require('./code-snippet');
+const log = require('./log');
 
 // API is auto-generated at the bottom from the public interface of this class
 class SchemaDefn {
@@ -190,7 +191,7 @@ class SchemaDefn {
             if (myField) myField[key] = val;
             break;
           default:
-            const match = /^(?:(?:([\w_]+)\s*)?(--|~-|-~|~<|>~)\s*)?([\w_]+)(?:\(([\w_]+)\))?$/.exec(key);
+            const match = /^(?:(?:(\w+)\s*)?(--|~-|-~|~<|>~)\s*)?([\w_]+)(?:\((?:(\w+)|\[([A-Z]\w*)\])\))?$/.exec(key);
             const linkTypes = {
               '--': {},
               '~-': {
@@ -208,41 +209,51 @@ class SchemaDefn {
                 leftIsMultiple: true,
               },
             };
-            if (match) {
-              const asName = match[1],
-                linkType = match[2],
-                childFieldName = match[4] ? match[3] : undefined,
-                childTypeName = match[4] ? match[4] : match[3];
-              const linkTypeInfo = linkType ? linkTypes[linkType] : undefined;
-              const childField =
-                me && childFieldName
-                  ? me.getField(
-                      childFieldName,
-                      childTypeName,
-                      linkTypeInfo ? linkTypeInfo.rightIsVirtual : false,
-                      linkTypeInfo ? linkTypeInfo.rightIsMultiple : false
-                    )
-                  : schema.getType(childTypeName);
-
-              const myLocalFieldName = schema._addLayout(
-                val,
-                childField,
-                childFieldName,
-                asName || myFieldName,
-                depth + 1
+            if (!match) {
+              log('error.schema', `Ignoring undecipherable db layout field: ${key}`);
+              break;
+            }
+            const asName = match[1],
+              linkType = match[2],
+              childFieldName = match[4] || match[5] ? match[3] : undefined,
+              childTypeName = match[4] || match[5] || match[3],
+              isMultiple = Boolean(match[5]);
+            if (linkType && isMultiple) {
+              log(
+                'error.schema',
+                `Ignoring link field with its datatype specified as an array. Please use athe appropriate link type (like '~<'). The field spec was: ${key}`
               );
+              break;
+            }
+            const linkTypeInfo = linkType ? linkTypes[linkType] : undefined;
+            const childField =
+              me && childFieldName
+                ? me.getField(
+                    childFieldName,
+                    childTypeName,
+                    linkTypeInfo ? linkTypeInfo.rightIsVirtual : isMultiple,
+                    linkTypeInfo ? linkTypeInfo.rightIsMultiple : isMultiple
+                  )
+                : schema.getType(childTypeName);
 
-              if (linkType && me && myLocalFieldName) {
-                const myLocalField = schema
-                  .getType(childTypeName)
-                  .getField(
-                    myLocalFieldName,
-                    me.dataType || me,
-                    linkTypeInfo ? linkTypeInfo.leftIsVirtual : false,
-                    linkTypeInfo ? linkTypeInfo.leftIsMultiple : false
-                  );
-                myLocalField.getLink(childField, linkType);
-              }
+            const myLocalFieldName = schema._addLayout(
+              val,
+              childField,
+              childFieldName,
+              asName || myFieldName,
+              depth + 1
+            );
+
+            if (linkType && me && myLocalFieldName) {
+              const myLocalField = schema
+                .getType(childTypeName)
+                .getField(
+                  myLocalFieldName,
+                  me.dataType || me,
+                  linkTypeInfo ? linkTypeInfo.leftIsVirtual : false,
+                  linkTypeInfo ? linkTypeInfo.leftIsMultiple : false
+                );
+              myLocalField.getLink(childField, linkType);
             }
         }
       });

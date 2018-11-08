@@ -25,7 +25,7 @@ module.exports = function({ datapoint }) {
   let datapointState = { childTrees: [] };
   const childrenWorkingArray = [];
 
-  evaluate = ({ getDatapointValue, setDatapointValue, willRetry }) => {
+  evaluateChildren = ({ getDatapointValue, setDatapointValue, willRetry }) => {
     const regex = /^([a-z0-9-]+)-model-child$/;
     classNames = (getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'attribute_class' }).datapointId) || '')
       .split(/ /g)
@@ -149,10 +149,10 @@ module.exports = function({ datapoint }) {
   datapoint.autovalidates = true;
   return {
     getter: {
-      fn: evaluate,
+      fn: evaluateChildren,
     },
     setter: {
-      fn: (_newValue, { getDatapointValue, getRowObject }) => evaluate({ getDatapointValue, getRowObject }),
+      fn: (_newValue, options) => evaluateChildren(options),
     },
   };
 };

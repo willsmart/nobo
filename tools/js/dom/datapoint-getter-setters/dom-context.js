@@ -49,12 +49,12 @@ module.exports = function({ datapoint }) {
 
     return {
       getter: {
-        fn: ({ getDatapointValue, getRowObject, willRetry }) => {
+        fn: options => {
           if (firstTimeResolvers) {
             return new Promise(resolve => {
               firstTimeResolvers.push(resolve);
             });
-          } else return evaluateContext({ getDatapointValue, getRowObject, willRetry });
+          } else return evaluateContext(options);
         },
       },
       setter: {

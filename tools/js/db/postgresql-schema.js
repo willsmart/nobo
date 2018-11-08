@@ -9,6 +9,7 @@
 //
 
 const ChangeCase = require('change-case');
+const ConvertIds = require('../datapoints/convert-ids');
 const ModelChangeLog = 'ModelChangeLog';
 const ModelChangeNotifyRequest = 'ModelChangeNotifyRequest';
 const SchemaDefn = this.SchemaDefn;
@@ -35,7 +36,7 @@ function sqlTypeForDatatype(dataType) {
     case 'integer':
       return dataType;
     default:
-      return;
+      return /^[A-Z]/.test(dataType) ? 'integer' : undefined;
   }
 }
 
@@ -61,9 +62,13 @@ function sqlValueForValue(value, dataType) {
       case 'boolean':
         return value ? 'TRUE' : 'FALSE';
       case 'integer':
-        return '' + +value;
+        return String(value);
       default:
-        return;
+        if (!/^[A-Z]/.test(dataType)) return;
+        if (typeof value == 'number' || /^\d+$/.test(value)) return String(value);
+        const datapointInfo = ConvertIds.decomposeId({ rowId: value, datapointId: value, permissive: true });
+        if (!datapointInfo) return;
+        return String(datapointInfo.dbRowId); // TODO handle proxyKey for local models
     }
 }
 
@@ -102,7 +107,9 @@ function sqlFieldForField_noCache(field) {
       default:
         return;
     }
-    ret.sqlDefault = sqlValueForValue(field.default, field.dataType.name);
+  }
+  if ('default' in field) {
+    ret.sqlDefault = sqlValueForValue(field.default, ret.sqlDataType);
   }
   ret.sql =
     '"' + ret.sqlName + '" ' + ret.sqlDataType + (ret.sqlDefault === undefined ? '' : ' DEFAULT ' + ret.sqlDefault);

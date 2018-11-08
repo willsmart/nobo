@@ -10,7 +10,7 @@ module.exports = function({ datapoint, schema, datapointDbConnection }) {
 
   let { dbRowId } = datapoint;
 
-  if (fieldName == '*') {
+  if (fieldName == '?') {
     return {
       getter: {
         fn: () =>

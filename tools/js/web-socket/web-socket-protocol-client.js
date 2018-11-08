@@ -1,6 +1,7 @@
 const PublicApi = require('../general/public-api');
 const log = require('../general/log');
 const isEqual = require('../general/is-equal');
+const ConvertIds = require('../datapoints/convert-ids');
 
 // API is auto-generated at the bottom from the public interface of the WebSocketProtocol class
 
@@ -74,24 +75,52 @@ class WebSocketProtocol {
       client: undefined,
     });
 
-    cache.getterSetterInfo.finders.push(function({ datapoint, cache, schema }) {
-      const { typeName, datapointId } = datapoint,
-        type = schema.allTypes[typeName];
+    cache.getterSetterInfo.finders.push([
+      function({ datapoint, schema }) {
+        const { typeName, proxyKey, dbRowId, fieldName, datapointId } = datapoint,
+          type = schema.allTypes[typeName];
 
-      if (!type || datapoint.isClient) return;
+        if (!type || datapoint.isClient) return;
 
-      return {
-        getter: {
-          fn: () => wsp.getOrCreateDatapoint(datapointId).value,
-        },
-        setter: {
-          fn: newValue => {
-            wsp.getOrCreateDatapoint(datapointId).setValue(newValue);
-            return newValue;
-          },
-        },
-      };
-    });
+        if (dbRowId || (proxyKey && fieldName == 'rowId')) {
+          return {
+            getter: {
+              fn: () => wsp.getOrCreateDatapoint(datapointId).value,
+            },
+            setter: {
+              fn: newValue => {
+                wsp.getOrCreateDatapoint(datapointId).setValue(newValue);
+                return newValue;
+              },
+            },
+          };
+        }
+
+        if (/^l\d+$/.test(proxyKey)) {
+          return {
+            getter: {
+              fn: ({ getDatapointValue, willRetry }) => {
+                const rowId = getDatapointValue(
+                  ConvertIds.recomposeId({ typeName, proxyKey, fieldName: 'rowId' }).datapointId
+                );
+                if (!rowId || willRetry()) return;
+                return getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName }).datapointId);
+              },
+            },
+            setter: {
+              fn: (newValue, { getDatapointValue, setDatapointValue, willRetry }) => {
+                const rowId = getDatapointValue(
+                  ConvertIds.recomposeId({ typeName, proxyKey, fieldName: 'rowId' }).datapointId
+                );
+                if (!rowId || willRetry()) return;
+                return setDatapointValue(ConvertIds.recomposeId({ rowId, fieldName }).datapointId, newValue);
+              },
+            },
+          };
+        }
+      },
+      'wsc',
+    ]);
 
     ws.watch({
       callbackKey: 'wsp',

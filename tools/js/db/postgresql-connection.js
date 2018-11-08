@@ -226,7 +226,7 @@ class PostgresqlConnection {
       isCreate = false;
 
     fields.forEach(field => {
-      if (field.name == '*') {
+      if (field.name == '?') {
         if (!field.value) {
           isDelete = true;
         } else {
@@ -461,6 +461,29 @@ class PostgresqlConnection {
     const sqlField = SchemaToPostgresql.sqlFieldForField(field);
 
     if (!sqlField.isVirtual) {
+      if (field.isId) {
+        if (Array.isArray(newValue) && newValue.length == 1) {
+          newValue = newValue[0];
+        }
+
+        switch (typeof newValue) {
+          case 'number':
+            break;
+          default:
+            newValue = null;
+            break;
+          case 'string':
+            if (/^\d+$/.test(newValue)) return Number(newValue);
+            const datapointInfo = ConvertIds.decomposeId({ rowId: newValue, datapointId: newValue, permissive: true });
+            // TODO handle proxyKey for local models
+            if (!datapointInfo || datapointInfo.typeName != field.dataType.name || !datapointInfo.dbRowId) {
+              newValue = null;
+              break;
+            }
+            newValue = datapointInfo.dbRowId;
+            break;
+        }
+      }
       return {
         sqlName: `"${sqlField.sqlName}"`,
         dataTypeName: field.dataType.name,

@@ -76,5 +76,5 @@ const installDomDatapointGetterSetters = require('../dom/datapoint-getter-setter
 
   await wsserver.start();
 
-  console.log(cache, schema, wsserver, datapointDbConnection, connection, args, connectionInfo);
+  //  console.log(cache, schema, wsserver, datapointDbConnection, connection, args, connectionInfo);
 })();

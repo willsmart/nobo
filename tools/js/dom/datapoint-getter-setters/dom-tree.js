@@ -19,6 +19,10 @@ module.exports = function({ datapoint, cache }) {
       const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId);
       if (!element) return;
 
+      referenceDatapoint(
+        ConvertIds.recomposeId({ typeName, proxyKey: baseProxyKey, fieldName: 'initializedElement' }).datapointId
+      );
+
       forEachLid(element, (element, lid) => {
         const proxyKey = `${baseProxyKey}_lid_${lid}`;
 
@@ -39,7 +43,9 @@ module.exports = function({ datapoint, cache }) {
               const fieldName = ChangeCase.camelCase(
                 `attribute-${name.substring(0, name.length - '-template'.length)}`
               );
-              referenceDatapoint(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
+              if (!/-lazy$|-event$/.test(name)) {
+                referenceDatapoint(ConvertIds.recomposeId({ typeName, proxyKey, fieldName }).datapointId);
+              }
             }
           }
         }

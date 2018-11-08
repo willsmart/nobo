@@ -192,7 +192,7 @@ class WebSocketClient {
     client.rowProxy = new RowProxy({
       policy: RowProxy.chainPolicy(
         RowProxy.userIdPolicy({ userId, cache, schema }),
-        RowProxy.clientLocalDbRowIdPolicy({ dbConnection: server.dbConnection })
+        RowProxy.clientLocalDbRowIdPolicy({ data: {}, dbConnection: server.dbConnection })
       ),
     });
   }

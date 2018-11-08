@@ -22,10 +22,11 @@ module.exports = function({ datapoint }) {
     templateAttributeName = valueAttributeName + templateSuffix,
     match = /^textnode(\d+)$/.exec(valueAttributeName),
     textNodeIndex = match ? Number(match[1]) : undefined,
-    isEvent = /^on[a-z]/.test(valueAttributeName);
+    isEvent = /^on[a-z]|-event$/.test(valueAttributeName),
+    isLazy = isEvent || /-lazy$/.test(valueAttributeName);
 
-  if (isEvent) datapoint.autoinvalidates = true;
-  else datapoint.autovalidates = true;
+  if (isEvent) datapoint.isEvent = true;
+  datapoint.autovalidates = !isLazy;
 
   if (valueAttributeName.endsWith(templateSuffix)) {
     return;
@@ -81,7 +82,7 @@ module.exports = function({ datapoint }) {
         if (!inTextNode) {
           thisTextNodeIndex++;
           inTextNode = true;
-          child.textContent = value;
+          child.textContent = asString(value);
         } else if (thisTextNodeIndex == textNodeIndex) {
           child.parentNode.removeChild(child);
         }
@@ -90,11 +91,11 @@ module.exports = function({ datapoint }) {
       element.removeAttribute(valueAttributeName);
       element[ChangeCase.camelCase(valueAttributeName)] = value;
     } else {
-      element.setAttribute(valueAttributeName, String(value));
+      element.setAttribute(valueAttributeName, asString(value));
     }
   };
 
-  evaluate = ({ getDatapointValue, getRowObject, willRetry, eventContext }) => {
+  evaluateAttribute = ({ getDatapointValue, getRowObject, willRetry, eventContext, evaluationState }) => {
     const element = getDatapointValue(ConvertIds.recomposeId({ rowId, fieldName: 'element' }).datapointId),
       { rowId: sourceRowId } =
         getDatapointValue(
@@ -126,21 +127,18 @@ module.exports = function({ datapoint }) {
 
       value = newState.compiledGetter
         ? isEvent
-          ? String(
-              newState.compiledGetter.evaluate({
-                getDatapointValue,
-                getRowObject,
-                event: eventContext,
-                rowId: sourceRowId,
-              })
-            )
-          : String(
-              newState.compiledGetter.safeEvaluate({
-                getDatapointValue,
-                getRowObject,
-                rowId: sourceRowId,
-              }).result
-            )
+          ? newState.compiledGetter.evaluate({
+              getDatapointValue,
+              getRowObject,
+              event: eventContext,
+              rowId: sourceRowId,
+              evaluationState,
+            })
+          : newState.compiledGetter.safeEvaluate({
+              getDatapointValue,
+              getRowObject,
+              rowId: sourceRowId,
+            }).result
         : '';
     } while (false);
 
@@ -154,10 +152,25 @@ module.exports = function({ datapoint }) {
 
   return {
     getter: {
-      fn: evaluate,
+      fn: evaluateAttribute,
     },
     setter: {
-      fn: (_newValue, { getDatapointValue, getRowObject }) => evaluate({ getDatapointValue, getRowObject }),
+      fn: (_newValue, options) => evaluateAttribute(options),
     },
   };
 };
+
+function asString(value) {
+  switch (typeof value) {
+    case 'object':
+      try {
+        return JSON.stringify(value);
+      } catch (error) {
+        return 'object';
+      }
+    case 'function':
+      return typeof value;
+    default:
+      return String(value);
+  }
+}

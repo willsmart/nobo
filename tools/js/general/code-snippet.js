@@ -32,7 +32,7 @@ class Code {
     let result = wrappedFunction
       ? event
         ? wrappedFunction.call(
-            event.target,
+            event.target || event,
             changeDetectingContext.useObject,
             state,
             {},
@@ -54,7 +54,15 @@ class Code {
       { wrappedFunction } = code;
     let result = wrappedFunction
       ? event
-        ? wrappedFunction.call(event.target, modelCDO, state, modelCDO, event, allocateRowObject, getDatapointValue)
+        ? wrappedFunction.call(
+            event.target || event,
+            modelCDO,
+            state,
+            modelCDO,
+            event,
+            allocateRowObject,
+            getDatapointValue
+          )
         : wrappedFunction(modelCDO, state, modelCDO, event, allocateRowObject, getDatapointValue)
       : undefined;
     return {
@@ -129,6 +137,7 @@ class CodeSnippet {
     defaultValue,
     timeout,
     event,
+    evaluationState,
   }) {
     try {
       return { error: undefined, result: this.evaluate(arguments[0]) };
@@ -147,6 +156,7 @@ class CodeSnippet {
     defaultValue,
     timeout,
     event,
+    evaluationState,
   }) {
     const codeSnippet = this,
       sandbox = {};
@@ -154,11 +164,20 @@ class CodeSnippet {
     if (!defaultValue) defaultValue = codeSnippet.defaultValue;
     if (!timeout) timeout = codeSnippet.defaultTimeout;
 
+    let allocateRowObject_localIdIndex = 0;
     const //stateVar = cache ? cache.stateVar : undefined,
       state = getRowObject('state__page'),
       rowObject = rowId ? getRowObject(rowId) : undefined,
-      allocateRowObject = typeName => {
-        return getRowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${nextLocalId++}` }).rowId);
+      allocateRowObject = (typeName, initialValues) => {
+        if (!evaluationState) return;
+        const localIds = evaluationState.localIds || (evaluationState.localIds = []),
+          localIdIndex = allocateRowObject_localIdIndex++,
+          localId = localIds.length > localIdIndex ? localIds[localIdIndex] : (localIds[localIdIndex] = nextLocalId++);
+        const row = getRowObject(ConvertIds.recomposeId({ typeName, proxyKey: `l${localId}` }).rowId);
+        if (initialValues && typeof initialValues == 'object') {
+          Object.assign(row, initialValues);
+        }
+        return row;
       };
 
     if (typeof valueForNameCallback != 'function') {
@@ -201,7 +220,9 @@ class CodeSnippet {
         ({ result } = codeSnippet.code.evalOnContext(sandbox, state, event, allocateRowObject, getDatapointValue));
       }
     } catch (error) {
-      log('err.code', `Error while evaluating code: ${error.message}`);
+      if (error.log !== false) {
+        log('err.code', `Error while evaluating code: ${error.message}`);
+      }
       throw error;
       //} finally {
       //if (stateVar) stateVar.commitStateVar();

@@ -207,8 +207,8 @@ async function processTemplateIncludes({ template, templatesByPath }, stack = {}
         const tryClassFilters = hasClassFilter
             ? [classFilter]
             : template.classFilter
-              ? [template.classFilter, undefined]
-              : [undefined],
+            ? [template.classFilter, undefined]
+            : [undefined],
           tryVariants = hasVariant ? [variant] : template.variant ? [template.variant, undefined] : [undefined],
           tryOwnerships = hasPublic ? [false] : template.ownerOnly ? [true, false] : [false],
           tryCombos = [];
@@ -486,7 +486,7 @@ function exposeTemplates(element) {
     for (const { name, value } of element.attrs) {
       if (name.startsWith('nobo-') || name == 'class' || name == 'id') continue;
 
-      const { js, literal } = templateCodeToJs(value);
+      let { js, literal } = templateCodeToJs(value);
       if (literal !== undefined) continue;
 
       setAttrs[`${name}-template`] = js;

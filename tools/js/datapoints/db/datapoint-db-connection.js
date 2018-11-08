@@ -41,7 +41,7 @@ class DatapointDbConnection {
 
   queueSetExists({ typeName, dbRowId, newValue, resolve }) {
     return this.queueSet({
-      field: { enclosingType: { name: typeName }, name: '*' },
+      field: { enclosingType: { name: typeName }, name: '?' },
       dbRowId,
       newValue,
       resolve: resolve

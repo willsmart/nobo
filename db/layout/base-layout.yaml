@@ -25,6 +25,9 @@
 
     ~< users(User):
       phoenixKey(string): null
+      '>~ app(App)':
+        # set a default app id
+        default: 1
 
     # A template is some DOM block that can be customised with a model (i.e. a row in a table), and inserted into a document
     ~< templates(Template):

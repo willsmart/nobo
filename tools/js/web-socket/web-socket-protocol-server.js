@@ -1,6 +1,7 @@
 const PublicApi = require('../general/public-api');
 const log = require('../general/log');
 const isEqual = require('../general/is-equal');
+const ConvertIds = require('../datapoints/convert-ids');
 
 // API is auto-generated at the bottom from the public interface of the WebSocketProtocol class
 
@@ -139,12 +140,30 @@ class WebSocketClient {
       },
       onpayload: ({ messageType, payloadObject }) => {
         if (messageType == 'datapoints') {
-          for (const [datapointId, payloadValue] of Object.entries(payloadObject)) {
+          for (let [datapointId, payloadValue] of Object.entries(payloadObject)) {
+            const datapointInfo = ConvertIds.decomposeId({ datapointId });
+            if (datapointInfo.proxyKey) {
+              datapointInfo.proxyKey = `client${wsc.id}_${datapointInfo.proxyKey}`;
+              datapointId = ConvertIds.recomposeId(datapointInfo).datapointId;
+            }
             wsp.getOrCreateDatapoint(datapointId).handleClientPayload(wsc.id, payloadValue);
           }
         }
       },
     });
+  }
+
+  getRowIdForProxyKey({ typeName, proxyKey }) {
+    const wsc = this,
+      { ws } = wsc,
+      { rowProxy } = ws;
+    if (!rowProxy) return;
+    const concreteRowInfo = rowProxy.makeConcrete({ rowId: ConvertIds.recomposeId({ typeName, proxyKey }).rowId });
+    return typeof concreteRowInfo != 'object'
+      ? undefined
+      : concreteRowInfo.then
+        ? concreteRowInfo.then(concreteRowInfo => (concreteRowInfo ? concreteRowInfo.rowId : undefined))
+        : concreteRowInfo.rowId;
   }
 }
 
@@ -167,6 +186,37 @@ class WebSocketProtocol {
       clients: {},
       nextClientId: 1,
     });
+
+    cache.getterSetterInfo.finders.push([
+      function({ datapoint, schema }) {
+        const { typeName, proxyKey: baseProxyKey, fieldName } = datapoint,
+          type = schema.allTypes[typeName];
+
+        if (!type || datapoint.isClient || !baseProxyKey || fieldName != 'rowId') return;
+
+        const match = /^client(\d+)_(l\d+)$/.exec(baseProxyKey);
+        if (!match) return;
+        const clientId = match[1],
+          proxyKey = match[2];
+
+        function evaluate() {
+          const client = wsp.clients[clientId];
+          if (!client) return;
+
+          return client.getRowIdForProxyKey({ typeName, proxyKey });
+        }
+
+        return {
+          getter: {
+            fn: evaluate,
+          },
+          setter: {
+            fn: evaluate,
+          },
+        };
+      },
+      'wsp',
+    ]);
 
     ws.watch({
       callbackKey: 'wsp',
@@ -256,7 +306,17 @@ class WebSocketProtocol {
 
         if (payload !== undefined) {
           const payloadObject = payloadObjects[clientId] || (payloadObjects[clientId] = {});
-          payloadObject[datapointId] = payload;
+
+          let localDatapointId = datapointId;
+          const datapointInfo = ConvertIds.decomposeId({ datapointId });
+          if (datapointInfo.proxyKey) {
+            const prefix = `client${clientId}_`;
+            if (!datapointInfo.proxyKey.startsWith(prefix)) continue;
+            datapointInfo.proxyKey = datapointInfo.proxyKey.substring(prefix.length);
+            localDatapointId = ConvertIds.recomposeId(datapointInfo).datapointId;
+          }
+
+          payloadObject[localDatapointId] = payload;
         }
       }
     }

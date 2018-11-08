@@ -4,7 +4,7 @@ const { templateDatapointIdForRowAndVariant } = require('../dom-functions');
 
 module.exports = ({ htmlToElement }) =>
   function({ datapoint }) {
-    const { fieldName, typeName, rowId, proxyKey } = datapoint;
+    const { fieldName, typeName, proxyKey } = datapoint;
 
     if (typeName != 'Dom' || !proxyKey) {
       return;
@@ -82,8 +82,9 @@ module.exports = ({ htmlToElement }) =>
 
             if (!newState.dom || typeof newState.dom != 'string') newState.dom = defaultDom;
 
-            if (newState.dom == datapointState.dom) newState.element = datapointState.element;
-            else {
+            if (newState.dom == datapointState.dom) {
+              newState.element = datapointState.element;
+            } else {
               newState.element = htmlToElement(newState.dom);
               if (!newState.element) {
                 newState.dom = defaultDom;

@@ -25,16 +25,16 @@ class RowChangeTrackers {
     });
   }
 
-  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext }, ...args) {
+  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext, evaluationState = {} }, ...args) {
     const rowChangeTrackers = this;
     while (true) {
-      const ret = await rowChangeTrackers.execute({ thisArg, fn, eventContext }, ...args);
+      const ret = await rowChangeTrackers.execute({ thisArg, fn, eventContext, evaluationState }, ...args);
       if (!ret.retryAfterPromises.length) return ret;
       await Promise.all(ret.retryAfterPromises);
     }
   }
 
-  async execute({ thisArg, fn, eventContext }, ...args) {
+  async execute({ thisArg, fn, eventContext, evaluationState = {} }, ...args) {
     const rowChangeTrackers = this,
       executor = {
         rowChangeTrackers,
@@ -49,6 +49,7 @@ class RowChangeTrackers {
       referenceDatapoint: rowChangeTrackers.referenceDatapoint.bind(rowChangeTrackers),
       setDatapointValue: rowChangeTrackers.setDatapointValue.bind(rowChangeTrackers),
       willRetry: () => executor.retryAfterPromises.length > 0,
+      evaluationState,
       eventContext,
     };
 
@@ -63,11 +64,11 @@ class RowChangeTrackers {
       rowChangeTrackers._executor = executorWas;
       executor.result = RowChangeTrackers.sanitizeCDOs(await result);
     } catch (error) {
-      if (error.message == 'Cannot mutate in non-mutating CDO') {
+      if (error.type == 'ImmutableCDOMutation') {
         // TODO type check instead
         const { cache, schema } = rowChangeTrackers,
           mutatingRowChangeTrackers = new RowChangeTrackers({ cache, schema, readOnly: false });
-        return mutatingRowChangeTrackers.execute({ thisArg, fn, eventContext }, ...args);
+        return mutatingRowChangeTrackers.execute({ thisArg, fn, eventContext, evaluationState }, ...args);
       }
       log('err.eval', `While executing code: ${error.message}`);
       executor.error = error;
@@ -158,7 +159,7 @@ class RowChangeTrackers {
       Object.assign(rowChangeTrackers, { rowCDOs: {}, rowProxies: {} });
 
       for (const [rowId, cdo] of Object.entries(rowCDOs)) {
-        const { deletionsObject, changeObject, modified } = cdo;
+        const { deletionsObject, changeObject, modified, modifiedObject } = cdo;
         if (!modified[0]) continue;
         if (deletionsObject) {
           for (const fieldName of Object.keys(deletionsObject)) {
@@ -166,8 +167,12 @@ class RowChangeTrackers {
           }
         }
         if (changeObject) {
-          for (const [fieldName, value] of Object.entries(changeObject)) {
-            rowChangeTrackers.setDatapointValue(rowId, fieldName, value);
+          for (const fieldName of Object.keys(changeObject)) {
+            rowChangeTrackers.setDatapointValue(
+              rowId,
+              fieldName,
+              RowChangeTrackers.sanitizeCDOs(modifiedObject[fieldName])
+            );
           }
         }
       }
@@ -285,7 +290,7 @@ class RowChangeTrackers {
       { schema } = rowChangeTrackers,
       typeName = ConvertIds.decomposeId({ rowId }).typeName,
       type = schema.allTypes[typeName],
-      fieldNames = Object.keys(type.fields);
+      fieldNames = type ? Object.keys(type.fields) : [];
     fieldNames.push('id');
     return fieldNames;
   }

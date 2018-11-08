@@ -27,6 +27,9 @@ function templateCodeToJs(templateCode) {
     parts.push(`\`${templateCode.substring(prevEnd).replace('`', '\\`')}\``);
   }
 
+  if (parts.length == 1 && /^\([\s\S]*\)$/.test(parts[0])) {
+    parts[0] = parts[0].substring(1, parts[0].length - 1);
+  }
   return {
     parts,
     js: parts.join('+'),

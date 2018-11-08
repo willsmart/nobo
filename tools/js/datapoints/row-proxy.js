@@ -4,7 +4,6 @@ const ConvertIds = require('./convert-ids');
 // API is auto-generated at the bottom from the public interface of the WSServerDatapoints class
 
 const appDbRowId = 1;
-const localDBRowIds = {};
 
 class RowProxy {
   // public methods
@@ -53,16 +52,15 @@ class RowProxy {
   }
 
   // semi-async
-  static clientLocalDbRowIdPolicy({ dbConnection }) {
+  static clientLocalDbRowIdPolicy({ data, dbConnection }) {
+    const typeDBRowIds = (data.typeDBRowIds = {});
     function getLocalDbRowId({ typeName, proxyKey }) {
-      const typeDBRowIds = localDBRowIds[typeName] || (localDBRowIds[typeName] = {});
       if (typeDBRowIds[proxyKey]) return typeDBRowIds[proxyKey];
 
       return dbConnection.allocateDbRowId({ typeName }).then(dbRowId => (typeDBRowIds[proxyKey] = dbRowId));
     }
 
     return {
-      localDBRowIds: {},
       fromConcrete: () => undefined,
       fromProxy: ({ typeName, proxyKey }) => {
         if (!dbConnection) return;

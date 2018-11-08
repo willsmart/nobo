@@ -154,7 +154,7 @@ function addDependencyMethods(theClass) {
         if (!__notify) continue;
         const dependentDatapoint = cache.getOrCreateDatapoint(dependentDatapointId).__private;
 
-        if (!--dependentDatapoint.invalidDependencyCount && !dependentDatapoint.autoinvalidates) {
+        if (!--dependentDatapoint.invalidDependencyCount && !dependentDatapoint.isEvent) {
           dependentDatapoint.validateIfWatched();
         }
       }
