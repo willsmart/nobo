@@ -4966,6 +4966,7 @@ const permissableGlobals = {
   console: true,
   model: true,
   event: true,
+  state: true,
   newrow: true,
 };
 const jsKeywords = {

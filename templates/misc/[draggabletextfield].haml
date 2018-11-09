@@ -1,0 +1,6 @@
+.editable-model-field
+  %span.editable.posting-text.nobo-draggable.nobo-dragee(contentEditable="true"
+    onblur="${key=this.textContent}"
+    drop-event="${body=this['text/plain']}"
+    drag-data="${body}")<
+    ${key}

@@ -21,7 +21,7 @@ async function execHaml(hamlPath) {
     htmlPath = `${hamlPath.replace(/^templates\//, processedHamlDir)}.html`;
   await exec(`mkdir -p "$(dirname '${htmlPath}')"`);
   console.log(`haml --trace "${hamlPath}" "${htmlPath}"`);
-  const { stdout, stderr, error } = await exec(`haml --trace "${hamlPath}" "${htmlPath}"`);
+  const { stdout, stderr, error } = await exec(`export LC_CTYPE="utf-8"; haml --trace "${hamlPath}" "${htmlPath}"`);
   //if (stdout.length) console.log(stdout);
   if (stderr.length) console.log(stderr);
   if (error) return;
