@@ -9,3 +9,4 @@ tools/page-server/public/assets
 tools/page-server/log
 index.html
 *.haml.html
+nobo.js
