@@ -25,12 +25,31 @@ class RowChangeTrackers {
     });
   }
 
-  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext, evaluationState = {} }, ...args) {
+  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext, evaluationState = {}, debug = '?' }, ...args) {
     const rowChangeTrackers = this;
     while (true) {
       const ret = await rowChangeTrackers.execute({ thisArg, fn, eventContext, evaluationState }, ...args);
-      if (!ret.retryAfterPromises.length) return ret;
-      await Promise.all(ret.retryAfterPromises);
+      if (!ret.retryAfterPromises.length) {
+        //console.log(`executed ${debug}`, ret);
+        return ret;
+      }
+      //console.log(`Waiting ${debug}`, ret);
+      /*
+      const promises = ret.retryAfterPromises.map(([promise]) => promise);
+      let finishedCount = 0;
+      while (finishedCount < promises.length) {
+        await Promise.race(promises);
+        finishedCount = 0;
+        for (const tuple of ret.retryAfterPromises) {
+          tuple[0].then(() => {
+            tuple[2] = true;
+            finishedCount++;
+          });
+        }
+        console.log(`Waited ${debug} (${finishedCount} of ${promises.length} resolved)`, ret);
+      }*/
+      await Promise.all(ret.retryAfterPromises.map(([promise]) => promise));
+      //console.log(`Waited ${debug}`, ret);
     }
   }
 
@@ -267,7 +286,7 @@ class RowChangeTrackers {
     let value = datapoint && datapoint.valueIfAny;
     if (!datapoint.valid) {
       const promise = datapoint.value;
-      if (executor) executor.retryAfterPromises.push(promise);
+      if (executor) executor.retryAfterPromises.push([promise, datapointId]);
     }
     if (datapoint.isId && convertIdsToCDOs) {
       if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {

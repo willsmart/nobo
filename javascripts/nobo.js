@@ -208,11 +208,13 @@ module.exports = ({ cache }) => {
 
         if (element.classList.contains('nobo-dragee')) {
           element.ondragover = event => {
+            event.dataTransfer.dropEffect = 'move';
             event.preventDefault();
             return;
           };
 
           element.ondragleave = () => {
+            event.dataTransfer.dropEffect = undefined;
             element.removeAttribute('has-drag');
             return;
           };
@@ -1170,6 +1172,7 @@ class Datapoint {
   }
   _value(eventContext) {
     const datapoint = this;
+    console.log(datapoint.datapointId, datapoint.state);
     switch (datapoint.state) {
       case 'valid':
         return Promise.resolve(datapoint.valueIfAny);
@@ -1195,6 +1198,10 @@ class Datapoint {
     if (waitingEventResolvers.length) {
       return new Promise(resolve => {
         waitingEventResolvers.push(resolve);
+        log(
+          'dp.event',
+          `Queueing fire for event ${datapoint.datapointId} (${waitingEventResolvers.length} remaining events to fire)`
+        );
         datapoint.undeleteIfWatched();
       });
     }
@@ -1211,6 +1218,7 @@ class Datapoint {
     }
 
     return new Promise(resolve => {
+      log('dp.event', `First fire for event ${datapoint.datapointId}`);
       waitingEventResolvers.push(resolve);
 
       datapoint.undeleteIfWatched();
@@ -1218,9 +1226,16 @@ class Datapoint {
       fire();
 
       function fire() {
+        log('dp.event', `Firing event ${datapoint.datapointId}`);
         rowChangeTrackers
-          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, eventContext })
+          .executeAfterValidatingDatapoints({
+            thisArg: rowId,
+            fn: getter.fn,
+            eventContext,
+            debug: `${datapoint.datapointId}(event)`,
+          })
           .then(({ result, usesDatapoints, referencesDatapoints }) => {
+            log('dp.event', `Fired event ${datapoint.datapointId}`);
             datapoint.setDependenciesOfType('getter', usesDatapoints);
             datapoint.setDependenciesOfType('~getter', referencesDatapoints);
 
@@ -1229,10 +1244,18 @@ class Datapoint {
             } else dealWithValue(result);
 
             function dealWithValue(value) {
+              const resolve = waitingEventResolvers.shift();
+
+              log(
+                'dp.event',
+                `Fired event ${datapoint.datapointId} -> ${value} (${
+                  waitingEventResolvers.length
+                } remaining events to fire)`
+              );
+
               datapoint._setCachedValue(value);
               datapoint.invalidate();
 
-              const resolve = waitingEventResolvers.shift();
               datapoint.deleteIfUnwatched();
 
               if (resolve) resolve(value);
@@ -1275,7 +1298,7 @@ class Datapoint {
       function runGetter() {
         datapoint.rerunGetter = false;
         rowChangeTrackers
-          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn })
+          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, debug: `${datapoint.datapointId}(get)` })
           .then(({ result, usesDatapoints, referencesDatapoints }) => {
             datapoint.setDependenciesOfType('getter', usesDatapoints);
             datapoint.setDependenciesOfType('~getter', referencesDatapoints);
@@ -1321,7 +1344,10 @@ class Datapoint {
       datapoint.invalidate();
 
       rowChangeTrackers
-        .executeAfterValidatingDatapoints({ thisArg: rowId, fn: setter.fn }, newValue)
+        .executeAfterValidatingDatapoints(
+          { thisArg: rowId, fn: setter.fn, debug: `${datapoint.datapointId}(set)` },
+          newValue
+        )
         .then(({ result, usesDatapoints, referencesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
           datapoint.setDependenciesOfType('~setter', referencesDatapoints);
@@ -1898,12 +1924,31 @@ class RowChangeTrackers {
     });
   }
 
-  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext, evaluationState = {} }, ...args) {
+  async executeAfterValidatingDatapoints({ thisArg, fn, eventContext, evaluationState = {}, debug = '?' }, ...args) {
     const rowChangeTrackers = this;
     while (true) {
       const ret = await rowChangeTrackers.execute({ thisArg, fn, eventContext, evaluationState }, ...args);
-      if (!ret.retryAfterPromises.length) return ret;
-      await Promise.all(ret.retryAfterPromises);
+      if (!ret.retryAfterPromises.length) {
+        console.log(`executed ${debug}`, ret);
+        return ret;
+      }
+      console.log(`Waiting ${debug}`, ret);
+      /*
+      const promises = ret.retryAfterPromises.map(([promise]) => promise);
+      let finishedCount = 0;
+      while (finishedCount < promises.length) {
+        await Promise.race(promises);
+        finishedCount = 0;
+        for (const tuple of ret.retryAfterPromises) {
+          tuple[0].then(() => {
+            tuple[2] = true;
+            finishedCount++;
+          });
+        }
+        console.log(`Waited ${debug} (${finishedCount} of ${promises.length} resolved)`, ret);
+      }*/
+      await Promise.all(ret.retryAfterPromises.map(([promise]) => promise));
+      console.log(`Waited ${debug}`, ret);
     }
   }
 
@@ -2140,7 +2185,7 @@ class RowChangeTrackers {
     let value = datapoint && datapoint.valueIfAny;
     if (!datapoint.valid) {
       const promise = datapoint.value;
-      if (executor) executor.retryAfterPromises.push(promise);
+      if (executor) executor.retryAfterPromises.push([promise, datapointId]);
     }
     if (datapoint.isId && convertIdsToCDOs) {
       if (typeof value == 'string' && ConvertIds.rowRegex.test(value)) {
@@ -4832,14 +4877,7 @@ function locateEnd(string, closeChar, openIndex = 0) {
 },{}],32:[function(require,module,exports){
 module.exports = log;
 
-const enabledLogs = {
-  err: true,
-  diff: false,
-  verbose: false,
-  //dp: false,
-  db: false,
-  other: { verbose: false, other: true },
-};
+let enabledLogs = { err: true };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;
@@ -4867,10 +4905,25 @@ function log(module, ...args) {
 }
 
 log.enableLog = function(module) {
+  if (module === undefined) {
+    enabledLogs = {
+      err: true,
+      diff: false,
+      verbose: false,
+      //dp: false,
+      db: false,
+      other: { verbose: false, other: true },
+    };
+    return;
+  }
   enabledLogs[module] = true;
 };
 
 log.disableLog = function(module) {
+  if (module === undefined) {
+    enabledLogs = { err: true };
+    return;
+  }
   delete enabledLogs[module];
 };
 

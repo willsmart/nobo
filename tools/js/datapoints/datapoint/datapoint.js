@@ -69,9 +69,6 @@ class Datapoint {
 
     log('dp', () => `DP>C> Created datapoint ${datapointId}`);
 
-    if (datapointInfo.typeName == 'User' && datapointInfo.fieldName == 'posts') {
-      console.log('hi');
-    }
     const { getter, setter } = findGetterSetter({
       datapoint,
       cache,
@@ -236,6 +233,7 @@ class Datapoint {
   }
   _value(eventContext) {
     const datapoint = this;
+    //console.log(datapoint.datapointId, datapoint.state);
     switch (datapoint.state) {
       case 'valid':
         return Promise.resolve(datapoint.valueIfAny);
@@ -261,6 +259,10 @@ class Datapoint {
     if (waitingEventResolvers.length) {
       return new Promise(resolve => {
         waitingEventResolvers.push(resolve);
+        log(
+          'dp.event',
+          `Queueing fire for event ${datapoint.datapointId} (${waitingEventResolvers.length} remaining events to fire)`
+        );
         datapoint.undeleteIfWatched();
       });
     }
@@ -277,6 +279,7 @@ class Datapoint {
     }
 
     return new Promise(resolve => {
+      log('dp.event', `First fire for event ${datapoint.datapointId}`);
       waitingEventResolvers.push(resolve);
 
       datapoint.undeleteIfWatched();
@@ -284,9 +287,16 @@ class Datapoint {
       fire();
 
       function fire() {
+        log('dp.event', `Firing event ${datapoint.datapointId}`);
         rowChangeTrackers
-          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, eventContext })
+          .executeAfterValidatingDatapoints({
+            thisArg: rowId,
+            fn: getter.fn,
+            eventContext,
+            debug: `${datapoint.datapointId}(event)`,
+          })
           .then(({ result, usesDatapoints, referencesDatapoints }) => {
+            log('dp.event', `Fired event ${datapoint.datapointId}`);
             datapoint.setDependenciesOfType('getter', usesDatapoints);
             datapoint.setDependenciesOfType('~getter', referencesDatapoints);
 
@@ -295,10 +305,18 @@ class Datapoint {
             } else dealWithValue(result);
 
             function dealWithValue(value) {
+              const resolve = waitingEventResolvers.shift();
+
+              log(
+                'dp.event',
+                `Fired event ${datapoint.datapointId} -> ${value} (${
+                  waitingEventResolvers.length
+                } remaining events to fire)`
+              );
+
               datapoint._setCachedValue(value);
               datapoint.invalidate();
 
-              const resolve = waitingEventResolvers.shift();
               datapoint.deleteIfUnwatched();
 
               if (resolve) resolve(value);
@@ -341,7 +359,7 @@ class Datapoint {
       function runGetter() {
         datapoint.rerunGetter = false;
         rowChangeTrackers
-          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn })
+          .executeAfterValidatingDatapoints({ thisArg: rowId, fn: getter.fn, debug: `${datapoint.datapointId}(get)` })
           .then(({ result, usesDatapoints, referencesDatapoints }) => {
             datapoint.setDependenciesOfType('getter', usesDatapoints);
             datapoint.setDependenciesOfType('~getter', referencesDatapoints);
@@ -387,7 +405,10 @@ class Datapoint {
       datapoint.invalidate();
 
       rowChangeTrackers
-        .executeAfterValidatingDatapoints({ thisArg: rowId, fn: setter.fn }, newValue)
+        .executeAfterValidatingDatapoints(
+          { thisArg: rowId, fn: setter.fn, debug: `${datapoint.datapointId}(set)` },
+          newValue
+        )
         .then(({ result, usesDatapoints, referencesDatapoints, commit }) => {
           datapoint.setDependenciesOfType('setter', usesDatapoints);
           datapoint.setDependenciesOfType('~setter', referencesDatapoints);

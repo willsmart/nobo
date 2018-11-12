@@ -37,11 +37,13 @@ module.exports = ({ cache }) => {
 
         if (element.classList.contains('nobo-dragee')) {
           element.ondragover = event => {
+            event.dataTransfer.dropEffect = 'move';
             event.preventDefault();
             return;
           };
 
           element.ondragleave = () => {
+            event.dataTransfer.dropEffect = undefined;
             element.removeAttribute('has-drag');
             return;
           };

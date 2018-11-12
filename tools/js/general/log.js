@@ -1,13 +1,6 @@
 module.exports = log;
 
-const enabledLogs = {
-  err: true,
-  diff: false,
-  verbose: false,
-  //dp: false,
-  db: false,
-  other: { verbose: false, other: true },
-};
+let enabledLogs = { err: true };
 
 function logIsEnabled(module) {
   let parent = enabledLogs;
@@ -35,10 +28,25 @@ function log(module, ...args) {
 }
 
 log.enableLog = function(module) {
+  if (module === undefined) {
+    enabledLogs = {
+      err: true,
+      diff: false,
+      verbose: false,
+      //dp: false,
+      db: false,
+      other: { verbose: false, other: true },
+    };
+    return;
+  }
   enabledLogs[module] = true;
 };
 
 log.disableLog = function(module) {
+  if (module === undefined) {
+    enabledLogs = { err: true };
+    return;
+  }
   delete enabledLogs[module];
 };
 
