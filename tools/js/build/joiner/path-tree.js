@@ -28,7 +28,7 @@ class PathTree {
   }
 
   pathForLocation(location) {
-    return `${this.root}/${location}`;
+    return `${this.root}${location}`;
   }
 }
 
