@@ -1,4 +1,4 @@
-export function mapValues<T extends { [k: string]: I; [Symbol.iterator]: any }, I, O>(
+export default function<T extends { [k: string]: I; [Symbol.iterator]: any }, I, O>(
   object: T,
   fn: (i: I) => O
 ): { [k: string]: O } {

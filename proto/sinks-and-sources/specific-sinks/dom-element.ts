@@ -1,21 +1,17 @@
-import { ValueSink_publicInterface as ValueSink } from '../interfaces';
-import {
-  optStrings,
-  strings,
-  htmlElements,
-  OptStringName,
-  StringName,
+import { ValueSink_publicInterface as ValueSink } from "../../../interfaces/sinks-and-sources";
+import sourceRegistries, {
   HTMLElementName,
-} from '../standard-source-registries';
-import { DomAttributeSinkManager } from './dom-attribute';
-import { DomTextNodeSinkManager } from './dom-text-node';
+  NumberName,
+  OptStringName,
+} from "../../../interfaces/standard-source-registries";
+import { DomAttributeSinkManager } from "./dom-attribute";
+import { DomTextNodeSinkManager } from "./dom-text-node";
 
 export interface HTMLElementSinkManager_childInterface {
   refresh(): void;
   element(): HTMLElement;
 }
 
-interface AttributeSink {}
 export class HTMLElementSinkManager {
   private _element: HTMLElement;
   get element() {
@@ -61,7 +57,7 @@ export class HTMLElementSinkManager {
           },
         };
       }
-      optStrings.attachSinkToSource(value, this.attributeSinks[name]);
+      sourceRegistries.optStrings.attachSinkToSource(value, this.attributeSinks[name]);
     }
   }
 
@@ -101,7 +97,7 @@ export class HTMLElementSinkManager {
       sink.kill();
       delete textNodeSinks[index];
     }
-    if (typeof source === 'string') {
+    if (typeof source === "string") {
       TextNodeSink.textNodeAtIndex(this.element, index).textContent = source;
     } else {
       textNodeSinks[index] = new TextNodeSink(this, index, source);
@@ -110,14 +106,14 @@ export class HTMLElementSinkManager {
 }
 
 function textNodeAtIndex(element: HTMLElement, index: number): Node {
-  if (index < 0) throw new Error('Invalid input passed to TextNodeSink::textNodeAtIndex: index<0');
+  if (index < 0) throw new Error("Invalid input passed to TextNodeSink::textNodeAtIndex: index<0");
   for (let child = element.firstChild; child; child = child.nextSibling) {
     if (child.nodeType == 3 && !index--) return child;
   }
   const document = element.ownerDocument;
-  if (!document) throw new Error('element has no ownerDocument, cannot create a text node');
+  if (!document) throw new Error("element has no ownerDocument, cannot create a text node");
   while (true) {
-    const child = document.createTextNode('');
+    const child = document.createTextNode("");
     element.appendChild(child);
     if (!index--) return child;
   }

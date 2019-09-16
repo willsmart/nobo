@@ -1,7 +1,6 @@
-import { ValueSource_abstract as ValueSource, ValueSourceInterfacePassback } from '../value-source';
-import { ValueSource_ownerInterface } from '../interfaces';
-import { HandlePromise } from '../../PromiseHandler';
-import { TypeHelper } from '../../misc';
+import { ValueSource_abstract as ValueSource, ValueSourceInterfacePassback } from "../value-source";
+import { TypeHelper } from "../../../interfaces/misc";
+import { HandlePromise } from "../../../interfaces/promise-handler";
 
 export class MemberValueSource<T> extends ValueSource<T> {
   protected valueFromSubclass(): Promise<T> {

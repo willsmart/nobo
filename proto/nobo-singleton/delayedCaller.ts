@@ -1,6 +1,8 @@
+import { DelayedCaller_publicInterface } from "../../interfaces/nobo-singleton";
+
 type Callback = () => Promise<void>;
 
-export default class DelayedCaller {
+export default class DelayedCaller implements DelayedCaller_publicInterface {
   constructor({ delayMs = 1000, sliceMs = 100 }: { delayMs: number; sliceMs: number }) {
     if (sliceMs < 10)
       throw new Error(
@@ -26,7 +28,7 @@ export default class DelayedCaller {
       queuedInTickIndex = nameToTickIndex[name],
       shouldQueueInTickIndex = tickIndex + this.delaySlices;
     if (queuedInTickIndex === shouldQueueInTickIndex) return;
-    if (queuedInTickIndex >= tickIndex) this.cancelCleanup(name);
+    if (queuedInTickIndex >= tickIndex) this.cancel(name);
 
     let callbacks = queue[shouldQueueInTickIndex];
     if (!callbacks) {

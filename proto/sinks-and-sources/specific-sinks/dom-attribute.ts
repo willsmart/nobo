@@ -1,13 +1,5 @@
-import { ValueSink_publicInterface as ValueSink } from '../interfaces';
-import { HTMLElementSinkManager_childInterface as HTMLElementSinkManager } from './dom-element';
-import {
-  optStrings,
-  strings,
-  htmlElements,
-  OptStringName,
-  StringName,
-  HTMLElementName,
-} from '../standard-source-registries';
+import { ValueSink_publicInterface as ValueSink } from "../../../interfaces/sinks-and-sources";
+import { HTMLElementSinkManager_childInterface as HTMLElementSinkManager } from "./dom-element";
 
 export class DomAttributeSinkManager {
   elementSinkManager: HTMLElementSinkManager;

@@ -1,5 +1,5 @@
-import { HandlePromise } from '../PromiseHandler';
-import DelayedCaller from '../misc/delayedCaller';
+import { HandlePromise } from "../../interfaces/promise-handler";
+import { noboSingleton } from "../../interfaces/nobo-singleton";
 
 export default ({
   handlePromise,
@@ -10,7 +10,7 @@ export default ({
   delayMs: number;
   sliceMs: number;
 }) => ({
-  delayedCaller: new DelayedCaller({ delayMs, sliceMs }),
+  delayedCaller: noboSingleton.createDelayedCaller({ delayMs, sliceMs }),
   queueCleanup(_name: string, cleanupCallback: () => Promise<void>) {
     this.delayedCaller.enqueue(name, () => handlePromise(cleanupCallback()));
   },

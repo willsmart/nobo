@@ -3,8 +3,8 @@ import {
   ValueSink_registryInterface,
   ValueSource_stateForOwner as ValueSourceState,
   SourceName,
-} from './interfaces';
-import ValueSourceCleaningPolicy from '../source-cleaning-policies/interface';
+} from "../../interfaces/sinks-and-sources";
+import ValueSourceCleaningPolicy from "../../interfaces/source-cleaning-policies";
 
 type SourceGenerator<T> = (name: SourceName<T>) => ValueSource_ownerInterface<T>;
 
