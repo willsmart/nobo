@@ -1,4 +1,4 @@
-import { OptionalStringSource } from "./sinks-and-sources/value-source";
+import { OptionalStringSource } from "../interfaces/value-source-abstract";
 import { ValueCoord } from "./StringSourceRegistry";
 import { VariableStringSource } from "./sinks-and-sources/specific-sources/variable";
 import { MemberStringSource } from "./sinks-and-sources/specific-sources/member";

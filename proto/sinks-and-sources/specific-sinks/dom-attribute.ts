@@ -1,5 +1,10 @@
 import { ValueSink_publicInterface as ValueSink } from "../../../interfaces/sinks-and-sources";
 import { HTMLElementSinkManager_childInterface as HTMLElementSinkManager } from "./dom-element";
+import sourceRegistries, {
+  HTMLElementName,
+  NumberName,
+  OptStringName,
+} from "../../../interfaces/standard-source-registries";
 
 export class DomAttributeSinkManager {
   elementSinkManager: HTMLElementSinkManager;

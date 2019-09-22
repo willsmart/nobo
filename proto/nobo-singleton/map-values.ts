@@ -1,4 +1,6 @@
-export default function<T extends { [k: string]: I; [Symbol.iterator]: any }, I, O>(
+import { anyValue } from "../../interfaces/any";
+
+export default function<T extends { [k: string]: I; [Symbol.iterator]: Iterator<anyValue, any, undefined> }, I, O>(
   object: T,
   fn: (i: I) => O
 ): { [k: string]: O } {

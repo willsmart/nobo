@@ -1,4 +1,4 @@
-import { ValueSource } from '../value-source';
+import { ValueSource } from "../../../interfaces/value-source-abstract";
 
 export class VariableStringSource extends ValueSource<string | undefined> {
   private theValue?: string;

@@ -3,10 +3,9 @@ import {
   ValueSink_registryInterface,
   ValueSource_stateForOwner as ValueSourceState,
   SourceName,
+  SourceGenerator,
 } from "../../interfaces/sinks-and-sources";
 import ValueSourceCleaningPolicy from "../../interfaces/source-cleaning-policies";
-
-type SourceGenerator<T> = (name: SourceName<T>) => ValueSource_ownerInterface<T>;
 
 export default class ValueSourceRegistry<T> {
   constructor({

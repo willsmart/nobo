@@ -1,4 +1,4 @@
-import { StringSource } from './sinks-and-sources/value-source';
+import { StringSource } from "../interfaces/value-source-abstract";
 
 export type ValueCoord = {
   type: string;
@@ -19,7 +19,7 @@ export class StringSourceRegistry {
   }
 
   getExistingSource(coord: string | ValueCoord): StringSource | undefined {
-    if (typeof coord !== 'string') {
+    if (typeof coord !== "string") {
       coord = coord.stringCoord || StringSourceRegistry.constructStringCoord(coord);
     }
     return this.sources[coord];
@@ -27,7 +27,7 @@ export class StringSourceRegistry {
 
   getSource(coord: string | ValueCoord): StringSource {
     let valueCoord: ValueCoord | undefined;
-    if (typeof coord !== 'string') {
+    if (typeof coord !== "string") {
       valueCoord = coord;
       coord = coord.stringCoord || StringSourceRegistry.constructStringCoord(coord);
     }

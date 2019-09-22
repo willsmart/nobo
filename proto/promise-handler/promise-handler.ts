@@ -3,9 +3,10 @@ import {
   HandlePromise,
   PromiseOrPromiseGenerator,
 } from "../../interfaces/promise-handler";
+import { anyValue } from "../../interfaces/any";
 
 export class PromiseHandler {
-  promises: Promise<any>[] = [];
+  promises: Promise<anyValue>[] = [];
   generators: Array<(handlePromise: HandlePromise) => PromiseOrPromiseGenerator | undefined> = [];
 
   owner: PromiseHandlerOwner;
