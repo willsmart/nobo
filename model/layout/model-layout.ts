@@ -1,129 +1,92 @@
-import { anyPrimitive } from '../../interface/any';
-import { attribute } from './model-decorators';
+import { model, ModelClass as Class, LinkageArity as Link, LinkageOwner as Owner } from "./nobo-model";
 
-class ModelClass {
-  name: string;
-  attributes: { [key: string]: Attribute };
+const App = model("App", {
+    name: { clas: Class.string, default: "TriggerHappy demo" },
+  }),
+  User = model("User", {
+    name: { clas: Class.string, default: "Unnamed user" },
+    email: Class.string,
+    bio: Class.string,
+    picture: { clas: Class.string, default: "hello" },
+    tagPath: Class.string,
+    functions: {
+      clas: "Function",
+      linkage: Link.manyChildren,
+      children: {
+        sig: Class.string,
+        blurb: Class.string,
+        body: Class.string,
+        sigJson: Class.string,
+        bodyJson: Class.string,
+        tagPath: Class.string,
+        functionDependencies: { clas: "FunctionDependency", linkage: Link.manyChildren },
+      },
+    },
+    posts: {
+      clas: "Post",
+      linkage: Link.manyChildren,
+      children: {
+        body: Class.string,
+        replies: { clas: "Post", linkage: { arity: Link.manyChildren, as: "replyToPost" } },
 
-  constructor(name: string, attributes: { [key: string]: Attribute }) {
-    this.name = name;
-    this.attributes = attributes;
-  }
-}
+        postedObjects: { clas: "PostableObject", linkage: { arity: Link.manyChildren, as: "inPost" } },
+      },
+    },
+    followedObjects: { clas: "FollowableObject", linkage: Link.manyChildren },
 
-class Attribute {
-  clas: ModelClass;
-  default: anyPrimitive | (() => string);
-  attributes: { [key: string]: Attribute };
+    taggedObjects: { clas: "TagOfObject", linkage: Link.manyChildren },
 
-  constructor(clas: ModelClass, defaultValue: anyPrimitive | (() => string), attributes: { [key: string]: Attribute }) {
-    this.clas = clas;
-    this.default = defaultValue;
-    this.attributes = attributes;
-  }
-}
+    topLevelTags: { clas: "Tag", linkage: { arity: Link.manyChildren, as: "topLevelTagInUser" } },
 
-type AttributeDecl = [
-  Class,
-
-    | anyPrimitive
-    | {
-        default: anyPrimitive | (() => string);
-        [key: string]: AttributeDecl;
-      }
-];
-
-function model(name: string, options: { [key: string]: AttributeDecl }): Model {
-  const attributes: { [key: string]: Attribute } = {};
-  for (const [key, [clas, rawAttributes]] of Object.entries(options)) {
-    attributes[key] = attribute(clas, rawAttributes);
-  }
-  return new ModelClass(name, attributes);
-}
-
-function attribute(...[clas, rawAttributes]: AttributeDecl): Attribute {
-  const attributes: { [key: string]: Attribute } = {};
-  let defaultValue: anyPrimitive | (() => string);
-
-  if (!rawAttributes || typeof rawAttributes !== 'object') {
-    defaultValue = rawAttributes;
-  } else {
-    defaultValue = rawAttributes.default;
-    for (const [key, rawAttribute] of Object.entries(rawAttributes)) {
-      attributes[key] = attribute(...rawAttribute);
-    }
-  }
-  return new Attribute(clas, defaultValue, attributes);
-}
-
-// function model()
-
-// const App = model('App', {
-//   name: [Model.string, "TriggerHappy demo"]
-// }
-// const App = model({
-//   name: attribute(Model.string, "TriggerHappy demo")
-// }
-/*
-- app(App):
-    name(string): {default: "TriggerHappy demo"}
-
-- user(User):
-    name(string): {default: "Unnamed user"}
-    email(string): null
-    bio(string): null
-    picture(string): "hello"
-    tag_path: null
-
-    ~< functions(Function):
-      sig(string): null
-      blurb(string): null
-      body(string): null
-      sig_json(string): null
-      body_json(string): null
-      tag_path(string): null
-      ~< function_dependencies(FunctionDependency): null
-
-    ~< posts(Post):
-      body(string): null
-      ~< replies(Post):
-        as: reply_to_post
-
-      ~< posted_objects(PostableObject):
-        as: in_post
-
-    ~< followed_objects(FollowableObject): null
-
-    ~< tagged_objects(TagOfObject): null
-
-    ~< topLevelTags(Tag):
-      as: topLevelTagInUser
-
-    ~< tags(Tag):
-      name(string): null
-      key(string): null
-      blurb(string): null
-      tag_path(string): null
-      ~< tags_by_users(TagOfObject):
-        -~ tagged_object(TaggedObject):
-          as: user_tag
-      ~< tagged_objects(TaggedObject):
-        tag_count(integer): 0
-
-- posted_object(PostableObject):
-    -~ user(User): null
-    -~ post(Post): null
-    -~ function(Function): null
-    -~ tag(Tag): null
-
-- followed_object(FollowableObject):
-    -~ user(User): null
-    -~ function(Function): null
-    -~ tag(Tag): null
-
-- tagged_object(TaggedObject):
-    -~ user(User): null
-    -~ post(Post): null
-    -~ function(Function): null
-    -~ tag(Tag): null
-*/
+    tags: {
+      clas: "Tag",
+      linkage: Link.manyChildren,
+      children: {
+        name: Class.string,
+        key: Class.string,
+        blurb: Class.string,
+        tagPath: Class.string,
+        tagsByUsers: {
+          clas: "TagOfObject",
+          linkage: Link.manyChildren,
+          children: {
+            taggedObject: { clas: "TaggedObject", linkage: { arity: Link.oneLink, as: "userTag" } },
+          },
+        },
+        taggedObjects: {
+          clas: "TaggedObject",
+          linkage: Link.manyChildren,
+          children: {
+            tagCount: { clas: Class.integer, default: 0 },
+          },
+        },
+      },
+    },
+    postedObject: {
+      clas: "PostableObject",
+      children: {
+        user: { clas: "User", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        post: { clas: "Post", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        function: { clas: "Function", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        tag: { clas: "Tag", linkage: { arity: Link.oneLink, owner: Owner.child } },
+      },
+    },
+    followedObject: {
+      clas: "FollowableObject",
+      children: {
+        user: { clas: "User", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        function: { clas: "Function", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        tag: { clas: "Tag", linkage: { arity: Link.oneLink, owner: Owner.child } },
+      },
+    },
+    taggedObject: {
+      clas: "TaggedObject",
+      children: {
+        user: { clas: "User", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        post: { clas: "Post", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        function: { clas: "Function", linkage: { arity: Link.oneLink, owner: Owner.child } },
+        tag: { clas: "Tag", linkage: { arity: Link.oneLink, owner: Owner.child } },
+      },
+    },
+  });
+export default { App, User };
