@@ -3,11 +3,13 @@ import { anyPrimitive } from "../../interface/any";
 export class ModelClass {
   static all: { [name: string]: ModelClass } = {};
   static string = new ModelClass("string");
+  static text = new ModelClass("text");
   static integer = new ModelClass("integer");
   static boolean = new ModelClass("boolean");
+  static datetime = new ModelClass("datetime");
 
+  modelClassInstance: boolean;
   name: string;
-  as: string;
   attributes: { [key: string]: ModelAttribute } = {};
 
   static named(name: string): ModelClass {
@@ -15,12 +17,7 @@ export class ModelClass {
   }
 
   setAttribute(key: string, attribute: Attribute) {
-    const linkage = attribute.linkage
-        ? {
-            ...attribute.linkage,
-            as: attribute.linkage.as || this.as,
-          }
-        : undefined,
+    const linkage = attribute.linkage,
       modelAttribute = (this.attributes[key] = new ModelAttribute(
         attribute.dataType,
         attribute.default,
@@ -30,12 +27,13 @@ export class ModelClass {
         key
       ));
     const opposingAttribute = modelAttribute.opposingLinkAttribute;
-    if (opposingAttribute && linkage) attribute.dataType.setAttribute(linkage.as, opposingAttribute);
+    if (opposingAttribute && linkage && linkage.parentName)
+      attribute.dataType.setAttribute(linkage.parentName, opposingAttribute);
   }
 
-  constructor(name: string, as: string | undefined = undefined, attributes: { [key: string]: Attribute } = {}) {
+  constructor(name: string, attributes: { [key: string]: Attribute } = {}) {
     this.name = name;
-    this.as = as || name.replace(/^\w/, c => c.toLowerCase());
+    this.modelClassInstance = true;
     for (const [key, attribute] of Object.entries(attributes)) {
       this.setAttribute(key, attribute);
     }
@@ -83,7 +81,7 @@ class ModelAttribute extends Attribute {
     return new Attribute(
       this.enclosingType,
       undefined,
-      { arity: oppositeArity(this.linkage.arity), owner: oppositeOwner(this.linkage.owner), as: this.key },
+      { arity: oppositeArity(this.linkage.arity), owner: oppositeOwner(this.linkage.owner), parentName: this.key },
       {}
     );
   }
@@ -130,17 +128,15 @@ function oppositeOwner(owner?: LinkageOwner): LinkageOwner {
   }
 }
 
-export type LinkageType = { arity: LinkageArity; owner: LinkageOwner; as?: string };
+export type LinkageType = { arity: LinkageArity; owner: LinkageOwner; parentName?: string };
 
-type AttributeDecl =
-  | ModelClass
-  | string
-  | {
-      clas: ModelClass | string;
-      default?: anyPrimitive | ValueReference | (() => anyPrimitive | ValueReference);
-      linkage?: LinkageArity | { arity: LinkageArity; owner?: LinkageOwner; as?: string };
-      children?: { [key: string]: AttributeDecl };
-    };
+type AttributeDecl = {
+  clas: ModelClass | string;
+  name?: string;
+  default?: anyPrimitive | ValueReference | (() => anyPrimitive | ValueReference);
+  linkage?: LinkageArity | { arity: LinkageArity; owner?: LinkageOwner; parentName?: string };
+  children?: { [key: string]: AttributeDecl };
+};
 
 export function model(
   name: string | { name: string; as: string },
@@ -148,28 +144,39 @@ export function model(
 ): ModelClass {
   const attributes: { [key: string]: Attribute } = {};
   for (let [key, attributeDecl] of Object.entries(attributeDecls)) {
-    attributes[key] = attribute(attributeDecl);
+    attributes[key] = attribute(
+      {
+        name: key,
+        ...attributeDecl,
+      },
+      typeof name === "string" ? name : name.as || name.name
+    );
   }
-  const as = typeof name === "object" ? name.as : name;
   name = typeof name === "object" ? name.name : name;
-  return new ModelClass(name, as, attributes);
+  return new ModelClass(name, attributes);
 }
 
-export function attribute(decl: AttributeDecl): Attribute {
-  if (typeof decl === "string" || "name" in decl) decl = { clas: decl };
-
+export function attribute(decl: AttributeDecl, parentName?: string): Attribute {
   const children: { [key: string]: Attribute } = {};
   if (decl.children)
     for (let [key, child] of Object.entries(decl.children)) {
-      children[key] = attribute(child);
+      children[key] = attribute(
+        {
+          name: key,
+          ...child,
+        },
+        decl.name
+      );
     }
 
-  return new Attribute(
-    typeof decl.clas === "string" ? ModelClass.named(decl.clas) : decl.clas,
-    decl.default,
-    decl.linkage
-      ? { owner: LinkageOwner.parent, ...(typeof decl.linkage !== "object" ? { arity: decl.linkage } : decl.linkage) }
-      : undefined,
-    children
-  );
+  const clas = typeof decl.clas === "string" ? ModelClass.named(decl.clas) : decl.clas,
+    linkage = decl.linkage
+      ? {
+          owner: LinkageOwner.parent,
+          parentName: parentName,
+          ...(typeof decl.linkage !== "object" ? { arity: decl.linkage } : decl.linkage),
+        }
+      : undefined;
+
+  return new Attribute(clas, decl.default, linkage, children);
 }

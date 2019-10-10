@@ -5,20 +5,20 @@ const App = model("App", {
   }),
   User = model("User", {
     name: { clas: Class.string, default: "Unnamed user" },
-    email: Class.string,
-    bio: Class.string,
+    email: { clas: Class.string },
+    bio: { clas: Class.string },
     picture: { clas: Class.string, default: "hello" },
-    tagPath: Class.string,
+    tagPath: { clas: Class.string },
     functions: {
       clas: "Function",
       linkage: Link.manyChildren,
       children: {
-        sig: Class.string,
-        blurb: Class.string,
-        body: Class.string,
-        sigJson: Class.string,
-        bodyJson: Class.string,
-        tagPath: Class.string,
+        sig: { clas: Class.string },
+        blurb: { clas: Class.string },
+        body: { clas: Class.string },
+        sigJson: { clas: Class.string },
+        bodyJson: { clas: Class.string },
+        tagPath: { clas: Class.string },
         functionDependencies: { clas: "FunctionDependency", linkage: Link.manyChildren },
       },
     },
@@ -26,31 +26,31 @@ const App = model("App", {
       clas: "Post",
       linkage: Link.manyChildren,
       children: {
-        body: Class.string,
-        replies: { clas: "Post", linkage: { arity: Link.manyChildren, as: "replyToPost" } },
+        body: { clas: Class.string },
+        replies: { clas: "Post", linkage: { arity: Link.manyChildren, parentName: "replyToPost" } },
 
-        postedObjects: { clas: "PostableObject", linkage: { arity: Link.manyChildren, as: "inPost" } },
+        postedObjects: { clas: "PostableObject", linkage: { arity: Link.manyChildren, parentName: "inPost" } },
       },
     },
     followedObjects: { clas: "FollowableObject", linkage: Link.manyChildren },
 
     taggedObjects: { clas: "TagOfObject", linkage: Link.manyChildren },
 
-    topLevelTags: { clas: "Tag", linkage: { arity: Link.manyChildren, as: "topLevelTagInUser" } },
+    topLevelTags: { clas: "Tag", linkage: { arity: Link.manyChildren, parentName: "topLevelTagInUser" } },
 
     tags: {
       clas: "Tag",
       linkage: Link.manyChildren,
       children: {
-        name: Class.string,
-        key: Class.string,
-        blurb: Class.string,
-        tagPath: Class.string,
+        name: { clas: Class.string },
+        key: { clas: Class.string },
+        blurb: { clas: Class.string },
+        tagPath: { clas: Class.string },
         tagsByUsers: {
           clas: "TagOfObject",
           linkage: Link.manyChildren,
           children: {
-            taggedObject: { clas: "TaggedObject", linkage: { arity: Link.oneLink, as: "userTag" } },
+            taggedObject: { clas: "TaggedObject", linkage: { arity: Link.oneLink, parentName: "userTag" } },
           },
         },
         taggedObjects: {
